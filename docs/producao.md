@@ -110,8 +110,21 @@ painel por dentro da máquina.
 | Build | `npm run build` |
 | Arranque | `npm start` |
 
-`npm start` arranca os dois motores, o ouvinte da conta e o painel (`next start`),
-reinicia-os se caírem e usa a porta que a Hostinger der em `PORT`.
+`npm start` corre `server.mjs`: um só processo que **escuta ele próprio** na porta
+`PORT` e arranca os motores e o ouvinte da conta como processo filho, reiniciando-o se
+cair. Se a Hostinger pedir um "ficheiro de entrada", é `server.mjs`.
+
+**Porque não um script que lança processos.** O primeiro deploy respondia 503 em
+todas as páginas: o `npm start` de então só lançava o `next start` e o motor como
+processos à parte, e a plataforma, não vendo o processo dela a escutar na porta,
+considerava a aplicação em baixo.
+
+Para correr só o painel, sem motores: `MOTORES=desligados`.
+
+**Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
+outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
+chegar à aplicação. Um `sw.js` alheio instala o service worker errado no browser de
+quem visita. Apague-os no Gestor de Ficheiros.
 
 ### Variáveis de ambiente
 
