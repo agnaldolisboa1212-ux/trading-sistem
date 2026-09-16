@@ -1,0 +1,26 @@
+{
+  "name": "@trading/data",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./deriv-simbolos": {
+      "types": "./dist/deriv-simbolos.d.ts",
+      "default": "./dist/deriv-simbolos.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist",
+    "catalog:sync": "curl -sL -o scripts/public-apis.md https://raw.githubusercontent.com/public-apis/public-apis/master/README.md && python scripts/parse_readme.py && python scripts/gen_catalog.py"
+  },
+  "dependencies": {
+    "@trading/core": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

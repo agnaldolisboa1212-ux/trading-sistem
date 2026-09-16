@@ -26,6 +26,12 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const producao = process.argv.includes('--producao');
+/*
+ * `--sem-compilar`: a plataforma de alojamento (Hostinger, etc.) ja correu
+ * `npm run build` num passo proprio. Voltar a compilar no arranque duplicaria o
+ * tempo de deploy e, sem permissao de escrita em `dist/`, falharia.
+ */
+const semCompilar = process.argv.includes('--sem-compilar');
 const windows = process.platform === 'win32';
 
 const cor = (codigo, texto) => (process.stdout.isTTY ? `\x1b[${codigo}m${texto}\x1b[0m` : texto);
@@ -51,9 +57,9 @@ function correrSincrono(rotulo, comando, args, cwd = RAIZ) {
 }
 
 // --- 1. compilar -------------------------------------------------------------
-correrSincrono('a compilar pacotes e motores', 'npx', ['tsc', '-b']);
+if (!semCompilar) correrSincrono('a compilar pacotes e motores', 'npx', ['tsc', '-b']);
 
-if (producao) {
+if (producao && !semCompilar) {
   correrSincrono('a compilar o painel para produção', 'npx', ['next', 'build'], join(RAIZ, 'apps', 'dashboard'));
 }
 
@@ -71,12 +77,22 @@ const processos = [
     cor: '35',
     comando: 'npx',
     /*
-     * 127.0.0.1 por omissão. Em desenvolvimento o token Deriv do dono responde
-     * sem login (lib/deriv/decisao.ts), e isso só é seguro se mais ninguém na
-     * rede chegar ao painel. Em produção, atrás de um proxy na mesma máquina,
-     * também é o certo. `HOST=0.0.0.0` para expor de propósito.
+     * Em desenvolvimento, 127.0.0.1: o token Deriv do dono responde sem login
+     * (lib/deriv/decisao.ts), e isso só é seguro se mais ninguém na rede chegar
+     * ao painel.
+     *
+     * Em produção, 0.0.0.0: o proxy da plataforma pode ligar-se por outra
+     * interface, e aí a proteção não é o endereço — é o login obrigatório e a
+     * regra do dono. `HOST` sobrepõe em qualquer dos casos.
      */
-    args: ['next', producao ? 'start' : 'dev', '-p', process.env.PORT ?? '3000', '-H', process.env.HOST ?? '127.0.0.1'],
+    args: [
+      'next',
+      producao ? 'start' : 'dev',
+      '-p',
+      process.env.PORT ?? '3000',
+      '-H',
+      process.env.HOST ?? (producao ? '0.0.0.0' : '127.0.0.1'),
+    ],
     cwd: join(RAIZ, 'apps', 'dashboard'),
   },
 ];

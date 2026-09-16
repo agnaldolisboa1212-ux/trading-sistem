@@ -13,7 +13,10 @@ packages/data/scripts/public-apis.md
 # de cada maquina. `.dados/` guarda as subscricoes push — endpoints de browsers
 # de pessoas reais.
 data/*.json
-**/data/*.json
+# Atencao: NAO usar `**/data/*.json`. Essa regra escondia tambem
+# packages/data/package.json e packages/data/tsconfig.json — o pacote inteiro
+# deixava de existir no GitHub e o deploy na Hostinger falhava.
+apps/engine/data/
 !data/.gitkeep
 .dados/
 apps/dashboard/.dados/

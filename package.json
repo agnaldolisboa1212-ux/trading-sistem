@@ -9,10 +9,10 @@
     "apps/*"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
-    "build": "npm run build --workspaces --if-present",
+    "build": "tsc -b && npm run build -w @trading/dashboard",
     "typecheck": "tsc -b",
     "test": "npm run build -w @trading/engine && node --test packages/core/test/*.test.mjs apps/engine/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "engine:scan": "npm run scan -w @trading/engine",
@@ -28,7 +28,8 @@
     "sistema": "node scripts/sistema.mjs",
     "sistema:producao": "node scripts/sistema.mjs --producao",
     "engine:tempo-real": "npm run build -w @trading/engine && node apps/engine/dist/index.js tempo-real",
-    "engine:estado": "node apps/engine/dist/index.js estado"
+    "engine:estado": "node apps/engine/dist/index.js estado",
+    "start": "node scripts/sistema.mjs --producao --sem-compilar"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
