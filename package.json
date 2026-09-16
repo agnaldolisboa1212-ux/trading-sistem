@@ -1,0 +1,37 @@
+{
+  "name": "sistema-de-trading",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sistema de sinais de trading baseado em MMXM (Market Maker Models), SMT Divergence e Time & Price alignment — escala macro (diario/semanal) para swing trading.",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b",
+    "test": "npm run build -w @trading/engine && node --test packages/core/test/*.test.mjs apps/engine/test/*.test.mjs apps/dashboard/test/*.test.mjs",
+    "engine:scan": "npm run scan -w @trading/engine",
+    "engine:dev": "npm run dev -w @trading/engine",
+    "dashboard:dev": "npm run dev -w @trading/dashboard",
+    "db:push": "supabase db push",
+    "backtest": "npm run backtest -w @trading/engine",
+    "backtest:sweep": "npm run backtest -w @trading/engine -- --sweep",
+    "setup:supabase": "node scripts/setup-supabase.mjs",
+    "test:notify": "node scripts/test-notify.mjs",
+    "setup:telegram": "node scripts/setup-telegram.mjs",
+    "setup:n8n": "node scripts/setup-n8n.mjs",
+    "sistema": "node scripts/sistema.mjs",
+    "sistema:producao": "node scripts/sistema.mjs --producao",
+    "engine:tempo-real": "npm run build -w @trading/engine && node apps/engine/dist/index.js tempo-real",
+    "engine:estado": "node apps/engine/dist/index.js estado"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

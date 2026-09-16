@@ -1,0 +1,1434 @@
+{
+  "Finance": [
+    {
+      "name": "Marketstack",
+      "url": "https://marketstack.com/?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Real-Time, Intraday & Historical Market Data API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Aletheia",
+      "url": "https://aletheiaapi.com/",
+      "description": "Insider trading data, earnings call analysis, financial statements, and more",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Alpaca",
+      "url": "https://alpaca.markets/docs/api-documentation/api-v2/market-data/alpaca-data-api-v2/",
+      "description": "Realtime and historical market data on all US equities and ETFs",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Alpha Vantage",
+      "url": "https://www.alphavantage.co/",
+      "description": "Realtime and historical stock data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Banco do Brasil",
+      "url": "https://developers.bb.com.br/home",
+      "description": "All Banco do Brasil financial transaction APIs",
+      "auth": "`OAuth`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Bank Data",
+      "url": "https://apilayer.com/marketplace/bank_data-api",
+      "description": "Instant IBAN and SWIFT number validation across the globe",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Billplz",
+      "url": "https://www.billplz.com/api",
+      "description": "Payment platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Binlist",
+      "url": "https://binlist.net/",
+      "description": "Public access to a database of IIN/BIN information",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Boleto.Cloud",
+      "url": "https://boleto.cloud/",
+      "description": "A api to generate boletos in Brazil",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BriefTape",
+      "url": "https://brieftape.com",
+      "description": "Real-time AI-summarized SEC filings, Fed, FDA and BLS data, ticker-tagged",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Citi",
+      "url": "https://sandbox.developerhub.citi.com/api-catalog-list",
+      "description": "All Citigroup account and statement data APIs",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CongressInvests",
+      "url": "https://congressinvests.com",
+      "description": "Real-time U.S. congressional stock trade disclosures from Senate EFD and House Clerk",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Dino.markets",
+      "url": "https://dino.markets/docs",
+      "description": "Matched Kalshi and Polymarket prediction-market data, cross-venue spreads",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "Econdb",
+      "url": "https://www.econdb.com/api/",
+      "description": "Global macroeconomic data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "EconPulse",
+      "url": "https://econpulse.io",
+      "description": "Live economic data — CPI, PPI, energy, treasury rates, BTC premium",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Edgrapi",
+      "url": "https://edgrapi.com",
+      "description": "Clean SEC EDGAR company financials, ratios, filings and 10-K/10-Q sections as normalized JSON",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "EOD Historical Data",
+      "url": "https://eodhd.com/",
+      "description": "Real-time and historical stock market data with 150+ exchanges",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Fed Treasury",
+      "url": "https://fiscaldata.treasury.gov/api-documentation/",
+      "description": "U.S. Department of the Treasury Data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Filingrail",
+      "url": "https://rapidapi.com/hudson-enterprises-llc-hudson-enterprises-llc-default/api/filingrail",
+      "description": "SEC EDGAR filings, XBRL financials, Form 4 insider trades, 8-K events and 13F holdings",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Finage",
+      "url": "https://finage.co.uk",
+      "description": "Finage is a stock, currency, cryptocurrency, indices, and ETFs real-time & historical data provider",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Financial Modeling Prep",
+      "url": "https://site.financialmodelingprep.com/developer/docs",
+      "description": "Realtime and historical stock data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Finnhub",
+      "url": "https://finnhub.io/docs/api",
+      "description": "Real-Time RESTful APIs and Websocket for Stocks, Currencies, and Crypto",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "FRED",
+      "url": "https://fred.stlouisfed.org/docs/api/fred/",
+      "description": "Economic data from the Federal Reserve Bank of St. Louis",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Front Accounting APIs",
+      "url": "https://frontaccounting.com/fawiki/index.php?n=Devel.SimpleAPIModule",
+      "description": "Front accounting is multilingual and multicurrency software for small businesses",
+      "auth": "`OAuth`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Goldprice.dev",
+      "url": "https://goldprice.dev/docs",
+      "description": "Cross-validated gold, silver & copper spot, futures & 30-year history in 13 currencies",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Halal Terminal",
+      "url": "https://api.halalterminal.com/docs",
+      "description": "Shariah-compliant stock and ETF screening across 5 methodologies, zakat and purification",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Helium",
+      "url": "https://heliumtrades.com/mcp-page/",
+      "description": "News with media bias scoring, balanced news synthesis, live market data, AI options pricing",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Hotstoks",
+      "url": "https://hotstoks.com?utm_source=public-apis",
+      "description": "Stock market data powered by SQL",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "IBANforge",
+      "url": "https://api.ibanforge.com",
+      "description": "IBAN validation and BIC/SWIFT lookup for 89 countries with 121k+ BIC entries",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "IEX Cloud",
+      "url": "https://iexcloud.io/docs/api/",
+      "description": "Realtime & Historical Stock and Market Data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "IG",
+      "url": "https://labs.ig.com/gettingstarted",
+      "description": "Spreadbetting and CFD Market Data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Indian Mutual Fund",
+      "url": "https://www.mfapi.in/",
+      "description": "Get complete history of India Mutual Funds Data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Intrinio",
+      "url": "https://intrinio.com/",
+      "description": "A wide selection of financial data feeds",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Klarna",
+      "url": "https://docs.klarna.com/klarna-payments/api/payments-api/",
+      "description": "Klarna payment and shopping service",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "LiquiLens",
+      "url": "https://liquilens.in/developers/",
+      "description": "Public-record bank and lender failure-risk evidence",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "MercadoPago",
+      "url": "https://www.mercadopago.com.br/developers/es/reference",
+      "description": "Mercado Pago API reference - all the information you need to develop your integrations",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Mono",
+      "url": "https://mono.co/",
+      "description": "Connect with users’ bank accounts and access transaction data in Africa",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Moov",
+      "url": "https://docs.moov.io/api/",
+      "description": "The Moov API makes it simple for platforms to send, receive, and store money",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "NORTH7 Agent",
+      "url": "https://north7.ai/v1/docs",
+      "description": "Trading signals, market analysis and geopolitical intelligence",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Nordigen",
+      "url": "https://nordigen.com/en/account_information_documenation/integration/quickstart_guide/",
+      "description": "Connect to bank accounts using official bank APIs and get raw transaction data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "OpenFIGI",
+      "url": "https://www.openfigi.com/api",
+      "description": "Equity, index, futures, options symbology from Bloomberg LP",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Plaid",
+      "url": "https://www.plaid.com/docs",
+      "description": "Connect with user's bank accounts and access transaction data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Polygon",
+      "url": "https://polygon.io/",
+      "description": "Historical stock market data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Portfolio Optimizer",
+      "url": "https://portfoliooptimizer.io/",
+      "description": "Portfolio analysis and optimization",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Razorpay IFSC",
+      "url": "https://razorpay.com/docs/",
+      "description": "Indian Financial Systems Code (Bank Branch Codes)",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Real Time Finance",
+      "url": "https://github.com/Real-time-finance/finance-websocket-API/",
+      "description": "Websocket API to access realtime stock data",
+      "auth": "`apiKey`",
+      "https": "No",
+      "cors": "Unknown"
+    },
+    {
+      "name": "SEC EDGAR Data",
+      "url": "https://www.sec.gov/edgar/sec-api-documentation",
+      "description": "API to access annual reports of public US companies",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "SmartAPI",
+      "url": "https://smartapi.angelbroking.com/",
+      "description": "Gain access to set of <SmartAPI> and create end-to-end broking services",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "StockData",
+      "url": "https://www.StockData.org",
+      "description": "Real-Time, Intraday & Historical Market Data, News and Sentiment API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "StockFit",
+      "url": "https://api.stockfit.io/docs",
+      "description": "SEC filings, financial statements, earnings, ETF holdings and ownership data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Styvio",
+      "url": "https://www.Styvio.com",
+      "description": "Realtime and historical stock data and current stock sentiment",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Sugra",
+      "url": "https://sugra.ai",
+      "description": "One API for market data, economics, commodities, climate, and global news. LLM-ready JSON",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Tax Data",
+      "url": "https://apilayer.com/marketplace/tax_data-api",
+      "description": "Instant VAT number and tax validation across the globe",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "TickerLayer",
+      "url": "https://tickerlayer.com",
+      "description": "Real-time and historical market data for stocks, forex, crypto and more",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Top 5 Stocks",
+      "url": "https://top5stocks.netlify.app/developers",
+      "description": "Daily AI-ranked stock and crypto watchlists",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Tradier",
+      "url": "https://developer.tradier.com",
+      "description": "US equity/option market data (delayed, intraday, historical)",
+      "auth": "`OAuth`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Twelve Data",
+      "url": "https://twelvedata.com/",
+      "description": "Stock market data (real-time & historical)",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "VAT Validation",
+      "url": "https://www.abstractapi.com/vat-validation-rates-api",
+      "description": "Validate VAT numbers and calculate VAT rates",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "WallstreetBets",
+      "url": "https://dashboard.nbshare.io/apps/reddit/api/",
+      "description": "WallstreetBets Stock Comments Sentiment Analysis",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Yahoo Finance",
+      "url": "https://www.yahoofinanceapi.com/",
+      "description": "Real time low latency Yahoo Finance API for stock market, crypto currencies, and currency exchange",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "YNAB",
+      "url": "https://api.youneedabudget.com/",
+      "description": "Budgeting & Planning",
+      "auth": "`OAuth`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Zelothorn",
+      "url": "https://zelothorn.com/developers",
+      "description": "Plain-English explanations of US public companies with SEC filings and earnings data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Zoho Books",
+      "url": "https://www.zoho.com/books/api/v3/",
+      "description": "Online accounting software, built for your business",
+      "auth": "`OAuth`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Deriv",
+      "url": "https://developers.deriv.com/docs/",
+      "description": "Trading API for forex, commodities, indices, cryptocurrencies and synthetic indices; market data requires no token",
+      "auth": "apiKey",
+      "https": "Yes",
+      "cors": "unknown"
+    }
+  ],
+  "Cryptocurrency": [
+    {
+      "name": "Coinlayer",
+      "url": "https://coinlayer.com?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Real-time Crypto Currency Exchange Rates",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "0x",
+      "url": "https://0x.org/api",
+      "description": "API for querying token and pool stats across various liquidity pools",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "1inch",
+      "url": "https://1inch.io/api/",
+      "description": "API for querying decentralize exchange",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Alchemy Ethereum",
+      "url": "https://docs.alchemy.com/alchemy/",
+      "description": "Ethereum Node-as-a-Service Provider",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Alpha (Mossland)",
+      "url": "https://alpha.moss.land/developers",
+      "description": "Korean crypto channel stance + RAG Q&A + canonical entity/topic/event store",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Binance",
+      "url": "https://github.com/binance/binance-spot-api-docs",
+      "description": "Exchange for Trading Cryptocurrencies based in China",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Bitcambio",
+      "url": "https://nova.bitcambio.com.br/api/v3/docs#a-public",
+      "description": "Get the list of all traded assets in the exchange",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BitcoinAverage",
+      "url": "https://apiv2.bitcoinaverage.com/",
+      "description": "Digital Asset Price Data for the blockchain industry",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BitcoinCharts",
+      "url": "https://bitcoincharts.com/about/exchanges/",
+      "description": "Financial and Technical Data related to the Bitcoin Network",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Bitcoin Halving",
+      "url": "https://why21million.com/halving-api/",
+      "description": "Halving era, block reward, and schedule arithmetic for any Bitcoin block height",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Bitfinex",
+      "url": "https://docs.bitfinex.com/docs",
+      "description": "Cryptocurrency Trading Platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BitPanda",
+      "url": "https://developers.bitpanda.com",
+      "description": "Cryptocurrency Information",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Bitmex",
+      "url": "https://www.bitmex.com/app/apiOverview",
+      "description": "Real-Time Cryptocurrency derivatives trading platform based in Hong Kong",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Bittrex",
+      "url": "https://bittrex.github.io/api/v3",
+      "description": "Next Generation Crypto Trading Platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Block",
+      "url": "https://block.io/docs/basic",
+      "description": "Bitcoin Payment, Wallet & Transaction Data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BlazePhoenix",
+      "url": "https://blazephoenix.xyz/api",
+      "description": "On-chain DEX aggregator quotes and route execution data",
+      "auth": "`No`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Block Lottos",
+      "url": "https://blocklottos.com/openapi.json",
+      "description": "On-chain lottery, draw history, jackpot and advertising endpoints",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Blockchain",
+      "url": "https://www.blockchain.com/api",
+      "description": "Bitcoin Payment, Wallet & Transaction Data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "blockfrost Cardano",
+      "url": "https://blockfrost.io/",
+      "description": "Interaction with the Cardano mainnet and several testnets",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Brave NewCoin",
+      "url": "https://bravenewcoin.com/developers",
+      "description": "Real-time and historic crypto data from more than 200+ exchanges",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BTCGlobe",
+      "url": "https://btcglobe.live/join#makers",
+      "description": "Bitcoin height, fees, mempool and peer data served live from two self-hosted nodes",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "btcnode.uk",
+      "url": "https://btcnode.uk",
+      "description": "Bitcoin blockchain data, fees, mempool, SEC insider trades, Reddit sentiment. x402 micropayments for paid endpoints.",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "BtcTurk",
+      "url": "https://docs.btcturk.com/",
+      "description": "Real-time cryptocurrency data, graphs and API that allows buy&sell",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Bybit",
+      "url": "https://bybit-exchange.github.io/docs/linear/#t-introduction",
+      "description": "Cryptocurrency data feed and algorithmic trading",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinAPI",
+      "url": "https://docs.coinapi.io/",
+      "description": "All Currency Exchanges integrate under a single api",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "Coinbase",
+      "url": "https://developers.coinbase.com",
+      "description": "Bitcoin, Bitcoin Cash, Litecoin and Ethereum Prices",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Coinbase Pro",
+      "url": "https://docs.pro.coinbase.com/#api",
+      "description": "Cryptocurrency Trading Platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinCap",
+      "url": "https://docs.coincap.io/",
+      "description": "Real time Cryptocurrency prices through a RESTful API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinDCX",
+      "url": "https://docs.coindcx.com/",
+      "description": "Cryptocurrency Trading Platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinDesk",
+      "url": "https://old.coindesk.com/coindesk-api/",
+      "description": "CoinDesk's Bitcoin Price Index (BPI) in multiple currencies",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinGecko",
+      "url": "http://www.coingecko.com/api",
+      "description": "Cryptocurrency Price, Market, and Developer/Social Data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Coinigy",
+      "url": "https://coinigy.docs.apiary.io",
+      "description": "Interacting with Coinigy Accounts and Exchange Directly",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Coinlib",
+      "url": "https://coinlib.io/apidocs",
+      "description": "Crypto Currency Prices",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinLobster",
+      "url": "https://coinlobster.com/developers",
+      "description": "Live executed whale trades across 15 exchanges and on-chain DEX with an unusualness radar",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Coinlore",
+      "url": "https://www.coinlore.com/cryptocurrency-data-api",
+      "description": "Cryptocurrencies prices, volume and more",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinMarketCap",
+      "url": "https://coinmarketcap.com/api/",
+      "description": "Cryptocurrencies Prices",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Coinpaprika",
+      "url": "https://api.coinpaprika.com",
+      "description": "Cryptocurrencies prices, volume and more",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "CoinRanking",
+      "url": "https://developers.coinranking.com/api/documentation",
+      "description": "Live Cryptocurrency data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Coinremitter",
+      "url": "https://coinremitter.com/docs",
+      "description": "Cryptocurrencies Payment & Prices",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CoinStats",
+      "url": "https://documenter.getpostman.com/view/5734027/RzZ6Hzr3?version=latest",
+      "description": "Crypto Tracker",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CryptAPI",
+      "url": "https://docs.cryptapi.io/",
+      "description": "Cryptocurrency Payment Processor",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CryptingUp",
+      "url": "https://www.cryptingup.com/apidoc/#introduction",
+      "description": "Cryptocurrency data",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CryptoCompare",
+      "url": "https://www.cryptocompare.com/api#",
+      "description": "Cryptocurrencies Comparison",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "CryptoMarket",
+      "url": "https://api.exchange.cryptomkt.com/",
+      "description": "Cryptocurrencies Trading platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Cryptonator",
+      "url": "https://www.cryptonator.com/api/",
+      "description": "Cryptocurrencies Exchange Rates",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "dYdX",
+      "url": "https://docs.dydx.exchange/",
+      "description": "Decentralized cryptocurrency exchange",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Ethplorer",
+      "url": "https://github.com/EverexIO/Ethplorer/wiki/Ethplorer-API",
+      "description": "Ethereum tokens, balances, addresses, history of transactions, contracts, and custom structures",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "EXMO",
+      "url": "https://documenter.getpostman.com/view/10287440/SzYXWKPi",
+      "description": "Cryptocurrencies exchange based in UK",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Gateio",
+      "url": "https://www.gate.io/api2",
+      "description": "API provides spot, margin and futures trading operations",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Gemini",
+      "url": "https://docs.gemini.com/rest-api/",
+      "description": "Cryptocurrencies Exchange",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Hirak Exchange Rates",
+      "url": "https://rates.hirak.site/",
+      "description": "Exchange rates between 162 currency & 300 crypto currency update each 5 min, accurate, no limits",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Huobi",
+      "url": "https://huobiapi.github.io/docs/spot/v1/en/",
+      "description": "Seychelles based cryptocurrency exchange",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Hyperliquid Market Data",
+      "url": "https://rapidapi.com/theliminalguy/api/hyperliquid-market-data-oi-funding-open-interest",
+      "description": "Hyperliquid open interest, funding and cross-venue predicted rates per coin",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "icy.tools",
+      "url": "https://developers.icy.tools/",
+      "description": "GraphQL based NFT API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Indodax",
+      "url": "https://github.com/btcid/indodax-official-api-docs",
+      "description": "Trade your Bitcoin and other assets with rupiah",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "INFURA Ethereum",
+      "url": "https://infura.io/product/ethereum",
+      "description": "Interaction with the Ethereum mainnet and several testnets",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Kraken",
+      "url": "https://docs.kraken.com/rest/",
+      "description": "Cryptocurrencies Exchange",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "KuCoin",
+      "url": "https://docs.kucoin.com/",
+      "description": "Cryptocurrency Trading Platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Localbitcoins",
+      "url": "https://localbitcoins.com/api-docs/",
+      "description": "P2P platform to buy and sell Bitcoins",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Mempool",
+      "url": "https://mempool.space/api",
+      "description": "Bitcoin API Service focusing on the transaction fee",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "MercadoBitcoin",
+      "url": "https://www.mercadobitcoin.com.br/api-doc/",
+      "description": "Brazilian Cryptocurrency Information",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Messari",
+      "url": "https://messari.io/api",
+      "description": "Provides API endpoints for thousands of crypto assets",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Mexc",
+      "url": "https://www.mexc.com/api-docs",
+      "description": "Cryptocurrency info, place order",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "monerometrics",
+      "url": "https://monerometrics.net",
+      "description": "Reorg-aware Monero (XMR) network metrics, mining-pool centralization and chain reorganizations",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Nexchange",
+      "url": "https://nexchange2.docs.apiary.io/",
+      "description": "Automated cryptocurrency exchange service",
+      "auth": "No",
+      "https": "No",
+      "cors": "Yes"
+    },
+    {
+      "name": "Nomics",
+      "url": "https://nomics.com/docs/",
+      "description": "Historical and realtime cryptocurrency prices and market data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "NovaDax",
+      "url": "https://doc.novadax.com/en-US/#introduction",
+      "description": "NovaDAX API to access all market data, trading management endpoints",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "OKEx",
+      "url": "https://www.okex.com/docs/",
+      "description": "Cryptocurrency exchange based in Seychelles",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Poloniex",
+      "url": "https://docs.poloniex.com",
+      "description": "US based digital asset exchange",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "PumpFunData",
+      "url": "https://pumpfundata.com/docs",
+      "description": "Historical Pump.fun and PumpSwap AMM swap data as hourly Parquet files",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Solana JSON RPC",
+      "url": "https://docs.solana.com/developing/clients/jsonrpc-api",
+      "description": "Provides various endpoints to interact with the Solana Blockchain",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Technical Analysis",
+      "url": "https://technical-analysis-api.com",
+      "description": "Cryptocurrency prices and technical analysis",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "VALR",
+      "url": "https://docs.valr.com/",
+      "description": "Cryptocurrency Exchange based in South Africa",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "ScriptMasterLabs x402",
+      "url": "https://acp-x402-scriptmasterlabs.onrender.com",
+      "description": "100+ SEC, DeFi, crypto, and macro endpoints for AI agents via x402 micropayments",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "ScriptMasterLabs MCP",
+      "url": "https://mcp-x402.onrender.com",
+      "description": "Model Context Protocol server with web search, social search & LLM chat paid via x402",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "WorldCoinIndex",
+      "url": "https://www.worldcoinindex.com/apiservice",
+      "description": "Cryptocurrencies Prices",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Zennet",
+      "url": "https://zennet.cloud",
+      "description": "x402 pay-per-use APIs: Polymarket signals, CEX/DEX spreads, contract risk scores, gas oracle",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "ZMOK",
+      "url": "https://zmok.io",
+      "description": "Ethereum JSON RPC API and Web3 provider",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    }
+  ],
+  "Currency Exchange": [
+    {
+      "name": "Currencylayer",
+      "url": "https://currencylayer.com?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Exchange rates and currency conversion",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Exchangerate.host",
+      "url": "https://exchangerate.host?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Free foreign exchange & crypto rates API",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Exchangeratesapi.io",
+      "url": "https://exchangeratesapi.io?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Exchange rates with currency conversion",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Fixer",
+      "url": "https://fixer.io?utm_source=Github&utm_medium=Referral&utm_campaign=Public-apis-repo-Best-sellers",
+      "description": "Exchange rates and currency conversion",
+      "auth": "`apiKey`",
+      "https": "No",
+      "cors": "Unknown"
+    },
+    {
+      "name": "1Forge",
+      "url": "https://1forge.com/forex-data-api/api-documentation",
+      "description": "Forex currency market data",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Amdoren",
+      "url": "https://www.amdoren.com/currency-api/",
+      "description": "Free currency API with over 150 currencies",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Bank of Russia",
+      "url": "https://www.cbr.ru/development/SXML/",
+      "description": "Exchange rates and currency conversion",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Currency-api",
+      "url": "https://github.com/fawazahmed0/currency-api#readme",
+      "description": "Free Currency Exchange Rates API with 150+ Currencies & No Rate Limits",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "CurrencyBeacon",
+      "url": "https://currencybeacon.com/",
+      "description": "Real-time and historical currency exchange rates with free tier",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "CurrencyFreaks",
+      "url": "https://currencyfreaks.com/",
+      "description": "Provides current and historical currency exchange rates with free plan 1K requests/month",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "CurrencyScoop",
+      "url": "https://currencyscoop.com/api-documentation",
+      "description": "Real-time and historical currency rates JSON API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Czech National Bank",
+      "url": "https://www.cnb.cz/cs/financni_trhy/devizovy_trh/kurzy_devizoveho_trhu/denni_kurz.xml",
+      "description": "A collection of exchange rates",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Economia.Awesome",
+      "url": "https://docs.awesomeapi.com.br/api-de-moedas",
+      "description": "Portuguese free currency prices and conversion with no rate limits",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "ExchangeRate-API",
+      "url": "https://www.exchangerate-api.com",
+      "description": "Free currency conversion",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Exchangerate.dev",
+      "url": "https://exchangerate.dev/docs",
+      "description": "Live & historical FX, 168 pairs back to 1999, Frankfurter-compatible, free 10k/mo",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Frankfurter",
+      "url": "https://www.frankfurter.app/docs",
+      "description": "Exchange rates, currency conversion and time series",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "FreeForexAPI",
+      "url": "https://freeforexapi.com/Home/Api",
+      "description": "Real-time foreign exchange rates for major currency pairs",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "National Bank of Poland",
+      "url": "http://api.nbp.pl/en.html",
+      "description": "A collection of currency exchange rates (data in XML and JSON)",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "paralelo.bo",
+      "url": "https://paralelo.bo/api",
+      "description": "Bolivia parallel-market USD/BOB exchange rate, aggregated from P2P sources every 60s",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "TaxID",
+      "url": "https://www.taxid.dev/docs",
+      "description": "EU VAT number validation with company name and address lookup across all 27 member states",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "VATComply.com",
+      "url": "https://www.vatcomply.com/documentation",
+      "description": "Exchange rates, geolocation and VAT number validation",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    }
+  ],
+  "Blockchain": [
+    {
+      "name": "Bitquery",
+      "url": "https://graphql.bitquery.io/ide",
+      "description": "Onchain GraphQL APIs & DEX APIs",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Blockscout",
+      "url": "https://dev.blockscout.com/",
+      "description": "Multichain block explorer REST API (with Etherscan-compatible JSON-RPC)",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "No"
+    },
+    {
+      "name": "Chainlink",
+      "url": "https://chain.link/developer-resources",
+      "description": "Build hybrid smart contracts with Chainlink",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Chainpoint",
+      "url": "https://tierion.com/chainpoint/",
+      "description": "Chainpoint is a global network for anchoring data to the Bitcoin blockchain",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "ClearTrace",
+      "url": "https://cleartracedata.com/docs",
+      "description": "Cross-frontend DEX attribution and execution quality data across Ethereum and L2s",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Covalent",
+      "url": "https://www.covalenthq.com/docs/api/",
+      "description": "Multi-blockchain data aggregator platform",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Etherscan",
+      "url": "https://etherscan.io/apis",
+      "description": "Ethereum explorer API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Get Started with Web3",
+      "url": "https://github.com/beihaili/Get-Started-with-Web3/blob/main/docs/api.md",
+      "description": "Bilingual Web3 lessons, glossary search and role-based learning paths",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "Helium",
+      "url": "https://docs.helium.com/api/blockchain/introduction/",
+      "description": "Helium is a global, distributed network of Hotspots that create public, long-range wireless coverage",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Nownodes",
+      "url": "https://nownodes.io/",
+      "description": "Blockchain-as-a-service solution that provides high-quality connection via API",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Steem",
+      "url": "https://developers.steem.io/",
+      "description": "Blockchain-based blogging and social media website",
+      "auth": "No",
+      "https": "No",
+      "cors": "No"
+    },
+    {
+      "name": "TWZRD Agent Intel",
+      "url": "https://intel.twzrd.xyz",
+      "description": "Solana on-chain agent trust scoring via MCP; 4 free tools to score, resolve and verify AI agent wallets",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Yes"
+    },
+    {
+      "name": "The Graph",
+      "url": "https://thegraph.com",
+      "description": "Indexing protocol for querying networks like Ethereum with GraphQL",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Walltime",
+      "url": "https://walltime.info/api.html",
+      "description": "To retrieve Walltime's market info",
+      "auth": "No",
+      "https": "Yes",
+      "cors": "Unknown"
+    },
+    {
+      "name": "Watchdata",
+      "url": "https://docs.watchdata.io",
+      "description": "Provide simple and reliable API access to Ethereum blockchain",
+      "auth": "`apiKey`",
+      "https": "Yes",
+      "cors": "Unknown"
+    }
+  ]
+}

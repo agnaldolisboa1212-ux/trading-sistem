@@ -1,0 +1,1935 @@
+/*
+ * Sistema de estilos — mobile-first, dois temas.
+ *
+ * A paleta vem dos mockups: verde-azeitona escuro com acento lima no tema
+ * escuro; cinza-claro com o mesmo lima no tema claro. O lima é a cor de AÇÃO
+ * (botões primários, item ativo, destaque) — nunca é usado para dados, porque
+ * competiria com o verde/vermelho de alta e baixa, que são semânticos e não
+ * podem ser confundidos com "isto é clicável".
+ *
+ * Os dois temas partilham os MESMOS nomes de token. Nenhuma cor tem a sua única
+ * definição dentro de um bloco de tema — o :root define o claro por completo e
+ * os blocos escuros só redefinem. Assim nada fica por pintar se um seletor falhar.
+ */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #f0f0f2;
+  --surface-3: #e5e5e7;
+  --surface-invert: #121212;
+  --on-invert: #ffffff;
+
+  --border: #e0e0e0;
+  --border-strong: #c0c0c0;
+
+  --text: #1d1d1f;
+  --text-dim: #86868b;
+  --text-faint: #a1a1a6;
+
+  --accent: #007aff;
+  --accent-strong: #0056b3;
+  --on-accent: #ffffff;
+
+  --bull: #34c759;
+  --bear: #ff3b30;
+  --warn: #ff9500;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-pill: 999px;
+
+  --tap: 44px;
+  --navbar: 90px;
+
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.05), 0 12px 34px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f0f0f;
+    --surface: #1c1c1e;
+    --surface-2: #242426;
+    --surface-3: #2c2c2e;
+    --surface-invert: #ffffff;
+    --on-invert: #000000;
+    --border: #2c2c2e;
+    --border-strong: #3a3a3c;
+    --text: #ffffff;
+    --text-dim: #98989d;
+    --text-faint: #636366;
+    --accent: #caff00;
+    --accent-strong: #b3e600;
+    --on-accent: #000000;
+    --bull: #34c759;
+    --bear: #ff3b30;
+    --warn: #ffd000;
+    --shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 12px 34px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f0f0f;
+  --surface: #1c1c1e;
+  --surface-2: #242426;
+  --surface-3: #2c2c2e;
+  --surface-invert: #ffffff;
+  --on-invert: #000000;
+  --border: #2c2c2e;
+  --border-strong: #3a3a3c;
+  --text: #ffffff;
+  --text-dim: #98989d;
+  --text-faint: #636366;
+  --accent: #caff00;
+  --accent-strong: #b3e600;
+  --on-accent: #000000;
+  --bull: #34c759;
+  --bear: #ff3b30;
+  --warn: #ffd000;
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.4), 0 12px 34px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- Estrutura ----------------------------------------------------------- */
+
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--s4) var(--s4) var(--navbar);
+}
+
+@media (min-width: 900px) {
+  .wrap {
+    max-width: 1100px;
+    padding: var(--s5) var(--s5) var(--navbar);
+  }
+}
+
+.appbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+}
+
+.appbar h1 {
+  margin: 0;
+  font-size: clamp(19px, 4.6vw, 23px);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.appbar .sub {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.iconbtn {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 17px;
+  transition: background 0.14s ease, border-color 0.14s ease;
+}
+
+.iconbtn:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+section {
+  margin-bottom: var(--s5);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-head a {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.section-note {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 400;
+}
+
+/* --- Cartões -------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4);
+  margin-bottom: var(--s3);
+}
+
+.card.pad-chart {
+  padding: var(--s3) var(--s2) var(--s2);
+}
+
+.hero {
+  background: var(--surface-invert);
+  color: var(--on-invert);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--s5) var(--s4) var(--s4);
+  margin-bottom: var(--s4);
+  box-shadow: var(--shadow);
+}
+
+.hero .label {
+  font-size: 12px;
+  opacity: 0.65;
+  margin-bottom: var(--s1);
+}
+
+.hero .value {
+  font-size: clamp(28px, 8vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-family: var(--mono);
+  line-height: 1.1;
+}
+
+.hero .delta {
+  font-size: 13px;
+  margin-top: var(--s2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.hero-actions {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+
+/* --- Ações Rápidas (Quick Actions) --- */
+
+.actionrow {
+  display: flex;
+  justify-content: space-around;
+  margin: var(--s4) 0 var(--s5);
+}
+
+.action-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.action-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.action-btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: var(--border-strong);
+}
+
+.action-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.action-item span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+/* --- Botões --------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding: 0 var(--s5);
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.1s ease, filter 0.14s ease;
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn.primary:hover {
+  filter: brightness(1.06);
+}
+
+.btn.ghost {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn.on-hero {
+  flex: 1 1 0;
+  padding: 0 var(--s3);
+}
+
+.btn.on-hero.ghost {
+  background: transparent;
+  color: var(--on-invert);
+  border-color: color-mix(in srgb, var(--on-invert) 28%, transparent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.block {
+  width: 100%;
+}
+
+/* --- Ativos --------------------------------------------------------------- */
+
+.assets {
+  display: grid;
+  gap: var(--s2);
+}
+
+@media (min-width: 640px) {
+  .assets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.asset {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  min-height: var(--tap);
+  transition: border-color 0.14s ease, transform 0.1s ease;
+}
+
+.asset:active {
+  transform: scale(0.99);
+}
+
+.asset:hover {
+  border-color: var(--border-strong);
+}
+
+.asset.featured {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.asset.featured .asset__meta,
+.asset.featured .asset__sub {
+  color: color-mix(in srgb, var(--on-accent) 65%, transparent);
+}
+
+.asset__top {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s2);
+}
+
+.asset__logo {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--mono);
+  color: var(--text-dim);
+}
+
+.asset__name {
+  font-weight: 700;
+  font-size: 14.5px;
+  font-family: var(--mono);
+  letter-spacing: -0.01em;
+}
+
+.asset__sub {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.asset__meta {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.asset__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* --- Pílulas -------------------------------------------------------------- */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.pill.bull {
+  color: var(--bull);
+  border-color: color-mix(in srgb, var(--bull) 35%, transparent);
+  background: color-mix(in srgb, var(--bull) 10%, transparent);
+}
+
+.pill.bear {
+  color: var(--bear);
+  border-color: color-mix(in srgb, var(--bear) 35%, transparent);
+  background: color-mix(in srgb, var(--bear) 10%, transparent);
+}
+
+.pill.accent {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.segmented,
+.tfswitch {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  gap: 2px;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.segmented button,
+.tfswitch button {
+  /* 44px porque estas pílulas são o principal controlo tocável do gráfico —
+     os 34px anteriores ficavam abaixo do alvo mínimo e no telemóvel acertar
+     em "4h" em vez de "1h" custava um recarregamento inteiro da análise. */
+  min-height: var(--tap);
+  min-width: 46px;
+  padding: 0 var(--s3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: var(--mono);
+  white-space: nowrap;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.segmented button:hover:not(:disabled):not(.active),
+.tfswitch button:hover:not(:disabled):not(.active) {
+  color: var(--text);
+}
+
+.segmented button.active,
+.tfswitch button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.segmented button:disabled,
+.tfswitch button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* --- Navegação ------------------------------------------------------------ */
+
+.bottomnav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--s4);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: calc(100vw - var(--s5));
+  max-width: 400px;
+  padding: 10px 16px;
+  background: rgba(28, 28, 30, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow);
+}
+
+.bottomnav a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 50px;
+  height: 50px;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.bottomnav a svg {
+  width: 22px;
+  height: 22px;
+}
+
+.bottomnav a em {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.bottomnav a:hover {
+  color: var(--text-dim);
+}
+
+.bottomnav a.active {
+  color: var(--accent);
+}
+
+.nav {
+  display: flex;
+  gap: var(--s1);
+  margin-bottom: var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.nav a:hover {
+  color: var(--text);
+}
+
+.nav a.active {
+  color: var(--accent-strong);
+  border-bottom-color: var(--accent);
+}
+
+.backlink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  font-size: 14px;
+  color: var(--accent-strong);
+}
+
+.backlink:hover {
+  text-decoration: underline;
+}
+
+/* --- Tabelas -------------------------------------------------------------- */
+
+.scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  font-weight: 600;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  font-family: var(--mono);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr.clickable {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+tr.clickable:hover {
+  background: var(--surface-2);
+}
+
+td a.row-link {
+  color: var(--text);
+  font-weight: 700;
+}
+
+td a.row-link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
+}
+
+.num {
+  text-align: right;
+}
+
+.only-wide {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .only-wide {
+    display: block;
+  }
+  .only-narrow {
+    display: none;
+  }
+}
+
+/* --- Radar, listas, estados ----------------------------------------------- */
+
+.bar {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+  min-width: 56px;
+  flex: 1 1 auto;
+}
+
+.bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.radar-cards {
+  display: grid;
+  gap: var(--s2);
+}
+
+.radar-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  min-height: var(--tap);
+  transition: border-color 0.14s ease, transform 0.1s ease;
+}
+
+.radar-card:active {
+  transform: scale(0.99);
+}
+
+.radar-card:hover {
+  border-color: var(--border-strong);
+}
+
+.radar-card__top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+
+.radar-card__sym {
+  font-weight: 700;
+  font-size: 16px;
+  font-family: var(--mono);
+  letter-spacing: -0.01em;
+}
+
+.radar-card__phase {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: var(--s2);
+  line-height: 1.4;
+}
+
+.radar-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.rows {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.rows > div {
+  background: var(--surface);
+  padding: var(--s3) var(--s4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  font-size: 13.5px;
+}
+
+.rows .k {
+  color: var(--text-dim);
+}
+
+.rows .v {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3) var(--s4);
+  margin-top: var(--s3);
+}
+
+@media (min-width: 560px) {
+  .kv {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+}
+
+.kv div span {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.kv div strong {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: var(--s5) var(--s4);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.notice {
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s4);
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+.notice strong {
+  color: var(--text);
+}
+
+.setup {
+  background: var(--surface);
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  padding: var(--s4);
+}
+
+/* O `.notice` também mostra comandos a correr no terminal e sem isto ficavam
+   na monoespaçada por omissão do browser, dois tamanhos abaixo do texto à
+   volta. */
+.setup code,
+.notice code,
+.empty code,
+.setup pre {
+  font-family: var(--mono);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+
+.setup code,
+.notice code,
+.empty code {
+  padding: 1px 6px;
+  word-break: break-all;
+}
+
+.setup pre {
+  padding: var(--s3);
+  overflow-x: auto;
+}
+
+footer.note {
+  margin-top: var(--s6);
+  padding-top: var(--s4);
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.dim { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+.bull-t { color: var(--bull); }
+.bear-t { color: var(--bear); }
+.warn-t { color: var(--warn); }
+.mono { font-family: var(--mono); }
+
+.checklist {
+  margin-top: var(--s3);
+  border-top: 1px solid var(--border);
+  padding-top: var(--s3);
+}
+
+.checklist ol {
+  margin: 0;
+  padding: 0;
+}
+
+.checklist li {
+  list-style: none;
+  padding: var(--s1) 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.checklist-full {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.checklist-full li {
+  padding: var(--s3) 0;
+  font-size: 13.5px;
+}
+
+.checklist-full li + li {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.checklist-full .faint {
+  margin-top: var(--s1);
+  padding-left: 20px;
+  line-height: 1.55;
+  font-size: 12.5px;
+}
+
+/* --- Gráficos ------------------------------------------------------------- */
+
+.chart-wrap {
+  position: relative;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chart-scroll > svg {
+  min-width: 520px;
+}
+
+@media (min-width: 600px) {
+  .chart-scroll > svg {
+    min-width: 0;
+  }
+}
+
+.chart-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint);
+  padding: var(--s1) var(--s2) 0;
+}
+
+@media (min-width: 600px) {
+  .chart-hint {
+    display: none;
+  }
+}
+
+.chart-tip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s4);
+  align-items: baseline;
+  margin-top: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.chart-tip strong {
+  color: var(--text);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s4);
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 var(--s2) var(--s2);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+  flex: none;
+}
+
+.smt-list {
+  list-style: none;
+  margin: var(--s3) 0 0;
+  padding: var(--s3) var(--s2) 0;
+  border-top: 1px solid var(--border);
+}
+
+.smt-list li {
+  padding: var(--s2) 0;
+  font-size: 12.5px;
+  font-family: var(--mono);
+  line-height: 1.5;
+}
+
+.smt-list li + li {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s1) var(--s2) 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.chart-controls button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 4px var(--s3);
+}
+
+.chart-controls button:hover {
+  color: var(--text);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: var(--s3);
+}
+
+.autorefresh {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.autorefresh button {
+  min-height: 32px;
+  padding: 0 var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+.autorefresh button:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.autorefresh .pulse {
+  color: var(--accent-strong);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* --- Carregamento --------------------------------------------------------- */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .autorefresh .pulse {
+    animation: none;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Compatibilidade com a marcação existente
+   ---------------------------------------------------------------------------
+   A reescrita do tema introduziu `.appbar` e `.section-head`, mas as páginas
+   ainda usam `header.top` e `<h2>` solto dentro de `<section>`. Sem estas
+   regras esses elementos caem para o tamanho por omissão do browser (2em, a
+   dobrar do pretendido) e o painel fica ilegível no telemóvel.
+   --------------------------------------------------------------------------- */
+
+header.top {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--s4);
+  margin-bottom: var(--s5);
+}
+
+header.top h1 {
+  margin: 0 0 var(--s1);
+  font-size: clamp(19px, 4.6vw, 23px);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+header.top p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+header.top p + p {
+  margin-top: var(--s1);
+}
+
+section > h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-dim);
+  margin: 0 0 var(--s3);
+  font-weight: 700;
+}
+
+/* A nota ao lado do título da secção não herda o maiúsculas/espaçamento. */
+.h2-note {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--text-faint);
+}
+
+@media (max-width: 620px) {
+  .h2-note {
+    display: block;
+    margin-top: var(--s1);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Navegação inferior — item central elevado
+   --------------------------------------------------------------------------- */
+
+.bottomnav a.center {
+  width: 54px;
+  height: 54px;
+  margin: 0 var(--s1);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 21px;
+  /* Sobe acima da barra, como nos mockups. */
+  transform: translateY(-6px);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.bottomnav a.center:hover {
+  filter: brightness(1.06);
+  color: var(--on-accent);
+}
+
+/* O central já é destacado por forma e cor; marcá-lo como ativo escureceria
+   o único elemento que deve saltar à vista. */
+.bottomnav a.center.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ---------------------------------------------------------------------------
+   Painel do gráfico e menu de camadas
+   --------------------------------------------------------------------------- */
+
+.chartpanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3) var(--s2) var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.chartpanel__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s2) var(--s3);
+  flex-wrap: wrap;
+}
+
+.chartpanel__toggle {
+  min-height: 34px;
+  padding: 0 var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.14s ease, border-color 0.14s ease;
+}
+
+.chartpanel__toggle:hover,
+.chartpanel__toggle.open {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.chartpanel__menu {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  margin: 0 var(--s2) var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+@media (min-width: 560px) {
+  .chartpanel__menu {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.camada {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: var(--tap);
+  padding: 0 var(--s2);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: left;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+
+.camada:hover {
+  background: var(--surface-3);
+}
+
+.camada.on {
+  color: var(--text);
+}
+
+/* Quadrado que preenche quando a camada está ligada — a identidade não depende
+   só da cor, o preenchimento também comunica o estado. */
+.camada i {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border-radius: 4px;
+  border: 2px solid;
+  display: inline-block;
+}
+
+.camada span {
+  flex: 1 1 auto;
+}
+
+.camada em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
+  padding: 2px 7px;
+}
+
+/* ---------------------------------------------------------------------------
+   Detalhes do mockup
+   --------------------------------------------------------------------------- */
+
+/* Avatar circular do topo. */
+.avatar {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-invert);
+  color: var(--on-invert);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* Linha superior do cartão de contraste: ícone · número · ação. */
+.hero__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.hero__icon {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--on-invert) 12%, transparent);
+  color: var(--on-invert);
+  font-size: 16px;
+}
+
+.hero__icon.link {
+  border: 1px solid color-mix(in srgb, var(--on-invert) 22%, transparent);
+  transition: background 0.14s ease;
+}
+
+.hero__icon.link:hover {
+  background: color-mix(in srgb, var(--on-invert) 20%, transparent);
+}
+
+.hero .delta {
+  color: color-mix(in srgb, var(--on-invert) 72%, transparent);
+}
+
+/* Preço/valor grande dentro do cartão de ativo. */
+.asset__price {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+}
+
+/* Navegação inferior: pílula clara, ativo em círculo escuro. */
+.bottomnav a.active {
+  background: var(--surface-invert);
+  color: var(--on-invert);
+}
+
+/* --- Ecrã de ativo: linha de ações, abas, estatísticas, comprar/vender ----- */
+
+.actionrow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s3);
+  margin-bottom: var(--s4);
+}
+
+.actionrow button,
+.actionrow a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s2) 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  transition: color 0.14s ease, background 0.14s ease;
+}
+
+.actionrow button:hover:not(:disabled),
+.actionrow a:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.actionrow button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actionrow i {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-style: normal;
+  font-size: 16px;
+  color: var(--text);
+}
+
+/* Botões de negociação, fixos ao fundo do ecrã de ativo. */
+.tradebar {
+  position: sticky;
+  bottom: calc(var(--navbar) + var(--s2));
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s2);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius-pill);
+  margin: var(--s4) 0 0;
+  z-index: 30;
+}
+
+.tradebar .btn {
+  flex: 1 1 0;
+}
+
+/* --- Ecrã inteiro e indicador de preço ao vivo ----------------------------- */
+
+.chartpanel--cheio {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  background: var(--bg);
+  padding: var(--s3) var(--s2);
+  overflow-y: auto;
+  /* Não colidir com a barra de navegação nem com o notch. */
+  padding-top: max(var(--s3), env(safe-area-inset-top));
+  padding-bottom: var(--navbar);
+}
+
+.chartpanel__live {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3) 0;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.chartpanel__live button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 3px var(--s3);
+  min-height: 28px;
+}
+
+.chartpanel__live button:hover {
+  color: var(--text);
+}
+
+/* Ponto que pulsa enquanto a sondagem está viva. */
+.chartpanel__live .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+}
+
+.chartpanel__live .dot.on {
+  background: var(--bull);
+  animation: vivo 2s ease-in-out infinite;
+}
+
+@keyframes vivo {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chartpanel__live .dot.on {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Folga para a navegação flutuante
+   ---------------------------------------------------------------------------
+   O `--navbar` inicial (88px) não chegava: a barra tem ~60px de altura, mais
+   16px de afastamento do fundo, mais a sombra — e nos telemóveis com indicador
+   de ecrã inteiro ainda há a área segura por baixo. O resultado era o rodapé e
+   o último cartão a passarem por trás da barra em todas as páginas.
+
+   `env(safe-area-inset-bottom)` só tem valor em telemóveis com notch/indicador;
+   no resto resolve para 0 e não muda nada.
+   --------------------------------------------------------------------------- */
+
+:root {
+  --navbar: 116px;
+}
+
+.wrap {
+  padding-bottom: calc(var(--navbar) + env(safe-area-inset-bottom, 0px));
+}
+
+.bottomnav {
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+}
+
+/* A barra de negociação assenta acima da navegação, não por baixo. */
+.tradebar {
+  bottom: calc(var(--navbar) + env(safe-area-inset-bottom, 0px) + var(--s2));
+}
+
+/* Linha de definição com controlo à direita: o rótulo não deve encolher. */
+.rows > div .k {
+  flex: 1 1 auto;
+}
+
+.rows > div .v {
+  flex: none;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------------------
+   Altura do gráfico — decidida aqui, não em JavaScript
+   ---------------------------------------------------------------------------
+   O `PriceChart` mede a caixa e desenha 1 unidade de viewBox = 1 pixel. A
+   altura passa a ser uma decisão de CSS, que é onde as regras mobile-first
+   vivem: no telemóvel um gráfico alto empurra tudo o resto para fora do ecrã;
+   num monitor há espaço para ele respirar.
+   --------------------------------------------------------------------------- */
+
+.chart--normal {
+  height: 320px;
+}
+
+@media (min-width: 640px) {
+  .chart--normal {
+    height: 420px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .chart--normal {
+    height: 520px;
+  }
+}
+
+/* Em ecrã inteiro ocupa o que sobra, descontando a barra e a navegação. */
+.chart--cheio {
+  height: calc(100vh - 210px);
+  min-height: 320px;
+}
+
+/* A caixa que o gráfico mede. O agente que reescreveu o PriceChart referenciou
+   esta classe mas não chegou a defini-la — sem `position: relative` qualquer
+   sobreposição futura escaparia da caixa, e sem `overflow: hidden` o SVG podia
+   transbordar durante o primeiro fotograma, antes da medição estabilizar. */
+.chart-box {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Procura, filtros e lista em linha
+   ---------------------------------------------------------------------------
+   Tudo aqui é mobile-first: as declarações base descrevem o telemóvel e só as
+   `min-width` acrescentam alguma coisa quando há largura para isso.
+   --------------------------------------------------------------------------- */
+
+/* Campo de procura.
+   52px de altura, não os 44 mínimos: o botão de limpar vive DENTRO do campo e
+   precisa ele próprio de 44px de alvo — com um campo de 44 ficaria colado às
+   bordas e sem folga para o foco. */
+.busca {
+  position: relative;
+  margin-bottom: var(--s3);
+}
+
+.busca input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 52px 0 44px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+/* 16px seria o mínimo para o iOS não dar zoom ao focar; 15px + a meta viewport
+   com `initialScale: 1` já chega, mas mantemos o campo maior que o corpo. */
+.busca input::placeholder {
+  color: var(--text-faint);
+}
+
+.busca input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.busca .lupa {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-size: 15px;
+  pointer-events: none;
+}
+
+.busca .limpar {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  width: var(--tap);
+  height: var(--tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 16px;
+}
+
+.busca .limpar:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* Fila de filtros: rola na horizontal DENTRO da sua caixa.
+   As margens negativas encostam-na às bordas do ecrã (o último chip fica a
+   espreitar, que é o que diz "há mais para o lado") sem nunca ultrapassar a
+   largura do `.wrap` — por isso o `body` continua sem rolagem horizontal. */
+.filtros {
+  display: flex;
+  gap: var(--s2);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * var(--s4)) var(--s4);
+  padding: 0 var(--s4);
+}
+
+.filtros::-webkit-scrollbar {
+  display: none;
+}
+
+.filtro {
+  flex: none;
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.filtro:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+/* O lima marca a escolha ativa — é a cor de ação, e escolher é uma ação.
+   Nunca verde/vermelho aqui: esses dizem alta/baixa e só isso. */
+.filtro.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.filtro em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  opacity: 0.65;
+}
+
+/* Lista de cartões em LINHA.
+   Uma coluna até 900px — abaixo disso a `.wrap` tem 560px e duas colunas
+   deixariam ~260px por cartão, onde o nome do instrumento já não cabe ao lado
+   do sparkline. É por isso que esta lista não usa a grelha `.assets`. */
+.lista {
+  display: grid;
+  gap: var(--s2);
+}
+
+@media (min-width: 900px) {
+  .lista {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.asset--linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+}
+
+.asset--linha .asset__logo {
+  width: 42px;
+  height: 42px;
+  font-size: 12.5px;
+}
+
+/* `min-width: 0` é o que permite ao nome truncar em vez de empurrar o
+   sparkline para fora do cartão — sem ele um item flex recusa-se a encolher
+   abaixo do seu conteúdo. */
+.asset__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.asset__id .asset__sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset__valores {
+  flex: none;
+  text-align: right;
+}
+
+.asset__spark {
+  flex: none;
+  width: 54px;
+}
+
+/* O sparkline é desenhado com `preserveAspectRatio="none"`, por isso pode ser
+   esticado para a largura que o cartão tiver sem deformar a leitura. */
+.asset__spark svg {
+  width: 100%;
+  height: 30px;
+}
+
+@media (min-width: 420px) {
+  .asset__spark {
+    width: 76px;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Abas (Overview / Statistics / History Data)
+   ---------------------------------------------------------------------------
+   Reaproveitam o `.segmented`: o estado ativo, o fundo em pílula e as
+   transições já lá estão, e ter duas aparências para o mesmo gesto — escolher
+   uma de várias — seria ruído.
+   --------------------------------------------------------------------------- */
+
+.abas {
+  display: flex;
+  width: 100%;
+  margin-bottom: var(--s4);
+}
+
+.abas button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: var(--tap);
+  /* Os rótulos são palavras, não números: a mono do `.segmented` alargava-os
+     sem necessidade num ecrã estreito. */
+  font-family: inherit;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------------
+   Estados vazios com ação
+   --------------------------------------------------------------------------- */
+
+.empty strong {
+  display: block;
+  color: var(--text);
+  margin-bottom: var(--s1);
+  font-size: 14.5px;
+}
+
+.empty .btn {
+  margin-top: var(--s3);
+}
+
+/* Cabeçalho de secção com legenda por baixo: o `.section-head` alinha pela
+   linha de base, por isso a nota precisa de sair do fluxo horizontal. */
+.section-cap {
+  margin: calc(-1 * var(--s2)) 0 var(--s3);
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+/* --- Pesquisa e Filtros (Mercados) --- */
+
+.busca {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 14px var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--s3);
+}
+
+.busca input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  outline: none;
+}
+
+.busca input::placeholder {
+  color: var(--text-dim);
+}
+
+.filtros {
+  display: flex;
+  gap: var(--s2);
+  overflow-x: auto;
+  padding-bottom: var(--s2);
+  margin-bottom: var(--s4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.filtros::-webkit-scrollbar {
+  display: none;
+}
+
+.filtro {
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.filtro:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.filtro.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+

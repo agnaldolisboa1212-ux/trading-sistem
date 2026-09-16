@@ -1,0 +1,25 @@
+{
+  "name": "@trading/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -b",
+    "scan": "npm run build && node dist/index.js scan",
+    "dev": "npm run build && node dist/index.js schedule",
+    "clean": "rm -rf dist",
+    "backtest": "npm run build && node dist/backtest-cli.js"
+  },
+  "dependencies": {
+    "@trading/core": "*",
+    "@trading/data": "*",
+    "@trading/db": "*",
+    "@trading/notify": "*",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.2"
+  }
+}

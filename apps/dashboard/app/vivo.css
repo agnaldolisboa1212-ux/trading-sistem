@@ -1,0 +1,2367 @@
+/*
+ * Camada "viva" — o que separa um mockup de uma aplicação.
+ *
+ * O `globals.css` define a paleta, o espaçamento e os componentes estáticos.
+ * Este ficheiro acrescenta o que se MEXE: preços que piscam quando mudam,
+ * cartões de material translúcido, o indicador de ligação, a varredura do
+ * radar, os botões de compra e venda, a lista agrupada das definições.
+ *
+ * Fica separado por uma razão prática: são duas preocupações com ritmos de
+ * mudança diferentes. A paleta estabilizou; isto ainda vai mudar muito.
+ *
+ * ── SOBRE O ESTILO ─────────────────────────────────────────────────────────
+ *
+ * Referência: apps de finanças da Apple. O que isso significa em concreto, e
+ * que não é "cantos redondos e desfoque":
+ *
+ *   1. NÚMEROS TABULARES em todo o lado onde há preço. Sem isto, `1.16124`
+ *      muda de largura ao virar `1.16999` e a linha inteira estremece a cada
+ *      tick. É o detalhe que faz uma app de preços parecer barata.
+ *   2. Hierarquia por PESO e TAMANHO, não por cor. A cor fica reservada para
+ *      significado (subiu / desceu / ação).
+ *   3. Movimento curto e com desaceleração. 180-260ms, nunca linear.
+ *   4. Materiais: superfícies translúcidas sobre o fundo, não caixas opacas
+ *      empilhadas.
+ *
+ * ── ACESSIBILIDADE ─────────────────────────────────────────────────────────
+ *
+ * Tudo o que se mexe está dentro de um `@media (prefers-reduced-motion)` no
+ * fim do ficheiro. Movimento constante no periférico é um problema real para
+ * quem tem enxaquecas vestibulares, e um painel de preços é precisamente o
+ * tipo de ecrã que fica aberto durante horas.
+ */
+
+:root {
+  /* Curvas: entrada rápida, saída suave. A segunda tem um ligeiro excesso. */
+  --mov: 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  --mov-lento: 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  --mov-mola: 420ms cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  /* Materiais. */
+  --vidro: color-mix(in srgb, var(--surface) 72%, transparent);
+  --vidro-forte: color-mix(in srgb, var(--surface) 88%, transparent);
+  --desfoque: saturate(180%) blur(20px);
+
+  --anel: 0 0 0 1px var(--border);
+  --elevacao-1: 0 1px 2px rgb(0 0 0 / 5%), 0 4px 16px rgb(0 0 0 / 5%);
+  --elevacao-2: 0 2px 6px rgb(0 0 0 / 8%), 0 12px 36px rgb(0 0 0 / 10%);
+}
+
+:root[data-theme='dark'],
+:root:not([data-theme='light']) {
+  --elevacao-1: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 16px rgb(0 0 0 / 22%);
+  --elevacao-2: 0 2px 6px rgb(0 0 0 / 40%), 0 12px 36px rgb(0 0 0 / 32%);
+}
+
+/* ===========================================================================
+   Tipografia de números
+   =========================================================================== */
+
+/*
+ * `tabular-nums` fixa a largura de cada dígito; `slashed-zero` distingue 0 de O
+ * num contexto onde se lê à pressa. Aplica-se a TUDO o que é preço, saldo,
+ * percentagem ou contagem.
+ */
+.num-vivo,
+.preco,
+.saldo__valor,
+.metrica__valor,
+.ticker__preco,
+.posicao__valor,
+.indice__valor,
+table td.num {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
+}
+
+/* ===========================================================================
+   Preço que reage — o coração do "não estático"
+   =========================================================================== */
+
+/*
+ * Ao mudar, o preço acende por 600ms na cor da direção e volta ao normal.
+ *
+ * Feito com uma classe que o React aplica e remove, e não com uma transição de
+ * cor: uma transição só anima a IDA, e o que interessa aqui é o flash — subir
+ * e apagar. A animação é reiniciada forçando o browser a reconhecer um novo
+ * nó (o React troca a `key`), porque re-aplicar a mesma classe não relança
+ * uma animação CSS já concluída.
+ */
+.preco {
+  transition: color var(--mov);
+  display: inline-block;
+}
+
+.preco--sobe {
+  animation: acender-alta 620ms ease-out;
+}
+
+.preco--desce {
+  animation: acender-baixa 620ms ease-out;
+}
+
+@keyframes acender-alta {
+  0% {
+    color: var(--bull);
+    transform: translateY(1px);
+  }
+  22% {
+    color: var(--bull);
+    transform: translateY(-1px);
+  }
+  100% {
+    color: inherit;
+    transform: translateY(0);
+  }
+}
+
+@keyframes acender-baixa {
+  0% {
+    color: var(--bear);
+    transform: translateY(-1px);
+  }
+  22% {
+    color: var(--bear);
+    transform: translateY(1px);
+  }
+  100% {
+    color: inherit;
+    transform: translateY(0);
+  }
+}
+
+/* Fundo da linha inteira, muito ténue — dá a sensação de "a lista respira". */
+.linha--sobe {
+  animation: fundo-alta 700ms ease-out;
+}
+.linha--desce {
+  animation: fundo-baixa 700ms ease-out;
+}
+
+@keyframes fundo-alta {
+  0% {
+    background: color-mix(in srgb, var(--bull) 14%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+@keyframes fundo-baixa {
+  0% {
+    background: color-mix(in srgb, var(--bear) 14%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* ===========================================================================
+   Estado da ligação
+   =========================================================================== */
+
+.ligacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ligacao__ponto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex: none;
+  position: relative;
+}
+
+/*
+ * O halo pulsa SÓ quando está ligado. Um ponto verde parado e um ponto verde a
+ * pulsar dizem coisas diferentes: o primeiro diz "estava ligado quando esta
+ * página foi desenhada", o segundo diz "está ligado agora".
+ */
+.ligacao__ponto.ligado {
+  background: var(--bull);
+}
+
+.ligacao__ponto.ligado::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--bull);
+  animation: halo 1.8s ease-out infinite;
+}
+
+.ligacao__ponto.a-ligar {
+  background: var(--warn);
+  animation: piscar 1s ease-in-out infinite;
+}
+
+.ligacao__ponto.caido {
+  background: var(--bear);
+}
+
+@keyframes halo {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes piscar {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* ===========================================================================
+   Cartão de saldo — aparece quando a conta Deriv está ligada
+   =========================================================================== */
+
+.saldo {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: var(--s5) var(--s4) var(--s4);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 22%, var(--surface-invert)) 0%,
+    var(--surface-invert) 58%
+  );
+  color: var(--on-invert);
+  box-shadow: var(--elevacao-2);
+}
+
+/*
+ * Brilho que atravessa o cartão de 9 em 9 segundos.
+ *
+ * Não é decoração gratuita: é o sinal permanente de que o número em cima está
+ * ligado a alguma coisa. Um saldo parado num cartão parado é indistinguível de
+ * uma captura de ecrã.
+ */
+.saldo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--accent) 16%, transparent) 45%,
+    transparent 60%
+  );
+  transform: translateX(-100%);
+  animation: varrer 9s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes varrer {
+  0%,
+  70% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.saldo__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  position: relative;
+}
+
+.saldo__rotulo {
+  font-size: 12.5px;
+  opacity: 0.72;
+  letter-spacing: 0.01em;
+}
+
+.saldo__selo {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.saldo__selo.demo {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--accent-strong);
+}
+
+.saldo__selo.real {
+  background: color-mix(in srgb, var(--bear) 26%, transparent);
+  color: var(--bear);
+}
+
+.saldo__valor {
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: var(--s3) 0 2px;
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.saldo__moeda {
+  font-size: 18px;
+  font-weight: 600;
+  opacity: 0.6;
+  letter-spacing: 0;
+}
+
+.saldo__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 12.5px;
+  opacity: 0.78;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.saldo__accoes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s2);
+  margin-top: var(--s4);
+  position: relative;
+}
+
+.saldo__accao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s2) 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--on-invert) 8%, transparent);
+  color: inherit;
+  font-size: 11px;
+  transition: background var(--mov), transform var(--mov);
+}
+
+.saldo__accao:hover,
+.saldo__accao:active {
+  background: color-mix(in srgb, var(--on-invert) 16%, transparent);
+  transform: translateY(-1px);
+}
+
+.saldo__accao i {
+  font-size: 17px;
+  font-style: normal;
+  line-height: 1;
+}
+
+/* ===========================================================================
+   Botões de compra e venda
+   =========================================================================== */
+
+.negociar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+}
+
+.btn-lado {
+  min-height: 52px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  transition: transform var(--mov), filter var(--mov), box-shadow var(--mov);
+}
+
+.btn-lado small {
+  font-size: 11.5px;
+  font-weight: 600;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-lado:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-lado:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-lado.compra {
+  background: var(--bull);
+  color: #06210f;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--bull) 34%, transparent);
+}
+
+.btn-lado.venda {
+  background: var(--bear);
+  color: #260707;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--bear) 34%, transparent);
+}
+
+/* ===========================================================================
+   Agentes — o painel que mostra o sistema a trabalhar
+   =========================================================================== */
+
+/*
+ * O pedido era "como se fossem agentes de IA a trabalhar para encontrar o
+ * melhor sinal". A tentação seria animar uma barra falsa. Isto mostra trabalho
+ * REAL: cada linha é um passo do checklist a ser avaliado num instrumento
+ * concreto, e o estado (a correr / passou / falhou) vem da análise.
+ *
+ * Uma barra de progresso que não corresponde a nada é pior do que nenhuma —
+ * ensina a pessoa a ignorar o ecrã.
+ */
+.agentes {
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.agentes__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.agentes__titulo {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Barra de varredura fina, a percorrer o topo enquanto há análise a decorrer. */
+.agentes__barra {
+  height: 2px;
+  background: var(--surface-3);
+  position: relative;
+  overflow: hidden;
+}
+
+.agentes__barra.activa::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 34%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: correr 1.5s ease-in-out infinite;
+}
+
+@keyframes correr {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.agente {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 11px var(--s4);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.agente:last-child {
+  border-bottom: none;
+}
+
+.agente__estado {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agente__estado.passou {
+  background: color-mix(in srgb, var(--bull) 18%, transparent);
+  color: var(--bull);
+}
+
+.agente__estado.falhou {
+  background: color-mix(in srgb, var(--bear) 16%, transparent);
+  color: var(--bear);
+}
+
+.agente__estado.espera {
+  background: var(--surface-3);
+  color: var(--text-faint);
+}
+
+.agente__estado.corre {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent-strong);
+  animation: pulsar 1.2s ease-in-out infinite;
+}
+
+@keyframes pulsar {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.75;
+  }
+}
+
+.agente__nome {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agente__valor {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+/* ===========================================================================
+   Ticker horizontal — a fita de preços do topo
+   =========================================================================== */
+
+.fita {
+  display: flex;
+  gap: var(--s2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px var(--s4);
+  margin: 0 calc(-1 * var(--s4)) var(--s4);
+  scroll-snap-type: x proximity;
+}
+
+.fita::-webkit-scrollbar {
+  display: none;
+}
+
+.ticker {
+  flex: none;
+  min-width: 124px;
+  padding: var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  scroll-snap-align: start;
+  transition: border-color var(--mov), transform var(--mov);
+}
+
+.ticker:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+
+.ticker__nome {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ticker__preco {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 3px 0 1px;
+}
+
+.ticker__var {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===========================================================================
+   Lista agrupada — estilo iOS, para as definições
+   =========================================================================== */
+
+.grupo {
+  margin-bottom: var(--s5);
+}
+
+.grupo__titulo {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  padding: 0 var(--s3) var(--s2);
+}
+
+.grupo__caixa {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.grupo__nota {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  padding: var(--s2) var(--s3) 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 52px;
+  padding: var(--s2) var(--s4);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 14.5px;
+  transition: background var(--mov);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+button.item:hover,
+a.item:hover {
+  background: var(--surface-2);
+}
+
+.item__icone {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+
+.item__corpo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.item__nome {
+  font-weight: 500;
+}
+
+.item__sub {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+  margin-top: 1px;
+}
+
+.item__valor {
+  flex: none;
+  font-size: 13.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.item__seta {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 16px;
+}
+
+/* Interruptor, com aparência de sistema. */
+.switch {
+  position: relative;
+  width: 50px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: var(--surface-3);
+  transition: background var(--mov);
+  padding: 0;
+}
+
+.switch[aria-checked='true'] {
+  background: var(--bull);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 25%);
+  transition: transform var(--mov-mola);
+}
+
+.switch[aria-checked='true']::after {
+  transform: translateX(20px);
+}
+
+.switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Controlo segmentado, estilo iOS. */
+.segmentos {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  gap: 2px;
+  width: 100%;
+}
+
+.segmentos button {
+  flex: 1 1 0;
+  min-height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background var(--mov), color var(--mov), box-shadow var(--mov);
+}
+
+.segmentos button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+
+/* ===========================================================================
+   Métricas em grelha
+   =========================================================================== */
+
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+@media (min-width: 520px) {
+  .metricas {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.metrica {
+  padding: var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.metrica__rotulo {
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.metrica__valor {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 3px;
+}
+
+/* ===========================================================================
+   Índices e portfólio
+   =========================================================================== */
+
+/*
+ * Serve `<a>` e `<button>`: no terminal a linha escolhe o mercado sem navegar,
+ * e nesse caso é um botão. Repor `background`, `border` e `font` evita que o
+ * botão herde a aparência nativa do sistema e destoe das linhas vizinhas.
+ */
+.indice {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s4);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: background var(--mov);
+}
+
+.indice:last-child {
+  border-bottom: none;
+}
+
+.indice:hover {
+  background: var(--surface-2);
+}
+
+.indice__marca {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+
+/*
+ * Os filhos sao `<span>`, que e inline por omissao — sem esta coluna o codigo e
+ * o nome saiam colados na mesma linha ("SP500S&P 500"). E `<span>` e nao `<div>`
+ * porque a linha inteira e um `<a>` ou um `<button>`, e um bloco dentro de um
+ * botao e HTML invalido.
+ */
+.indice__id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.indice__nome {
+  font-weight: 600;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+}
+
+.indice__sub {
+  display: block;
+  max-width: 100%;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.indice__grafico {
+  flex: none;
+  width: 62px;
+  height: 30px;
+}
+
+/* Também uma coluna: o preço em cima, a variação por baixo. */
+.indice__lado {
+  flex: none;
+  text-align: right;
+  min-width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.indice__valor {
+  font-weight: 700;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
+}
+
+.indice__var {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Marca de mercado fechado. */
+.fechado {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+/* ===========================================================================
+   Folha inferior (sheet) — confirmação de ordem
+   =========================================================================== */
+
+.folha-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgb(0 0 0 / 42%);
+  backdrop-filter: blur(3px);
+  animation: aparecer var(--mov) ease-out;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.folha {
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface);
+  border-radius: 26px 26px 0 0;
+  padding: var(--s3) var(--s4) calc(var(--s5) + env(safe-area-inset-bottom));
+  box-shadow: var(--elevacao-2);
+  animation: subir var(--mov-lento) cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 88dvh;
+  overflow-y: auto;
+}
+
+.folha__puxador {
+  width: 38px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  margin: 0 auto var(--s4);
+}
+
+.folha h2 {
+  margin: 0 0 var(--s1);
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes subir {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Linha chave/valor dentro da folha. */
+.folha__kv {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.folha__kv:last-of-type {
+  border-bottom: none;
+}
+
+.folha__kv span {
+  color: var(--text-dim);
+}
+
+.folha__kv strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ===========================================================================
+   Aviso destacado — usado quando a conta é REAL
+   =========================================================================== */
+
+.perigo {
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bear) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bear) 42%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: var(--s3) 0;
+}
+
+/* ===========================================================================
+   Esqueleto de carregamento
+   =========================================================================== */
+
+.brilho {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-3);
+  border-radius: var(--radius-sm);
+}
+
+.brilho::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--surface) 70%, transparent),
+    transparent
+  );
+  transform: translateX(-100%);
+  animation: brilhar 1.4s ease-in-out infinite;
+}
+
+@keyframes brilhar {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ===========================================================================
+   Barra de navegação superior, com material translúcido
+   =========================================================================== */
+
+.barra-topo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  margin: 0 calc(-1 * var(--s4)) var(--s4);
+  background: var(--vidro);
+  backdrop-filter: var(--desfoque);
+  -webkit-backdrop-filter: var(--desfoque);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.barra-topo h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.024em;
+}
+
+.barra-topo p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.barra-topo .voltar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+/* ===========================================================================
+   Movimento reduzido
+   =========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /*
+   * O flash de preço desaparece por completo, mas a informação não: os
+   * componentes continuam a pôr a cor de direção no valor. Quem desliga o
+   * movimento vê a mesma coisa, sem a animação.
+   */
+  .saldo::before,
+  .agentes__barra.activa::after,
+  .brilho::after {
+    display: none;
+  }
+}
+
+/* ===========================================================================
+   Gráfico ao vivo (canvas)
+   =========================================================================== */
+
+.grafico {
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.grafico__barra {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+/* A fita de timeframes rola na horizontal em vez de encolher os botões até
+   ficarem impossíveis de acertar com o dedo. */
+.grafico__tfs {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.grafico__tfs::-webkit-scrollbar {
+  display: none;
+}
+
+.grafico__tfs button {
+  flex: 0 0 auto;
+  min-width: 40px;
+  padding: 0 10px;
+}
+
+.grafico__accoes {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+
+.grafico__accoes button {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--mov), color var(--mov);
+}
+
+.grafico__accoes button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.grafico__accoes button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.grafico__leitura {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 6px var(--s3);
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.grafico__leitura::-webkit-scrollbar {
+  display: none;
+}
+
+.grafico__leitura strong {
+  color: var(--text);
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
+.grafico__tela {
+  position: relative;
+  width: 100%;
+  /* `touch-action: none` entrega os gestos ao gráfico. Sem isto, arrastar na
+     horizontal desloca a PÁGINA e o gráfico nunca recebe o evento. */
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.grafico__tela canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.grafico__vazio {
+  position: absolute;
+  inset: var(--s3);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+/* Ecrã inteiro: sobrepõe tudo, inclusive a navegação. */
+.grafico--cheio {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border-radius: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+
+.grafico--cheio .grafico__tela {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* ===========================================================================
+   Negociação
+   =========================================================================== */
+
+.negociar-caixa {
+  padding: var(--s4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.negociar-caixa__campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.campo {
+  display: block;
+}
+
+.campo > span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.campo input,
+.campo select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  /* 16px evita o zoom automático do iOS ao focar um campo. */
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.campo input:focus,
+.campo select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.caixa-aceite {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.caixa-aceite input {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 1px;
+  accent-color: var(--bear);
+}
+
+.btn.perigo-btn {
+  background: var(--bear);
+  color: #fff;
+  border-color: var(--bear);
+}
+
+/* ===========================================================================
+   Saldo compacto no cabeçalho
+   =========================================================================== */
+
+.saldo-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.saldo-mini__selo {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.saldo-mini__selo.demo {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent-strong);
+}
+
+.saldo-mini__selo.real {
+  background: color-mix(in srgb, var(--bear) 24%, transparent);
+  color: var(--bear);
+}
+
+/* ===========================================================================
+   Detalhes do painel de agentes
+   =========================================================================== */
+
+.agentes__repetir {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--mov), color var(--mov);
+}
+
+.agentes__repetir:hover {
+  color: var(--text);
+  transform: rotate(90deg);
+}
+
+.agentes__rodape {
+  padding: 10px var(--s4);
+  font-size: 11.5px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  line-height: 1.45;
+}
+
+.agente__nome strong {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.agente__detalhe {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===========================================================================
+   Cabeçalho de página com saldo e ligação
+   =========================================================================== */
+
+.cabeca {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0 var(--s4);
+}
+
+.cabeca__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cabeca__saudacao {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  margin: 0;
+}
+
+.cabeca h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.cabeca__avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 15px;
+  overflow: hidden;
+}
+
+.cabeca__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ===========================================================================
+   Posição aberta
+   =========================================================================== */
+
+.posicao {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.posicao:last-child {
+  border-bottom: none;
+}
+
+.posicao__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.posicao__nome {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.posicao__sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.posicao__valor {
+  font-weight: 700;
+  font-size: 14px;
+  text-align: right;
+  flex: none;
+}
+
+.posicao__fechar {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.posicao__fechar:hover:not(:disabled) {
+  border-color: var(--bear);
+  color: var(--bear);
+}
+
+/* ===========================================================================
+   Terminal — gráfico + ordem
+   =========================================================================== */
+
+.wrap--terminal {
+  padding-top: var(--s3);
+}
+
+.terminal__barra {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s2);
+}
+
+.terminal__simbolo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  max-width: 68vw;
+}
+
+.terminal__simbolo:hover {
+  border-color: var(--border-strong);
+}
+
+.terminal__codigo {
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.terminal__nome {
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal__seta {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.terminal__preco {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 2px var(--s3);
+}
+
+.terminal__valor {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+/*
+ * O ecrã inteiro sai do fluxo da página e ocupa tudo, incluindo por baixo da
+ * barra de navegação — que fica escondida, porque num gráfico em ecrã inteiro
+ * cada pixel é informação.
+ */
+.terminal--cheio {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+
+body:has(.terminal--cheio) .bottomnav {
+  display: none;
+}
+
+/* ===========================================================================
+   Folha (bottom sheet)
+   =========================================================================== */
+
+.folha {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.folha__fundo {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  backdrop-filter: blur(2px);
+  animation: aparecer 0.18s ease;
+}
+
+.folha__corpo {
+  position: relative;
+  background: var(--surface);
+  border-radius: 22px 22px 0 0;
+  border-top: 1px solid var(--border);
+  max-height: 86dvh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: subir 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes subir {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes aparecer {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .folha__corpo,
+  .folha__fundo {
+    animation: none;
+  }
+}
+
+.folha__pega {
+  width: 38px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-strong);
+  margin: 8px auto 4px;
+  flex: none;
+}
+
+.folha__topo {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  flex: none;
+}
+
+.folha__procura {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 16px;
+}
+
+.folha__procura:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.folha__fechar {
+  width: var(--tap);
+  height: var(--tap);
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.folha__lista {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 var(--s4) var(--s4);
+}
+
+.abas--folha {
+  margin: 0 var(--s4) var(--s3);
+}
+
+.indice--activo {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* ===========================================================================
+   Definições
+   =========================================================================== */
+
+.conta-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s3) var(--s4);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  min-height: 60px;
+}
+
+.conta-linha:last-child {
+  border-bottom: none;
+}
+
+.conta-linha:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.conta-linha__selo {
+  flex: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 4px 7px;
+  border-radius: 5px;
+}
+
+.conta-linha__selo.demo {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--accent-strong);
+}
+
+.conta-linha__selo.real {
+  background: color-mix(in srgb, var(--bear) 22%, transparent);
+  color: var(--bear);
+}
+
+.conta-linha__id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.conta-linha__id strong {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.conta-linha__id em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.conta-linha__marca {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--on-accent);
+}
+
+.conta-linha[aria-pressed='true'] .conta-linha__marca {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.linha__nota {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.mini-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+/* ===========================================================================
+   Controlo segmentado (abas)
+   ===========================================================================
+   O `.abas` do globals.css só ajustava o tamanho: contava com a aparência vir
+   de `.segmented`, que os ecrãs novos não usam. O resultado era um par de
+   botões cinzentos por estilizar.
+
+   Aqui o estilo é próprio e completo, no formato que a Apple usa: uma calha
+   com fundo recuado e a pastilha branca a marcar o separador ativo.
+   =========================================================================== */
+
+.abas {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  padding: 3px;
+  margin-bottom: var(--s4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.abas::-webkit-scrollbar {
+  display: none;
+}
+
+.abas button {
+  flex: 1 1 0;
+  min-width: max-content;
+  min-height: 38px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--mov), color var(--mov);
+}
+
+.abas button:hover:not(.active) {
+  color: var(--text);
+}
+
+.abas button.active,
+.abas button[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+/* No tema escuro a pastilha ativa precisa de contraste positivo, não de uma
+   sombra que nela desaparece. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .abas button.active,
+  :root:not([data-theme='light']) .abas button[aria-selected='true'] {
+    background: var(--surface-3);
+  }
+}
+
+:root[data-theme='dark'] .abas button.active,
+:root[data-theme='dark'] .abas button[aria-selected='true'] {
+  background: var(--surface-3);
+}
+
+/* ===========================================================================
+   Caixa de procura
+   =========================================================================== */
+
+.procura {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s4);
+  margin-bottom: var(--s3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  min-height: 46px;
+}
+
+.procura:focus-within {
+  border-color: var(--accent);
+}
+
+.procura > span {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.procura input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  /* 16px evita o zoom automático do iOS ao focar. */
+  font-size: 16px;
+  outline: none;
+}
+
+.procura input::placeholder {
+  color: var(--text-faint);
+}
+
+/* O `search` do WebKit desenha um X próprio que não segue o tema. */
+.procura input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.procura button {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.mercados__contagem {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 4px var(--s2);
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ===========================================================================
+   Motores — estado dos processos e sinais de tempo real
+   =========================================================================== */
+
+.motores__vivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.motores__vivo i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.motores__vivo.on {
+  color: var(--bull);
+}
+
+.motores__vivo.on i {
+  background: var(--bull);
+  animation: pulso-motor 1.8s ease-in-out infinite;
+}
+
+@keyframes pulso-motor {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--bull) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--bull) 0%, transparent);
+  }
+}
+
+.motor {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.motor:last-child {
+  border-bottom: none;
+}
+
+.motor__ponto {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.motor__ponto.ok {
+  background: var(--bull);
+}
+
+.motor__ponto.falha {
+  background: var(--bear);
+}
+
+.motor__ponto.corre {
+  background: var(--accent);
+  animation: pulso-motor 1s ease-in-out infinite;
+}
+
+.motor__id {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.motor__nome {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.motor__sub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+
+.motor__quando {
+  flex: none;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.motor__quando em {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.sinais-tr {
+  margin-top: var(--s4);
+}
+
+.sinal-tr {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+  color: inherit;
+  transition: background var(--mov);
+}
+
+.sinal-tr:last-child {
+  border-bottom: none;
+}
+
+.sinal-tr:hover {
+  background: var(--surface-2);
+}
+
+/* Sinal que chegou enquanto a página estava aberta: acende e apaga devagar. */
+.sinal-tr--novo {
+  animation: sinal-chegou 2.4s ease-out;
+}
+
+@keyframes sinal-chegou {
+  from {
+    background: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.lado-pill {
+  flex: none;
+  min-width: 58px;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 5px 8px;
+  border-radius: var(--radius-pill);
+}
+
+.lado-pill.compra {
+  background: color-mix(in srgb, var(--bull) 18%, transparent);
+  color: var(--bull);
+}
+
+.lado-pill.venda {
+  background: color-mix(in srgb, var(--bear) 18%, transparent);
+  color: var(--bear);
+}
+
+.sinal-tr__id {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sinal-tr__id strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sinal-tr__id em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sinal-tr__r {
+  flex: none;
+  text-align: right;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sinal-tr__r em {
+  display: block;
+  font-style: normal;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ===========================================================================
+   Análise ao vivo (terminal)
+   =========================================================================== */
+
+.analise-viva {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.analise-viva__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.analise-viva__pulso {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulso-motor 1.8s ease-in-out infinite;
+}
+
+.analise-viva__topo strong {
+  font-size: 14px;
+}
+
+.analise-viva__relogio {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.analise-viva__corpo {
+  padding: var(--s4);
+}
+
+.analise-viva__sinal {
+  border-radius: var(--radius-sm);
+  padding: var(--s3) var(--s4);
+  background: var(--surface-2);
+  border-left: 3px solid var(--accent);
+}
+
+.analise-viva__sinal.compra {
+  border-left-color: var(--bull);
+}
+
+.analise-viva__sinal.venda {
+  border-left-color: var(--bear);
+}
+
+.analise-viva__cab {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.analise-viva__cab strong {
+  font-size: 14px;
+}
+
+.analise-viva__r {
+  font-weight: 800;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analise-viva__niveis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: var(--s2);
+  margin-bottom: var(--s3);
+}
+
+.analise-viva__niveis div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.analise-viva__niveis span {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.analise-viva__niveis b {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analise-viva__niveis .stop b {
+  color: var(--bear);
+}
+
+.analise-viva__niveis .alvo b {
+  color: var(--bull);
+}
+
+.analise-viva__razao {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.analise-viva__meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.analise-viva__estrategias {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-top: var(--s3);
+}
+
+.estrategia-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.estrategia-chip i {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.estrategia-chip.compra i {
+  background: var(--bull);
+}
+
+.estrategia-chip.venda i {
+  background: var(--bear);
+}
+
+.estrategia-chip.compra,
+.estrategia-chip.venda {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.analise-viva__rodape {
+  padding: 10px var(--s4);
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motores__vivo.on i,
+  .motor__ponto.corre,
+  .analise-viva__pulso,
+  .sinal-tr--novo {
+    animation: none;
+  }
+}
+
+/* ===========================================================================
+   Etiqueta de mercado fechado
+   ===========================================================================
+   Passou a dizer "abre 08:00" em vez de só "fechado": a frase é o que
+   distingue uma bolsa fora de horas de um sistema avariado. Não pode partir em
+   duas linhas dentro de um cartão estreito.
+   =========================================================================== */
+
+.fechado {
+  white-space: nowrap;
+}

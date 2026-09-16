@@ -1,0 +1,348 @@
+/*
+ * Estilos do onboarding e da entrada.
+ *
+ * Ficheiro próprio, importado só pelos ecrãs que precisam dele, em vez de
+ * engordar o `globals.css` — que está a ser trabalhado em paralelo. Usa apenas
+ * os tokens já definidos lá; não introduz cores novas.
+ */
+
+/* Estes ecrãs não têm navegação inferior: o utilizador ainda não escolheu nada,
+   e mostrar-lhe destinos que ainda não pode usar é convidá-lo a desistir. */
+.wrap.ob {
+  padding-bottom: var(--s7);
+  max-width: 460px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ob__marca {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s5);
+}
+
+.ob__marca h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+
+.ob__marca p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.ob__logo {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 22px;
+}
+
+.ob__label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  margin-bottom: var(--s2);
+}
+
+.ob__input {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 16px; /* 16px evita o zoom automático do iOS ao focar */
+  margin-bottom: var(--s3);
+}
+
+.ob__input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ob__input::placeholder {
+  color: var(--text-faint);
+}
+
+/* O código é para ser lido dígito a dígito, não como palavra. */
+.ob__input--codigo {
+  font-family: var(--mono);
+  font-size: 26px;
+  letter-spacing: 0.4em;
+  text-align: center;
+  padding: 0;
+}
+
+.ob__ajuda {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin: 0 0 var(--s4);
+  line-height: 1.5;
+}
+
+.ob__link {
+  display: block;
+  width: 100%;
+  margin-top: var(--s3);
+  padding: var(--s2);
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.ob__link:hover {
+  color: var(--text);
+}
+
+.ob__erro {
+  margin-top: var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bear) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bear) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* --- Passos do onboarding -------------------------------------------------- */
+
+.ob__passos {
+  display: flex;
+  gap: var(--s1);
+  margin-bottom: var(--s5);
+}
+
+.ob__passos i {
+  flex: 1 1 0;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+}
+
+.ob__passos i.feito {
+  background: var(--accent);
+}
+
+/* Cartão de escolha — estratégia, instrumento. */
+.escolha {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  width: 100%;
+  text-align: left;
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  min-height: var(--tap);
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+
+.escolha:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.escolha[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.escolha:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A marca de seleção é preenchida, não só colorida — o estado não pode depender
+   apenas da cor. */
+.escolha__marca {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--on-accent);
+}
+
+.escolha[aria-pressed='true'] .escolha__marca {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.escolha__nome {
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-bottom: 2px;
+}
+
+.escolha__desc {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.escolha__meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  margin-top: 4px;
+}
+
+/* Grelha compacta para escolher instrumentos. */
+.ob__grelha {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-bottom: var(--s4);
+}
+
+@media (min-width: 480px) {
+  .ob__grelha {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.ob__chip {
+  min-height: var(--tap);
+  padding: var(--s2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
+}
+
+.ob__chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.ob__grupo {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  margin: var(--s4) 0 var(--s2);
+  font-weight: 700;
+}
+
+.ob__acoes {
+  display: flex;
+  gap: var(--s2);
+  margin-top: var(--s5);
+}
+
+.ob__acoes .btn {
+  flex: 1 1 0;
+}
+
+/*
+ * Sem navegação inferior na entrada e no onboarding.
+ *
+ * A barra é montada pelo layout, que é global. Mostrar destinos que a pessoa
+ * ainda não pode usar — porque não tem sessão nem preferências — é convidá-la a
+ * sair a meio do único percurso que interessa naquele momento.
+ *
+ * Feito com `:has()` sobre o body em vez de uma condição no componente: assim a
+ * regra vive junto dos ecrãs a que diz respeito e não obriga a tocar no
+ * `BottomNav`, que está a ser trabalhado em paralelo.
+ */
+body:has(.wrap.ob) .bottomnav {
+  display: none;
+}
+
+/* --- Foto de perfil ------------------------------------------------------- */
+
+/*
+ * O `input[type=file]` nativo não se consegue estilizar de forma consistente
+ * entre browsers, por isso fica invisível por cima do círculo: o `label`
+ * inteiro é a área tocável, que é o que um dedo precisa.
+ */
+.ob__foto {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 2px dashed var(--border-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 22px;
+  transition: border-color 0.16s ease;
+}
+
+.ob__foto:hover {
+  border-color: var(--accent);
+}
+
+.ob__foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ob__foto input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ob__grupo em {
+  font-style: normal;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  margin-left: 6px;
+}
+
+.ob__ok {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.ob__ok > span {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bull);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}

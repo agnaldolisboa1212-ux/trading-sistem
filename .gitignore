@@ -1,0 +1,29 @@
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+packages/data/scripts/public-apis.md
+.DS_Store
+
+# --- dados de execucao: gerados pelos motores e pelo painel, nunca versionados ---
+# Sinais, estado dos motores e snapshots mudam a cada minuto e sao especificos
+# de cada maquina. `.dados/` guarda as subscricoes push — endpoints de browsers
+# de pessoas reais.
+data/*.json
+**/data/*.json
+!data/.gitkeep
+.dados/
+apps/dashboard/.dados/
+
+# --- ambiente e segredos (todas as variantes) ---
+.env.*
+!.env.example
+
+# --- ruido ---
+*.log
+npm-debug.log*
+.vercel/
+supabase/.temp/
