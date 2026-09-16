@@ -23,25 +23,8 @@ import { NextResponse } from 'next/server';
 import { analisarComDeriv } from '@/lib/analise-deriv';
 import { analyzeSymbol } from '@/lib/analysis';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
+import { alvoMmxm as equivalenteMmxm } from '@/lib/equivalentes';
 import { getInstrument, type Timeframe } from '@trading/core';
-
-/**
- * Códigos da Deriv que TÊM equivalente no universo MMXM.
- *
- * `US100` e `NQ` são o mesmo mercado com contratos diferentes (índice à vista
- * contra futuro). Os preços não coincidem — e é por isso que o registry nunca
- * mistura as duas fontes na mesma série — mas a ESTRUTURA é a mesma, por isso
- * a análise MMXM do futuro aplica-se ao índice.
- *
- * Sem este mapa, quem escolhesse "US100" no onboarding veria "instrumento
- * desconhecido" no radar, apesar de o sistema saber analisar exatamente esse
- * mercado.
- */
-const EQUIVALENTE_MMXM: Record<string, string> = {
-  US100: 'NQ',
-  SP500: 'ES',
-  US30: 'YM',
-};
 
 export const dynamic = 'force-dynamic';
 /** Cada análise carrega 400 velas de várias séries; 60s é folgado mas seguro. */
@@ -70,7 +53,7 @@ export async function GET(
   const tf = (VALIDOS.has(tfBruto as Timeframe) ? tfBruto : '1d') as Timeframe;
 
   const canonico = symbol.toUpperCase();
-  const alvoMmxm = EQUIVALENTE_MMXM[canonico] ?? canonico;
+  const alvoMmxm = equivalenteMmxm(canonico);
 
   try {
     /*

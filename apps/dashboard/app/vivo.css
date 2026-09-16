@@ -1475,6 +1475,8 @@ a.item:hover {
   font-weight: 800;
   font-size: 15px;
   overflow: hidden;
+  text-decoration: none;
+  letter-spacing: -0.02em;
 }
 
 .cabeca__avatar img {
@@ -2364,4 +2366,160 @@ body:has(.terminal--cheio) .bottomnav {
 
 .fechado {
   white-space: nowrap;
+}
+
+/* ===========================================================================
+   Visões por estratégia (selector no painel de análise)
+   =========================================================================== */
+
+.visoes {
+  display: flex;
+  gap: var(--s2);
+  padding: 0 var(--s4) var(--s3);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.visoes::-webkit-scrollbar {
+  display: none;
+}
+
+.visoes__botao {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background var(--mov), color var(--mov), border-color var(--mov);
+}
+
+.visoes__botao.activo {
+  background: var(--surface-invert);
+  border-color: var(--surface-invert);
+  color: var(--on-invert);
+}
+
+.visoes__ponto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.visoes__ponto.compra {
+  background: var(--bull);
+}
+
+.visoes__ponto.venda {
+  background: var(--bear);
+}
+
+.analise-viva__estado {
+  margin: calc(var(--s2) * -1) 0 var(--s3);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.analise-viva__estado.vivo {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.analise-viva__sinal.terminado {
+  opacity: 0.62;
+}
+
+.analise-viva__nota {
+  margin: var(--s2) 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.visoes__lista {
+  margin-top: var(--s3);
+  border-top: 1px solid var(--border);
+}
+
+.visoes__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+
+.visoes__linha strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+.visoes__linha em {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+.visoes__estruturas {
+  margin-top: var(--s3);
+}
+
+.visoes__subtitulo {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: var(--s2);
+}
+
+.visoes__estrutura {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.visoes__estrutura i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--text-faint);
+  opacity: 0.6;
+}
+
+.visoes__estrutura.bull i {
+  background: var(--bull);
+}
+
+.visoes__estrutura.bear i {
+  background: var(--bear);
+}
+
+.visoes__estrutura b {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.visoes__estruturas .btn {
+  margin-top: var(--s3);
 }

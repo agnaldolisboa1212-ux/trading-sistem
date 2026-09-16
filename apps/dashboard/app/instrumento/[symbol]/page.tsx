@@ -1,13 +1,24 @@
 /**
- * Detalhe de um instrumento: a análise completa, desenhada.
+ * Detalhe de um instrumento: gráfico ao vivo e a análise completa.
  *
- * A análise corre no servidor com o MESMO `analyzeInstrument` do motor, por
- * isso o que está no gráfico é literalmente o que decidiu o checklist — não uma
- * reconstrução aproximada.
+ * A análise MMXM corre no servidor com o MESMO `analyzeInstrument` do motor.
+ * Quando o instrumento existe na Deriv, o gráfico é o ao vivo (velas da Deriv,
+ * ao segundo) com um selector de estratégia: o MMXM é uma das visões, ao lado
+ * das quatro institucionais que o motor de tempo real usa para os avisos. Sem
+ * código Deriv (futuros, DXY) fica o gráfico do servidor.
+ *
+ * Instrumentos da Deriv sem MMXM (sintéticos, DAX…) vão para o terminal, que
+ * tem as mesmas visões.
  */
 
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Abas } from '@/components/Abas';
+import type { MmxmPronto } from '@/components/vivo/AnaliseAoVivo';
+import { GraficoInstrumento } from '@/components/vivo/GraficoInstrumento';
+import { acharSimbolo, type Timeframe as DerivTimeframe } from '@/lib/deriv/simbolos';
+import { alvoMmxm } from '@/lib/equivalentes';
+import { visaoValida, type Desenho } from '@/lib/visoes';
 import { AutoRefresh } from '@/components/AutoRefresh';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TimeframeSwitch } from '@/components/TimeframeSwitch';
@@ -53,11 +64,15 @@ export default async function Page({
   searchParams,
 }: {
   params: Promise<{ symbol: string }>;
-  searchParams: Promise<{ tf?: string }>;
+  searchParams: Promise<{ tf?: string; v?: string }>;
 }) {
   const { symbol: raw } = await params;
-  const { tf } = await searchParams;
-  const symbol = decodeURIComponent(raw).toUpperCase();
+  const { tf, v } = await searchParams;
+  const pedido = decodeURIComponent(raw).toUpperCase();
+  const deriv = acharSimbolo(pedido);
+  // US100 → NQ: a análise MMXM corre sobre o contrato equivalente.
+  const symbol = alvoMmxm(pedido);
+  const equivalente = symbol !== pedido;
 
   // Timeframe do URL, validado contra a lista suportada.
   const timeframe: Timeframe = (TIMEFRAMES as string[]).includes(tf ?? '')
@@ -73,10 +88,19 @@ export default async function Page({
    * aqui veio de um link: dizer-lhe quais são os símbolos válidos é mais útil
    * do que um 404.
    */
-  if (!getInstrument(symbol)) return <UnknownSymbol symbol={symbol} />;
+  if (!getInstrument(symbol)) {
+    if (deriv) {
+      const tfDeriv = ['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1w'].includes(tf ?? '') ? tf : '1h';
+      redirect(`/grafico?s=${encodeURIComponent(deriv.codigo)}&tf=${tfDeriv}`);
+    }
+    return <UnknownSymbol symbol={pedido} />;
+  }
 
   const analysis = await analyzeSymbol(symbol, timeframe);
   if (!analysis) {
+    // Sem a fonte pública o MMXM não corre; o gráfico ao vivo e as outras
+    // estratégias da Deriv continuam a servir.
+    if (deriv) redirect(`/grafico?s=${encodeURIComponent(deriv.codigo)}&tf=${timeframe}`);
     return (
       <div className="wrap">
         <BackLink />
@@ -169,13 +193,69 @@ export default async function Page({
 
   const last = primary.candles[primary.candles.length - 1];
 
+  /*
+   * A análise MMXM como visão do gráfico ao vivo. As marcações vêm em índices
+   * das velas do servidor e passam a tempo, para caírem nas velas da Deriv. Com
+   * um contrato equivalente (US100 ↔ NQ) os preços não coincidem, e não se
+   * desenham — fica o texto.
+   */
+  const tempoDe = (i: number | undefined) =>
+    candles[Math.max(0, Math.min(candles.length - 1, i ?? 0))]?.t ?? 0;
+  const desenhoMmxm: Desenho = equivalente
+    ? { zonas: [], linhas: [], curvas: [] }
+    : {
+        zonas: bands.map((b) => ({
+          de: tempoDe(b.fromIndex),
+          ate: b.toIndex !== undefined ? tempoDe(b.toIndex) : Infinity,
+          topo: b.high,
+          base: b.low,
+          tipo:
+            b.kind === 'fvg-bull' ? 'bull' : b.kind === 'fvg-bear' ? 'bear' : b.kind === 'entry' ? 'entrada' : 'neutro',
+          rotulo: b.label,
+        })),
+        linhas: lines.map((l) => ({
+          preco: l.price,
+          rotulo: l.label,
+          tipo: l.kind === 'stop' ? 'stop' : l.kind === 'target' ? 'alvo' : 'poc',
+        })),
+        curvas: [],
+      };
+  const mmxm: MmxmPronto = {
+    titulo: model
+      ? `${model.type} · ${PHASE_LABEL[model.phase] ?? model.phase}`
+      : 'Nenhum Market Maker Model identificável',
+    linhas: [
+      `Checklist ${(result.diagnostics.checklistScore * 100).toFixed(0)}%${
+        result.diagnostics.failedAtStep !== null
+          ? ` · parou no passo ${result.diagnostics.failedAtStep} de 9`
+          : ' · 9 de 9'
+      } · fluxo HTF ${result.diagnostics.htfOrderFlow}`,
+      result.diagnostics.summary,
+      equivalente
+        ? `Analisado sobre ${symbol}, o mesmo mercado noutro contrato: os níveis não se desenham no gráfico de ${pedido}.`
+        : `Velas ${timeframe} de ${primary.source}; os preços podem diferir ligeiramente dos da Deriv.`,
+    ],
+    desenho: desenhoMmxm,
+    sinal: signal
+      ? {
+          direccao: signal.direction,
+          entrada: signal.entryPrice,
+          stop: signal.stopLoss,
+          rMaximo: signal.maxRMultiple,
+        }
+      : null,
+  };
+
   return (
     <div className="wrap">
       <BackLink />
 
       <header className="top">
         <h1>
-          {symbol} <span className="dim" style={{ fontWeight: 400 }}>· {analysis.name}</span>
+          {deriv ? deriv.codigo : symbol}{' '}
+          <span className="dim" style={{ fontWeight: 400 }}>
+            · {deriv ? deriv.nome : analysis.name}
+          </span>
         </h1>
         <p>
           {model ? (
@@ -224,20 +304,34 @@ export default async function Page({
 
       <section>
         <h2>Estrutura de preço</h2>
-        <ChartPanel
-          symbol={symbol}
-          timeframe={timeframe}
-          candles={candles}
-          bands={bands}
-          lines={lines}
-          markers={markers}
-          precision={precision}
-          title={`${symbol} · ${timeframe}`}
-          timeframeSwitch={
-            <TimeframeSwitch current={timeframe} options={TIMEFRAMES} labels={TIMEFRAME_LABEL} />
-          }
-        />
-        <Legend />
+        {deriv ? (
+          <GraficoInstrumento
+            codigo={deriv.codigo}
+            nome={deriv.nome}
+            // Validado contra TIMEFRAMES (1h, 4h, 1d, 1w), que a Deriv também tem.
+            tf={timeframe as DerivTimeframe}
+            casas={deriv.casas}
+            visao={visaoValida(v ?? 'mmxm')}
+            mmxm={mmxm}
+          />
+        ) : (
+          <>
+            <ChartPanel
+              symbol={symbol}
+              timeframe={timeframe}
+              candles={candles}
+              bands={bands}
+              lines={lines}
+              markers={markers}
+              precision={precision}
+              title={`${symbol} · ${timeframe}`}
+              timeframeSwitch={
+                <TimeframeSwitch current={timeframe} options={TIMEFRAMES} labels={TIMEFRAME_LABEL} />
+              }
+            />
+            <Legend />
+          </>
+        )}
       </section>
 
       {/*

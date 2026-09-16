@@ -38,9 +38,17 @@ export interface GraficoVivoProps {
   velas: Vela[];
   casas: number;
   timeframe: Timeframe;
-  /** Sobreposições opcionais vindas da análise MMXM. */
-  zonas?: Array<{ de: number; ate: number; topo: number; base: number; tipo: string }>;
+  /**
+   * Faixas de preço no tempo: zonas de oferta/procura, níveis, value area, FVG.
+   * `ate: Infinity` estende até ao presente. `tipo`: bull, bear, neutro, entrada.
+   */
+  zonas?: Array<{ de: number; ate: number; topo: number; base: number; tipo: string; rotulo?: string }>;
+  /** Linhas horizontais. `tipo`: entrada, stop, alvo, poc, nivel. */
   linhas?: Array<{ preco: number; rotulo: string; tipo: string }>;
+  /** Curvas no tempo, como o VWAP e as suas bandas. `tipo`: vwap, banda1, banda2. */
+  curvas?: Array<{ pontos: Array<{ t: number; p: number }>; tipo: string; rotulo?: string }>;
+  /** Timeframes oferecidos na barra; por omissão todos os da Deriv. */
+  timeframes?: readonly Timeframe[];
   altura?: number;
   aoMudarTimeframe?: (tf: Timeframe) => void;
   cheio?: boolean;
@@ -64,6 +72,8 @@ export function GraficoVivo({
   timeframe,
   zonas = [],
   linhas = [],
+  curvas = [],
+  timeframes,
   altura = 340,
   aoMudarTimeframe,
   cheio = false,
@@ -139,6 +149,7 @@ export function GraficoVivo({
     const texto = cor('--text-faint', '#8f9683');
     const textoForte = cor('--text', '#14180f');
     const acento = cor('--accent', '#b8e62e');
+    const aviso = cor('--warn', '#ff9500');
     const superficie = cor('--surface', '#ffffff');
 
     // --- escala vertical -------------------------------------------------
@@ -151,6 +162,18 @@ export function GraficoVivo({
     for (const l of linhas) {
       if (l.preco < min) min = l.preco;
       if (l.preco > max) max = l.preco;
+    }
+    // O VWAP e as bandas são a própria leitura: cortá-las pela escala das velas
+    // escondia precisamente as bandas de onde o preço está a afastar-se.
+    if (curvas.length > 0) {
+      const inicioJanela = janela[0]!.t;
+      for (const cv of curvas) {
+        for (const pt of cv.pontos) {
+          if (pt.t < inicioJanela) continue;
+          if (pt.p < min) min = pt.p;
+          if (pt.p > max) max = pt.p;
+        }
+      }
     }
     const folga = (max - min) * 0.08 || Math.abs(max) * 0.001 || 1;
     const alvo: Escala = { min: min - folga, max: max + folga };
@@ -217,17 +240,78 @@ export function GraficoVivo({
     }
     cx.setLineDash([]);
 
-    // --- zonas (FVG, consolidação) ---------------------------------------
+    // Tudo o que é da análise fica dentro da área das velas: uma zona longe do
+    // preço não pode pintar por cima do eixo nem da barra de tempo.
+    cx.save();
+    cx.beginPath();
+    cx.rect(0, MARGEM_TOPO, largura, altoUtil);
+    cx.clip();
+
+    // --- zonas (oferta/procura, níveis, value area, FVG) -----------------
+    const corDoTipo = (tipo: string) =>
+      tipo.includes('bull')
+        ? alta
+        : tipo.includes('bear')
+          ? baixa
+          : tipo === 'entrada'
+            ? acento
+            : texto;
     for (const z of zonas) {
       const i0 = janela.findIndex((v) => v.t >= z.de);
-      if (i0 === -1) continue;
-      const i1 = janela.findIndex((v) => v.t > z.ate);
-      const x0 = i0 * passo;
+      const antes = janela[0] && z.de < janela[0].t;
+      if (i0 === -1 && !antes) continue;
+      const i1 = Number.isFinite(z.ate) ? janela.findIndex((v) => v.t > z.ate) : -1;
+      if (Number.isFinite(z.ate) && janela[0] && z.ate < janela[0].t) continue;
+      const x0 = antes ? 0 : i0 * passo;
       const x1 = (i1 === -1 ? janela.length : i1) * passo;
-      const base = z.tipo.includes('bull') ? alta : z.tipo.includes('bear') ? baixa : texto;
-      cx.fillStyle = corComAlfa(base, 0.1);
-      cx.fillRect(x0, y(z.topo), Math.max(2, x1 - x0), y(z.base) - y(z.topo));
+      const base = corDoTipo(z.tipo);
+      const yTopo = y(z.topo);
+      const alturaZona = Math.max(2, y(z.base) - yTopo);
+      cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' ? 0.14 : 0.1);
+      cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
+      if (z.rotulo) {
+        cx.fillStyle = corComAlfa(base, 0.9);
+        cx.font = '9.5px ui-sans-serif, system-ui, sans-serif';
+        cx.textAlign = 'right';
+        cx.textBaseline = 'top';
+        cx.fillText(z.rotulo, largura - 4, yTopo + 2);
+        cx.textBaseline = 'middle';
+      }
     }
+
+    // --- curvas (VWAP e bandas) -----------------------------------------
+    if (curvas.length > 0 && janela.length > 1) {
+      const indice = new Map(janela.map((v, i) => [v.t, i]));
+      for (const cv of curvas) {
+        cx.strokeStyle = cv.tipo === 'vwap' ? aviso : corComAlfa(aviso, cv.tipo === 'banda1' ? 0.55 : 0.3);
+        cx.lineWidth = cv.tipo === 'vwap' ? 1.6 : 1;
+        cx.setLineDash(cv.tipo === 'banda2' ? [4, 4] : []);
+        cx.beginPath();
+        let comecou = false;
+        let ultimoX = 0;
+        let ultimoY = 0;
+        for (const pt of cv.pontos) {
+          const i = indice.get(pt.t);
+          if (i === undefined) continue;
+          const xx = i * passo + passo / 2;
+          const yy = y(pt.p);
+          if (comecou) cx.lineTo(xx, yy);
+          else cx.moveTo(xx, yy);
+          comecou = true;
+          ultimoX = xx;
+          ultimoY = yy;
+        }
+        cx.stroke();
+        cx.setLineDash([]);
+        if (comecou && cv.rotulo) {
+          cx.fillStyle = cx.strokeStyle;
+          cx.font = '9.5px ui-sans-serif, system-ui, sans-serif';
+          cx.textAlign = 'right';
+          cx.fillText(cv.rotulo, Math.min(largura - 4, ultimoX - 4), ultimoY - 7);
+        }
+      }
+    }
+    cx.restore();
 
     // --- velas ------------------------------------------------------------
     janela.forEach((v, i) => {
@@ -253,9 +337,18 @@ export function GraficoVivo({
     // --- linhas da análise ------------------------------------------------
     for (const l of linhas) {
       const yy = Math.round(y(l.preco)) + 0.5;
-      cx.strokeStyle = l.tipo === 'stop' ? baixa : l.tipo === 'alvo' ? alta : acento;
-      cx.lineWidth = 1;
-      cx.setLineDash([5, 4]);
+      cx.strokeStyle =
+        l.tipo === 'stop'
+          ? baixa
+          : l.tipo === 'alvo'
+            ? alta
+            : l.tipo === 'poc'
+              ? aviso
+              : l.tipo === 'nivel'
+                ? texto
+                : acento;
+      cx.lineWidth = l.tipo === 'poc' || l.tipo === 'entrada' ? 1.4 : 1;
+      cx.setLineDash(l.tipo === 'poc' ? [] : [5, 4]);
       cx.beginPath();
       cx.moveTo(0, yy);
       cx.lineTo(largura, yy);
@@ -337,7 +430,7 @@ export function GraficoVivo({
       cx.textAlign = 'left';
       cx.fillText(etiqueta, largura + 7, mira.y);
     }
-  }, [janela, casas, linhas, zonas, mira, timeframe]);
+  }, [janela, casas, linhas, zonas, curvas, mira, timeframe]);
 
   /*
    * Loop de animação.
@@ -435,7 +528,7 @@ export function GraficoVivo({
     <div className={`grafico ${cheio ? 'grafico--cheio' : ''}`}>
       <div className="grafico__barra">
         <div className="segmentos grafico__tfs">
-          {TIMEFRAMES.map((t) => (
+          {TIMEFRAMES.filter((t) => !timeframes || timeframes.includes(t.id)).map((t) => (
             <button
               key={t.id}
               type="button"

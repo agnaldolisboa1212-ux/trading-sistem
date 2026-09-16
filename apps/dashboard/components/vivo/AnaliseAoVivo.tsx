@@ -1,52 +1,63 @@
 'use client';
 
 /**
- * Análise em tempo real, calculada no browser.
+ * Análise ao vivo, com uma visão por estratégia.
  *
- * ── PORQUE NO BROWSER ──────────────────────────────────────────────────────
+ * ── PORQUE HÁ UM SELECTOR ──────────────────────────────────────────────────
  *
- * As quatro estratégias institucionais são funções puras de `@trading/core`: não
- * tocam em rede, ficheiros nem relógio. As velas já chegam ao browser pelo
- * WebSocket público da Deriv, uma atualização por segundo. Mandá-las ao
- * servidor para as analisar lá e devolver o resultado seria acrescentar um
- * salto de rede a uma conta que demora milissegundos.
+ * Antes o gráfico mostrava uma só coisa: o melhor sinal nascido na última vela
+ * fechada. Sem sinal nessa vela, nada — mesmo com zonas activas, níveis
+ * testados e um sinal de há três velas ainda por entrar. E o sinal que chegou
+ * ao telemóvel desaparecia do gráfico uma vela depois.
+ *
+ * Agora cada estratégia tem a sua visão (ver `lib/visoes.ts`): as estruturas
+ * que detecta, desenhadas, e o seu sinal mais recente com o que lhe aconteceu.
+ * "Resumo" é o plano vivo mais relevante; "MMXM" é a análise do modelo
+ * principal, que corre no servidor.
  *
  * ── QUANDO RECALCULA ───────────────────────────────────────────────────────
  *
  * Quando FECHA uma vela — não a cada tick. As estratégias decidem sobre velas
  * fechadas; recalcular sobre a vela em formação produziria zonas que aparecem e
- * desaparecem enquanto se olha para o ecrã, que é exatamente o sinal falso que
- * o corte da vela viva existe para evitar. Um relógio mostra quanto falta.
+ * desaparecem enquanto se olha para o ecrã. Um relógio mostra quanto falta.
  */
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  assessConfluence,
-  runInstitutionalStrategies,
-  type Candle,
-  type StrategySignal,
-  type Timeframe as TimeframeCore,
-} from '@trading/core';
+import type { Candle, Timeframe as TimeframeCore } from '@trading/core';
 import type { Vela } from '@/lib/deriv/live';
 import { formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
+import {
+  analisarVisoes,
+  DESENHO_VAZIO,
+  nomeVisao,
+  RECENTE_VELAS,
+  ROTULO_ESTADO,
+  sinalVivo,
+  VISOES,
+  type Desenho,
+  type SinalVisao,
+  type Visao,
+  type VisaoId,
+} from '@/lib/visoes';
 
+/** Compatibilidade: quem só quer linhas horizontais. */
 export interface LinhaAnalise {
   preco: number;
   rotulo: string;
   tipo: string;
 }
 
-const ESTRATEGIAS: Array<{ id: string; nome: string }> = [
-  { id: 'supply-demand', nome: 'Oferta e procura' },
-  { id: 'support-resistance', nome: 'Suporte/resistência' },
-  { id: 'vwap-bands', nome: 'Bandas de VWAP' },
-  { id: 'volume-profile', nome: 'Perfil de volume' },
-];
-
-const NOME = Object.fromEntries(ESTRATEGIAS.map((e) => [e.id, e.nome])) as Record<string, string>;
-
 /** Abaixo disto as estratégias recusam-se a opinar. */
 const MIN_VELAS = 60;
+
+/** Análise MMXM já calculada no servidor (página do instrumento). */
+export interface MmxmPronto {
+  titulo: string;
+  linhas: string[];
+  desenho: Desenho;
+  sinal: { direccao: string; entrada: number; stop: number; rMaximo: number } | null;
+}
 
 /** Próximo fecho de vela. Semanal alinha a segunda-feira UTC, como a agregação. */
 function proximoFecho(tf: Timeframe, agora: number): number {
@@ -74,18 +85,30 @@ export function AnaliseAoVivo({
   tf,
   velas,
   casas,
-  aoMudarLinhas,
+  visao,
+  aoMudarVisao,
+  aoMudarDesenho,
   aoNegociar,
+  mmxm,
 }: {
   codigo: string;
   tf: Timeframe;
   velas: Vela[];
   casas: number;
-  aoMudarLinhas: (linhas: LinhaAnalise[]) => void;
+  visao: VisaoId;
+  aoMudarVisao: (v: VisaoId) => void;
+  aoMudarDesenho: (d: Desenho) => void;
   aoNegociar?: () => void;
+  /** Se vier, a visão MMXM usa-a em vez de perguntar ao servidor. */
+  mmxm?: MmxmPronto | null;
 }) {
-  const [agora, setAgora] = useState(() => Date.now());
+  /*
+   * 0 até montar: o servidor e o browser calculariam horas diferentes para o
+   * relógio, e o React recusa um HTML que não coincide ("Hydration failed").
+   */
+  const [agora, setAgora] = useState(0);
   useEffect(() => {
+    setAgora(Date.now());
     const id = setInterval(() => setAgora(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -93,7 +116,7 @@ export function AnaliseAoVivo({
   const passo = segundosDe(tf) * 1000;
   const ultima = velas[velas.length - 1];
   // A última vela está aberta enquanto o relógio não passar do seu fecho.
-  const nFechadas = ultima && agora < ultima.t + passo ? velas.length - 1 : velas.length;
+  const nFechadas = ultima && (agora === 0 || agora < ultima.t + passo) ? velas.length - 1 : velas.length;
   const ultimaFechada = velas[nFechadas - 1];
 
   /*
@@ -104,10 +127,7 @@ export function AnaliseAoVivo({
 
   const analise = useMemo(() => {
     const fechadas = velas.slice(0, nFechadas);
-    if (fechadas.length < MIN_VELAS) {
-      return { pronta: false as const, velas: fechadas.length };
-    }
-
+    if (fechadas.length < MIN_VELAS) return { pronta: false as const, velas: fechadas.length };
     const candles: Candle[] = fechadas.map((v) => ({
       time: v.t,
       open: v.o,
@@ -116,178 +136,367 @@ export function AnaliseAoVivo({
       close: v.c,
       volume: 0,
     }));
-    const tempoUltima = candles[candles.length - 1]!.time;
-
-    const r = runInstitutionalStrategies(
-      {
-        symbol: codigo,
-        timeframe: tf as TimeframeCore,
-        source: 'deriv',
-        fidelity: 'true-ohlc',
-        candles,
-      },
-      { minRMultiple: 2 },
-    );
-
-    // Só o que nasceu na última vela fechada está "ativo agora".
-    const activos = r.signals.filter((s) => s.generatedAt === tempoUltima);
-    const confluencia = assessConfluence(activos);
-    const melhor: StrategySignal | null =
-      confluencia.direction === 'conflicted'
-        ? null
-        : ([...activos].sort((a, b) => b.conviction - a.conviction)[0] ?? null);
-
-    const porEstrategia = ESTRATEGIAS.map((e) => {
-      const deste = activos.filter((s) => s.strategy === e.id);
-      const direccao = deste[0]?.direction ?? null;
-      return { ...e, direccao };
-    });
-
     return {
       pronta: true as const,
-      velas: fechadas.length,
-      melhor,
-      confluencia,
-      porEstrategia,
-      avisos: r.dataWarnings,
       calculadaEm: Date.now(),
+      ...analisarVisoes(candles, codigo, tf as TimeframeCore),
     };
     // `chave` resume velas/nFechadas: recalcular ao tick seria o erro a evitar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave]);
 
-  const melhor = analise.pronta ? analise.melhor : null;
-  const idMelhor = melhor ? `${melhor.strategy}|${melhor.direction}|${melhor.generatedAt}` : '';
+  const mmxmServidor = usarMmxm(codigo, visao === 'mmxm' && mmxm === undefined);
+  const mmxmActivo = mmxm ?? mmxmServidor;
 
-  // Desenha entrada, stop e alvos no gráfico — ou limpa, quando não há setup.
+  const actual: Visao | null =
+    analise.pronta && visao !== 'mmxm' ? analise.visoes[visao] : null;
+
+  // Desenha a visão escolhida — ou limpa.
+  const assinatura =
+    visao === 'mmxm'
+      ? `mmxm|${mmxmActivo?.titulo ?? ''}|${mmxmActivo?.desenho.linhas.length ?? 0}`
+      : `${chave}|${visao}`;
   useEffect(() => {
-    if (!melhor) {
-      aoMudarLinhas([]);
-      return;
-    }
-    aoMudarLinhas([
-      { preco: melhor.entryPrice, rotulo: `entrada · ${NOME[melhor.strategy] ?? ''}`, tipo: 'entrada' },
-      { preco: melhor.stopLoss, rotulo: 'stop', tipo: 'stop' },
-      ...melhor.targets.slice(0, 3).map((t, i) => ({
-        preco: t.price,
-        rotulo: `TP${i + 1} · ${t.rMultiple.toFixed(1)}R`,
-        tipo: 'alvo',
-      })),
-    ]);
+    if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
+    else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idMelhor, codigo, tf]);
+  }, [assinatura]);
 
-  // Ao desmontar (trocar de instrumento pelo URL), não deixar linhas órfãs.
-  useEffect(() => () => aoMudarLinhas([]), [aoMudarLinhas]);
+  // Ao desmontar (trocar de instrumento pelo URL), não deixar desenhos órfãos.
+  useEffect(() => () => aoMudarDesenho(DESENHO_VAZIO), [aoMudarDesenho]);
 
   const falta = proximoFecho(tf, agora) - agora;
   const fmt = (v: number) => formatarPreco(v, casas);
+
+  /** Ponto de cor no botão: há um plano vivo nesta estratégia? */
+  const marca = (id: VisaoId): string => {
+    if (!analise.pronta || id === 'mmxm') return '';
+    const sv = analise.visoes[id as keyof typeof analise.visoes]?.sinal;
+    if (!sv || !sinalVivo(sv.estado)) return '';
+    return sv.sinal.direction === 'bullish' ? 'compra' : 'venda';
+  };
 
   return (
     <div className="analise-viva">
       <div className="analise-viva__topo">
         <span className="analise-viva__pulso" aria-hidden="true" />
-        <strong>Análise ao vivo</strong>
+        <strong>Análise</strong>
         <span className="grow" />
         <span className="analise-viva__relogio" aria-live="off">
-          próxima vela {tf} em {relogio(falta)}
+          {agora === 0 ? `vela de ${tf}` : `próxima vela ${tf} em ${relogio(falta)}`}
         </span>
       </div>
 
+      <div className="visoes" role="tablist" aria-label="Estratégia desenhada no gráfico">
+        {VISOES.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            role="tab"
+            aria-selected={visao === v.id}
+            className={`visoes__botao ${visao === v.id ? 'activo' : ''}`}
+            onClick={() => aoMudarVisao(v.id)}
+          >
+            {marca(v.id) && <i className={`visoes__ponto ${marca(v.id)}`} aria-label="plano vivo" />}
+            {v.curto}
+          </button>
+        ))}
+      </div>
+
       <div className="analise-viva__corpo">
-        {!analise.pronta ? (
+        {visao === 'mmxm' ? (
+          <VisaoMmxm codigo={codigo} mmxm={mmxmActivo} casas={casas} aoCarregar={mmxm === undefined} />
+        ) : !analise.pronta ? (
           <div className="empty">
             <strong>A carregar histórico…</strong>
             {analise.velas} de {MIN_VELAS} velas fechadas. As estratégias precisam de pelo menos{' '}
-            {MIN_VELAS} para detetar zonas e níveis.
+            {MIN_VELAS} para detectar zonas e níveis.
           </div>
-        ) : melhor ? (
-          <div className={`analise-viva__sinal ${melhor.direction === 'bullish' ? 'compra' : 'venda'}`}>
-            <div className="analise-viva__cab">
-              <span className={`lado-pill ${melhor.direction === 'bullish' ? 'compra' : 'venda'}`}>
-                {melhor.direction === 'bullish' ? 'COMPRA' : 'VENDA'}
-              </span>
-              <strong>{NOME[melhor.strategy] ?? melhor.strategy}</strong>
-              <span className="grow" />
-              <span className="analise-viva__r">{melhor.maxRMultiple.toFixed(1)}R</span>
-            </div>
-
-            <div className="analise-viva__niveis">
-              <div>
-                <span>entrada</span>
-                <b>{fmt(melhor.entryPrice)}</b>
+        ) : visao === 'resumo' ? (
+          <>
+            {actual?.sinal ? (
+              <CartaoSinal sv={actual.sinal} fmt={fmt} aoNegociar={aoNegociar} />
+            ) : (
+              <div className="empty">
+                <strong>Nenhum plano vivo nas últimas velas.</strong>
+                Toque numa estratégia para ver as zonas e os níveis que ela está a vigiar.
               </div>
-              <div className="stop">
-                <span>stop</span>
-                <b>{fmt(melhor.stopLoss)}</b>
-              </div>
-              {melhor.targets.slice(0, 3).map((t, i) => (
-                <div key={i} className="alvo">
-                  <span>
-                    TP{i + 1} · {t.rMultiple.toFixed(1)}R
-                  </span>
-                  <b>{fmt(t.price)}</b>
-                </div>
-              ))}
-            </div>
-
-            <p className="analise-viva__razao">{melhor.rationale}</p>
-            <div className="analise-viva__meta">
-              convicção {Math.round(melhor.conviction * 100)}% ·{' '}
-              {analise.confluencia.agreeingStrategies} de 4 estratégias de acordo ·{' '}
-              {melhor.regime === 'mean-reversion' ? 'reversão à média' : 'continuação'}
-            </div>
-
-            {aoNegociar && (
-              <button
-                type="button"
-                className="btn ghost block"
-                style={{ marginTop: 12 }}
-                onClick={aoNegociar}
-              >
-                Abrir o painel de ordem
-              </button>
             )}
-          </div>
-        ) : analise.confluencia.direction === 'conflicted' ? (
-          <div className="empty">
-            <strong>Estratégias em sentidos opostos.</strong>
-            {analise.confluencia.bullish.length} a apontar para cima e{' '}
-            {analise.confluencia.bearish.length} para baixo na mesma vela. São leituras dos mesmos
-            dados — quando se contradizem, não há setup.
-          </div>
-        ) : (
-          <div className="empty">
-            <strong>Sem setup na última vela fechada.</strong>
-            As quatro estratégias voltam a correr quando a próxima vela fechar.
-          </div>
-        )}
-
-        {analise.pronta && (
-          <div className="analise-viva__estrategias">
-            {analise.porEstrategia.map((e) => (
-              <span
-                key={e.id}
-                className={`estrategia-chip ${e.direccao === 'bullish' ? 'compra' : e.direccao === 'bearish' ? 'venda' : ''}`}
-                title={e.direccao ? `sinal de ${e.direccao === 'bullish' ? 'compra' : 'venda'}` : 'sem sinal nesta vela'}
-              >
-                <i aria-hidden="true" />
-                {e.nome}
-              </span>
-            ))}
-          </div>
-        )}
+            {actual?.nota && <p className="analise-viva__nota">{actual.nota}</p>}
+            <div className="visoes__lista">
+              {VISOES.filter((v) => v.id !== 'resumo' && v.id !== 'mmxm').map((v) => {
+                const sv = analise.visoes[v.id as keyof typeof analise.visoes].sinal;
+                return (
+                  <button key={v.id} type="button" className="visoes__linha" onClick={() => aoMudarVisao(v.id)}>
+                    <span className="grow">
+                      <strong>{v.nome}</strong>
+                      <em>
+                        {sv
+                          ? `${sv.sinal.direction === 'bullish' ? 'compra' : 'venda'} ${sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} vela${sv.velasAtras === 1 ? '' : 's'}`} · ${ROTULO_ESTADO[sv.estado]}`
+                          : 'sem sinal recente · ver estruturas'}
+                      </em>
+                    </span>
+                    <span aria-hidden="true">›</span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : actual ? (
+          <>
+            {actual.sinal ? (
+              <CartaoSinal sv={actual.sinal} fmt={fmt} aoNegociar={aoNegociar} />
+            ) : (
+              <div className="empty">
+                <strong>
+                  Sem sinal de {actual.nome.toLowerCase()} nas últimas {RECENTE_VELAS} velas.
+                </strong>
+                As estruturas que esta estratégia vigia estão no gráfico e aqui em baixo.
+              </div>
+            )}
+            <Estruturas visao={actual} fmt={fmt} />
+          </>
+        ) : null}
       </div>
 
-      {analise.pronta && (
+      {analise.pronta && visao !== 'mmxm' && (
         <div className="analise-viva__rodape">
-          Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas, às{' '}
-          {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. É o plano que as regras da
+          Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas da Deriv, às{' '}
+          {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. É o que as regras da
           estratégia produzem — não uma recomendação, e nenhuma destas estratégias tem vantagem
           demonstrada em backtest.
           {analise.avisos[0] ? ` ${analise.avisos[0]}` : ''}
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function CartaoSinal({
+  sv,
+  fmt,
+  aoNegociar,
+}: {
+  sv: SinalVisao;
+  fmt: (v: number) => string;
+  aoNegociar?: () => void;
+}) {
+  const s = sv.sinal;
+  const compra = s.direction === 'bullish';
+  const vivo = sinalVivo(sv.estado);
+  return (
+    <div className={`analise-viva__sinal ${compra ? 'compra' : 'venda'} ${vivo ? '' : 'terminado'}`}>
+      <div className="analise-viva__cab">
+        <span className={`lado-pill ${compra ? 'compra' : 'venda'}`}>{compra ? 'COMPRA' : 'VENDA'}</span>
+        <strong>{nomeVisao(s.strategy)}</strong>
+        <span className="grow" />
+        <span className="analise-viva__r">{s.maxRMultiple.toFixed(1)}R</span>
+      </div>
+
+      <div className={`analise-viva__estado ${vivo ? 'vivo' : ''}`}>
+        {sv.velasAtras === 0 ? 'Nesta vela' : `Há ${sv.velasAtras} vela${sv.velasAtras === 1 ? '' : 's'}`} ·{' '}
+        {ROTULO_ESTADO[sv.estado]}
+      </div>
+
+      <div className="analise-viva__niveis">
+        <div>
+          <span>entrada</span>
+          <b>{fmt(s.entryPrice)}</b>
+        </div>
+        <div className="stop">
+          <span>stop</span>
+          <b>{fmt(s.stopLoss)}</b>
+        </div>
+        {s.targets.slice(0, 3).map((t, i) => (
+          <div key={i} className="alvo">
+            <span>
+              TP{i + 1} · {t.rMultiple.toFixed(1)}R
+            </span>
+            <b>{fmt(t.price)}</b>
+          </div>
+        ))}
+      </div>
+
+      <p className="analise-viva__razao">{s.rationale}</p>
+      <div className="analise-viva__meta">
+        convicção {Math.round(s.conviction * 100)}% ·{' '}
+        {s.regime === 'mean-reversion' ? 'reversão à média' : 'continuação'}
+      </div>
+
+      {aoNegociar && vivo && (
+        <button type="button" className="btn ghost block" style={{ marginTop: 12 }} onClick={aoNegociar}>
+          Abrir o painel de ordem
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Estruturas({ visao, fmt }: { visao: Visao; fmt: (v: number) => string }) {
+  if (visao.estruturas.length === 0 && !visao.nota) return null;
+  return (
+    <div className="visoes__estruturas">
+      <div className="visoes__subtitulo">No gráfico agora</div>
+      {visao.estruturas.map((e, i) => (
+        <div key={i} className={`visoes__estrutura ${e.tipo}`}>
+          <i aria-hidden="true" />
+          <span className="grow">{e.rotulo}</span>
+          <b>{e.alto !== undefined ? `${fmt(e.baixo)} – ${fmt(e.alto)}` : fmt(e.baixo)}</b>
+        </div>
+      ))}
+      {visao.nota && <p className="analise-viva__nota">{visao.nota}</p>}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MMXM — corre no servidor (precisa de pares correlacionados e de dados diários)
+// ---------------------------------------------------------------------------
+
+interface RespostaRadar {
+  metodo?: 'mmxm' | 'institucional';
+  analisado?: string;
+  pontuacao?: number;
+  modelo?: string | null;
+  fase?: string | null;
+  fluxo?: string;
+  passoFalhado?: number | null;
+  resumo?: string;
+  sinal?: {
+    direccao: string;
+    entrada: number;
+    stop: number;
+    rMaximo: number;
+    alvos?: Array<{ preco: number; r: number }>;
+  } | null;
+  erro?: string;
+}
+
+function usarMmxm(codigo: string, activo: boolean): MmxmPronto | null {
+  const [estado, setEstado] = useState<{ codigo: string; valor: MmxmPronto | null } | null>(null);
+
+  useEffect(() => {
+    if (!activo || estado?.codigo === codigo) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const r = await fetch(`/api/radar/${encodeURIComponent(codigo)}?tf=1d`, { cache: 'no-store' });
+        const j = (await r.json()) as RespostaRadar;
+        if (cancelado) return;
+        if (j.metodo !== 'mmxm') {
+          setEstado({
+            codigo,
+            valor: {
+              titulo: 'MMXM indisponível para este instrumento',
+              linhas: [
+                'O MMXM compara o instrumento com pares correlacionados (SMT). Este não tem pares definidos — as quatro estratégias institucionais continuam disponíveis nos outros separadores.',
+              ],
+              desenho: DESENHO_VAZIO,
+              sinal: null,
+            },
+          });
+          return;
+        }
+        const s = j.sinal ?? null;
+        const desenho: Desenho = s
+          ? {
+              zonas: [],
+              curvas: [],
+              linhas: [
+                { preco: s.entrada, rotulo: 'entrada · MMXM diário', tipo: 'entrada' },
+                { preco: s.stop, rotulo: 'stop', tipo: 'stop' },
+                ...(s.alvos ?? []).slice(0, 3).map((a, i) => ({
+                  preco: a.preco,
+                  rotulo: `TP${i + 1} · ${a.r.toFixed(1)}R`,
+                  tipo: 'alvo',
+                })),
+              ],
+            }
+          : DESENHO_VAZIO;
+        setEstado({
+          codigo,
+          valor: {
+            titulo: j.modelo ? `${j.modelo} · ${j.fase ?? ''}` : 'Nenhum Market Maker Model identificável',
+            linhas: [
+              `Checklist ${Math.round((j.pontuacao ?? 0) * 100)}%${j.passoFalhado ? ` · parou no passo ${j.passoFalhado} de 9` : ' · 9 de 9'}`,
+              j.fluxo ? `Fluxo do timeframe superior: ${j.fluxo}` : '',
+              j.resumo ?? '',
+              j.analisado ? `Analisado sobre ${j.analisado} (o mesmo mercado noutro contrato).` : '',
+            ].filter(Boolean),
+            // Com outro contrato os preços não coincidem: não se desenham.
+            desenho: j.analisado ? DESENHO_VAZIO : desenho,
+            sinal: s ? { direccao: s.direccao, entrada: s.entrada, stop: s.stop, rMaximo: s.rMaximo } : null,
+          },
+        });
+      } catch {
+        if (!cancelado) setEstado({ codigo, valor: null });
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [codigo, activo, estado?.codigo]);
+
+  return estado?.codigo === codigo ? estado.valor : null;
+}
+
+function VisaoMmxm({
+  codigo,
+  mmxm,
+  casas,
+  aoCarregar,
+}: {
+  codigo: string;
+  mmxm: MmxmPronto | null;
+  casas: number;
+  aoCarregar: boolean;
+}) {
+  if (!mmxm) {
+    return aoCarregar ? (
+      <div className="empty">
+        <strong>A pedir a análise MMXM ao servidor…</strong>
+        Corre sobre velas diárias e pares correlacionados; demora alguns segundos.
+      </div>
+    ) : null;
+  }
+  const s = mmxm.sinal;
+  return (
+    <>
+      {s ? (
+        <div className={`analise-viva__sinal ${s.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+          <div className="analise-viva__cab">
+            <span className={`lado-pill ${s.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+              {s.direccao === 'bullish' ? 'COMPRA' : 'VENDA'}
+            </span>
+            <strong>MMXM + SMT</strong>
+            <span className="grow" />
+            <span className="analise-viva__r">{s.rMaximo.toFixed(1)}R</span>
+          </div>
+          <div className="analise-viva__niveis">
+            <div>
+              <span>entrada</span>
+              <b>{formatarPreco(s.entrada, casas)}</b>
+            </div>
+            <div className="stop">
+              <span>stop</span>
+              <b>{formatarPreco(s.stop, casas)}</b>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <div className="visoes__estruturas">
+        <div className="visoes__subtitulo">{mmxm.titulo}</div>
+        {mmxm.linhas.map((l, i) => (
+          <p key={i} className="analise-viva__nota">
+            {l}
+          </p>
+        ))}
+        <Link className="btn ghost block" href={`/instrumento/${encodeURIComponent(codigo)}?tf=1d`}>
+          Análise MMXM completa
+        </Link>
+      </div>
+    </>
   );
 }

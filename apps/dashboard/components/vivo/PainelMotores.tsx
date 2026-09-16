@@ -248,7 +248,7 @@ function SinaisTempoReal({
             return (
               <Link
                 key={s.id}
-                href={`/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.timeframe}`}
+                href={`/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.timeframe}&v=${s.estrategia}`}
                 className={`sinal-tr ${novos.has(s.id) ? 'sinal-tr--novo' : ''}`}
               >
                 <span className={`lado-pill ${compra ? 'compra' : 'venda'}`}>

@@ -266,14 +266,14 @@ function LinhaAgente({
   };
 
   /*
-   * A página de detalhe MMXM só conhece o universo do motor. Para um sintético
-   * ou um índice sem par SMT, mandá-la abrir daria um 404 — nesses casos o
-   * destino é o terminal, que sabe desenhar qualquer símbolo da Deriv.
+   * Sem MMXM (sintéticos, índices sem par SMT) o destino é o terminal, já nas
+   * estratégias institucionais. Com MMXM, a página do instrumento — pelo código
+   * da Deriv (US100 e não NQ), para o gráfico ao vivo ser o do mercado escolhido.
    */
   const destino =
     resultado?.metodo === 'institucional'
       ? `/grafico?s=${encodeURIComponent(simbolo)}&tf=${timeframe}`
-      : `/instrumento/${resultado?.analisado ?? simbolo}?tf=${timeframe}`;
+      : `/instrumento/${encodeURIComponent(simbolo)}?tf=${timeframe}&v=mmxm`;
 
   return (
     <Link href={destino} className="agente">

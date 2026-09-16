@@ -21,8 +21,9 @@
  * símbolo, o timeframe, o preço, o painel de ordem. Não sobra nada que valha a
  * pena renderizar no servidor, e a fronteira serviria só para complicar.
  *
- * A escolha de símbolo e timeframe vai para o URL (`?s=…&tf=…`) para que
- * partilhar o link abra o mesmo ecrã, e o "voltar" do browser funcione.
+ * A escolha de símbolo, timeframe e estratégia vai para o URL
+ * (`?s=…&tf=…&v=…`) para que partilhar o link abra o mesmo ecrã, o "voltar" do
+ * browser funcione, e um aviso de sinal abra já na estratégia que o deu.
  */
 
 import Link from 'next/link';
@@ -33,7 +34,8 @@ import { Negociar } from '@/components/vivo/Negociar';
 import { Ligacao, Variacao } from '@/components/vivo/Preco';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
-import { AnaliseAoVivo, type LinhaAnalise } from '@/components/vivo/AnaliseAoVivo';
+import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
+import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
 import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
 import {
@@ -58,12 +60,13 @@ function Terminal() {
 
   const codigo = (params.get('s') ?? 'V75').toUpperCase();
   const tf = (params.get('tf') ?? '5m') as Timeframe;
+  const visao = visaoValida(params.get('v'));
 
   const [selector, setSelector] = useState(false);
   const [cheio, setCheio] = useState(false);
   const [aba, setAba] = useState<'analise' | 'ordem' | 'info'>('analise');
-  /** Entrada, stop e alvos da análise ao vivo, desenhados por cima das velas. */
-  const [linhasAnalise, setLinhasAnalise] = useState<LinhaAnalise[]>([]);
+  /** O que a estratégia escolhida desenha por cima das velas. */
+  const [desenho, setDesenho] = useState<Desenho>(DESENHO_VAZIO);
 
   const s = acharSimbolo(codigo);
   const velas = usarVelas(codigo, tf, 300);
@@ -71,10 +74,13 @@ function Terminal() {
   const horario = usarHorario(codigo);
 
   const navegar = useCallback(
-    (novoS: string, novoTf: Timeframe) => {
-      router.replace(`/grafico?s=${encodeURIComponent(novoS)}&tf=${novoTf}`, { scroll: false });
+    (novoS: string, novoTf: Timeframe, novaVisao: VisaoId = visao) => {
+      router.replace(
+        `/grafico?s=${encodeURIComponent(novoS)}&tf=${novoTf}${novaVisao === 'resumo' ? '' : `&v=${novaVisao}`}`,
+        { scroll: false },
+      );
     },
-    [router],
+    [router, visao],
   );
 
   /*
@@ -138,7 +144,9 @@ function Terminal() {
       velas={velas.velas}
       casas={s.casas}
       timeframe={tf}
-      linhas={linhasAnalise}
+      zonas={desenho.zonas}
+      linhas={desenho.linhas}
+      curvas={desenho.curvas}
       altura={cheio ? 0 : 360}
       cheio={cheio}
       titulo={`${s.codigo} · ${s.nome}`}
@@ -236,7 +244,9 @@ function Terminal() {
           tf={tf}
           velas={velas.velas}
           casas={s.casas}
-          aoMudarLinhas={setLinhasAnalise}
+          visao={visao}
+          aoMudarVisao={(v) => navegar(codigo, tf, v)}
+          aoMudarDesenho={setDesenho}
           aoNegociar={() => setAba('ordem')}
         />
       </div>
