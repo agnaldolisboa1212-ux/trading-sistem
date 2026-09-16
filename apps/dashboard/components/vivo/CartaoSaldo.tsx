@@ -145,7 +145,7 @@ export function SaldoCompacto() {
   if (!c.ligada || c.saldo === null) return null;
 
   return (
-    <Link href="/conta" className="saldo-mini" title="Ver conta">
+    <Link href="/portfolio" className="saldo-mini" title="Ver conta">
       <span className={`saldo-mini__selo ${c.tipo === 'real' ? 'real' : 'demo'}`}>
         {c.tipo === 'real' ? 'REAL' : 'DEMO'}
       </span>

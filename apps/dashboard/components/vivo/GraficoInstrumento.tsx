@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AnaliseAoVivo, type MmxmPronto } from '@/components/vivo/AnaliseAoVivo';
 import { GraficoVivo } from '@/components/vivo/GraficoVivo';
+import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
 import { usarVelas } from '@/components/vivo/usarPreco';
 import type { Timeframe } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho, type VisaoId } from '@/lib/visoes';
@@ -44,6 +45,7 @@ export function GraficoInstrumento({
   const velas = usarVelas(codigo, tf, 300);
   const [desenho, setDesenho] = useState<Desenho>(DESENHO_VAZIO);
   const [cheio, setCheio] = useState(false);
+  const ecra = usarEcraLargo();
 
   const ir = (novoTf: Timeframe, novaVisao: VisaoId) =>
     router.replace(`/instrumento/${encodeURIComponent(codigo)}?tf=${novoTf}&v=${novaVisao}`, {
@@ -72,7 +74,7 @@ export function GraficoInstrumento({
       zonas={desenho.zonas}
       linhas={desenho.linhas}
       curvas={desenho.curvas}
-      altura={cheio ? 0 : 380}
+      altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 320) : 340}
       cheio={cheio}
       titulo={`${codigo} · ${nome}`}
       aoMudarTimeframe={(novo) => ir(novo, visao)}
@@ -98,28 +100,29 @@ export function GraficoInstrumento({
           />
         </div>
       ) : (
-        <>
-          {grafico}
-          <AnaliseAoVivo
-            codigo={codigo}
-            tf={tf}
-            velas={velas.velas}
-            casas={casas}
-            visao={visao}
-            aoMudarVisao={(v) => ir(tf, v)}
-            aoMudarDesenho={setDesenho}
-            mmxm={mmxm}
-          />
-        </>
+        <div className="terminal">
+          <div className="terminal__principal">{grafico}</div>
+          <aside className="terminal__lateral">
+            <AnaliseAoVivo
+              codigo={codigo}
+              tf={tf}
+              velas={velas.velas}
+              casas={casas}
+              visao={visao}
+              aoMudarVisao={(v) => ir(tf, v)}
+              aoMudarDesenho={setDesenho}
+              mmxm={mmxm}
+            />
+            <Link
+              className="btn ghost block"
+              style={{ marginTop: 12 }}
+              href={`/grafico?s=${encodeURIComponent(codigo)}&tf=${tf}${visao === 'mmxm' || visao === 'resumo' ? '' : `&v=${visao}`}`}
+            >
+              Abrir no terminal para negociar
+            </Link>
+          </aside>
+        </div>
       )}
-
-      <Link
-        className="btn ghost block"
-        style={{ marginTop: 12 }}
-        href={`/grafico?s=${encodeURIComponent(codigo)}&tf=${tf}${visao === 'mmxm' || visao === 'resumo' ? '' : `&v=${visao}`}`}
-      >
-        Abrir no terminal para negociar
-      </Link>
     </>
   );
 }

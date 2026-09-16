@@ -411,8 +411,10 @@ function Estruturas({ visao, fmt }: { visao: Visao; fmt: (v: number) => string }
       {visao.estruturas.map((e, i) => (
         <div key={i} className={`visoes__estrutura ${e.tipo}`}>
           <i aria-hidden="true" />
-          <span className="grow">{e.rotulo}</span>
-          <b>{e.alto !== undefined ? `${fmt(e.baixo)} – ${fmt(e.alto)}` : fmt(e.baixo)}</b>
+          <span className="visoes__estrutura-texto">
+            <span>{e.rotulo}</span>
+            <b>{e.alto !== undefined ? `${fmt(e.baixo)} – ${fmt(e.alto)}` : fmt(e.baixo)}</b>
+          </span>
         </div>
       ))}
       {visao.nota && <p className="analise-viva__nota">{visao.nota}</p>}

@@ -544,6 +544,7 @@ export function GraficoVivo({
         <div className="grafico__accoes">
           <button
             type="button"
+            className="so-largo"
             onClick={() => setVisiveis((v) => Math.min(600, Math.round(v * 1.4)))}
             aria-label="Afastar"
             title="Afastar"
@@ -552,6 +553,7 @@ export function GraficoVivo({
           </button>
           <button
             type="button"
+            className="so-largo"
             onClick={() => setVisiveis((v) => Math.max(20, Math.round(v / 1.4)))}
             aria-label="Aproximar"
             title="Aproximar"
@@ -560,6 +562,7 @@ export function GraficoVivo({
           </button>
           <button
             type="button"
+            className="so-largo"
             onClick={() => {
               setRecuo(0);
               setVisiveis(90);
@@ -585,10 +588,10 @@ export function GraficoVivo({
 
       {/* Leitura por cima do gráfico, como nas plataformas de referência. */}
       <div className="grafico__leitura">
-        {titulo && <strong>{titulo}</strong>}
+        {titulo && <strong className="grafico__titulo">{titulo}</strong>}
         {ultima && (
           <>
-            <span className="num-vivo">
+            <span className="num-vivo grafico__ohlc">
               O {formatarPreco(ultima.o, casas)} · A {formatarPreco(ultima.h, casas)} · B{' '}
               {formatarPreco(ultima.l, casas)} · F {formatarPreco(ultima.c, casas)}
             </span>
@@ -614,6 +617,12 @@ export function GraficoVivo({
           setMira(null);
         }}
         onWheel={onWheel}
+        // Toque duplo (ou duplo clique) volta ao presente: no telemóvel é o que
+        // substitui o botão ⤒, que não cabe ao lado dos timeframes.
+        onDoubleClick={() => {
+          setRecuo(0);
+          setVisiveis(90);
+        }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}

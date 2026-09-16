@@ -2713,3 +2713,184 @@ body:has(.terminal--cheio) .bottomnav {
   color: var(--text-faint);
   font-size: 16px;
 }
+
+/* ===========================================================================
+   Terminal — duas colunas no computador, empilhado no telemóvel
+   =========================================================================== */
+
+.terminal {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.terminal__principal,
+.terminal__lateral {
+  min-width: 0;
+}
+
+.terminal__lateral {
+  margin-top: var(--s3);
+}
+
+@media (min-width: 1100px) {
+  .wrap.wrap--terminal {
+    max-width: 1480px;
+  }
+
+  .terminal {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 28vw, 400px);
+    gap: var(--s4);
+    align-items: start;
+  }
+
+  /* O painel acompanha a leitura do gráfico em vez de ficar lá em baixo. */
+  .terminal__lateral {
+    margin-top: 0;
+    position: sticky;
+    top: var(--s3);
+    max-height: calc(100dvh - var(--navbar) - var(--s3));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding-bottom: var(--s3);
+  }
+
+  .terminal__lateral .abas {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-bottom: var(--s3);
+  }
+
+  /* No painel as estratégias cabem em duas linhas: nada escondido a deslizar. */
+  .terminal__lateral .visoes {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .terminal__lateral .analise-viva__niveis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Mensagens vazias dentro dos painéis: leves e alinhadas ao texto. */
+.analise-viva__corpo .empty {
+  padding: var(--s3) var(--s4);
+  text-align: left;
+  border-style: solid;
+  background: var(--surface-2);
+}
+
+.analise-viva__corpo .empty strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.analise-viva__rodape {
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* --- Telemóvel ------------------------------------------------------------- */
+
+@media (max-width: 1099px) {
+  .terminal__barra {
+    min-width: 0;
+  }
+
+  .terminal__simbolo {
+    min-width: 0;
+    max-width: none;
+    flex: 0 1 auto;
+  }
+
+  .saldo-mini {
+    flex: none;
+  }
+
+  /* Seis estratégias em duas linhas em vez de uma fila que esconde metade. */
+  .visoes {
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 6px;
+  }
+
+  .visoes__botao {
+    min-height: 30px;
+    padding: 0 11px;
+    font-size: 12.5px;
+  }
+}
+
+@media (max-width: 699px) {
+  /* Zoom pelo gesto de pinça; os botões ocupavam o lugar dos timeframes. */
+  .grafico__accoes .so-largo {
+    display: none;
+  }
+
+  .grafico__tfs button {
+    min-width: 0;
+    padding: 0 7px;
+    font-size: 12.5px;
+  }
+
+  .grafico__barra {
+    gap: 4px;
+    padding: 6px;
+  }
+
+  /* O nome já está na barra do instrumento; aqui ficam só os valores da vela. */
+  .wrap--terminal .grafico__titulo {
+    display: none;
+  }
+
+  .grafico__leitura {
+    padding: 5px var(--s3);
+    font-size: 10.5px;
+  }
+}
+
+@media (max-width: 519px) {
+  .terminal__nome {
+    display: none;
+  }
+
+  .estrela span {
+    display: none;
+  }
+
+  .estrela {
+    padding: 4px 9px;
+  }
+
+  .terminal__valor {
+    font-size: 26px;
+  }
+}
+
+/* Nome da estrutura por cima, intervalo de preços por baixo: cabe em qualquer
+   largura sem partir os números a meio. */
+.visoes__estrutura {
+  align-items: flex-start;
+}
+
+.visoes__estrutura i {
+  margin-top: 4px;
+  flex: none;
+}
+
+.visoes__estrutura-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.visoes__estrutura-texto b {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}

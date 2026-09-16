@@ -38,6 +38,7 @@ import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
 import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
 import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
+import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
 import { usarPortfolio } from '@/components/vivo/usarPortfolio';
 import {
   acharSimbolo,
@@ -71,6 +72,7 @@ function Terminal() {
 
   const s = acharSimbolo(codigo);
   const portfolio = usarPortfolio();
+  const ecra = usarEcraLargo();
   const velas = usarVelas(codigo, tf, 300);
   const preco = usarPreco(codigo);
   const horario = usarHorario(codigo);
@@ -149,7 +151,8 @@ function Terminal() {
       zonas={desenho.zonas}
       linhas={desenho.linhas}
       curvas={desenho.curvas}
-      altura={cheio ? 0 : 360}
+      // No computador o gráfico enche a altura da janela ao lado do painel.
+      altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 300) : 340}
       cheio={cheio}
       titulo={`${s.codigo} · ${s.nome}`}
       aoMudarTimeframe={(novo) => navegar(codigo, novo)}
@@ -177,6 +180,8 @@ function Terminal() {
 
   return (
     <div className="wrap wrap--terminal">
+      <div className="terminal">
+      <div className="terminal__principal">
       {/* Barra do instrumento: toca para trocar, como no MetaTrader. */}
       <div className="terminal__barra">
         <button
@@ -230,7 +235,10 @@ function Terminal() {
       </div>
 
       {grafico}
+      </div>
 
+      {/* No computador fica ao lado do gráfico; no telemóvel, por baixo. */}
+      <aside className="terminal__lateral">
       <div className="abas" role="tablist" aria-label="Painel">
         <button
           type="button"
@@ -284,6 +292,8 @@ function Terminal() {
       {aba === 'info' && (
         <Informacao codigo={codigo} nome={s.nome} continuo={s.continuo} casas={s.casas} tf={tf} />
       )}
+      </aside>
+      </div>
 
       {selector && (
         <SelectorMercado
