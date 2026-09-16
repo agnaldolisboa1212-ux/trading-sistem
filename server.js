@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * Servidor de produção — `npm start`.
+ * Servidor de produção — `npm start`, e o "Entry file" na Hostinger.
+ *
+ * `.js` e não `.mjs`: o `package.json` da raiz tem `"type": "module"`, por isso é
+ * ESM na mesma, e há painéis de alojamento que só aceitam `.js` como ficheiro de
+ * entrada.
  *
  * Um só processo que ESCUTA na porta da plataforma, e os motores como filho.
  *

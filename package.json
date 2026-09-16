@@ -29,7 +29,7 @@
     "sistema:producao": "node scripts/sistema.mjs --producao",
     "engine:tempo-real": "npm run build -w @trading/engine && node apps/engine/dist/index.js tempo-real",
     "engine:estado": "node apps/engine/dist/index.js estado",
-    "start": "node server.mjs"
+    "start": "node server.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

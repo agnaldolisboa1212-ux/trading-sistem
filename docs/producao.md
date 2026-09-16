@@ -104,15 +104,16 @@ painel por dentro da máquina.
 
 | Campo | Valor |
 |---|---|
+| Framework preset | **Other / Express** — NÃO "Next.js": o painel está em `apps/dashboard` e usa servidor próprio |
 | Versão do Node | **22** — o `@supabase/supabase-js` exige ≥ 22; com o 20 dá avisos no build e pode falhar a correr |
-| Diretório raiz | `/` — a raiz do repositório, porque o painel depende dos pacotes em `packages/` |
-| Instalação | `npm ci` |
-| Build | `npm run build` |
-| Arranque | `npm start` |
+| Root directory | `/` (raiz do repositório) — o painel depende dos pacotes em `packages/` |
+| Build command | `build` |
+| Output directory | `apps/dashboard/.next` |
+| **Entry file** | **`server.js`** — sem ele a Hostinger não arranca nada e o domínio responde 404 |
 
-`npm start` corre `server.mjs`: um só processo que **escuta ele próprio** na porta
+`npm start` corre `server.js`: um só processo que **escuta ele próprio** na porta
 `PORT` e arranca os motores e o ouvinte da conta como processo filho, reiniciando-o se
-cair. Se a Hostinger pedir um "ficheiro de entrada", é `server.mjs`.
+cair. Na Hostinger é o **Entry file**: `server.js`.
 
 **Porque não um script que lança processos.** O primeiro deploy respondia 503 em
 todas as páginas: o `npm start` de então só lançava o `next start` e o motor como
@@ -120,6 +121,10 @@ processos à parte, e a plataforma, não vendo o processo dela a escutar na port
 considerava a aplicação em baixo.
 
 Para correr só o painel, sem motores: `MOTORES=desligados`.
+
+**Build verde mas o domínio responde 404 ("This Page Does Not Exist").** A aplicação
+não arrancou. Confirme o Entry file e veja os **Runtime Logs** (não o log do build):
+a primeira linha deve ser `[servidor] painel a responder em … (Node 22…)`.
 
 **Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
 outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
