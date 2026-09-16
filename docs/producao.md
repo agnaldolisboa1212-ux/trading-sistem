@@ -136,6 +136,11 @@ considerava a aplicação em baixo.
 
 Para correr só o painel, sem motores: `MOTORES=desligados`.
 
+**`tsc: command not found` no build.** Com o preset Express a Hostinger instala só as
+`dependencies` (sem as `devDependencies`). Por isso o TypeScript e os `@types/*` de
+que o build precisa estão nas `dependencies` da raiz — não os devolva a
+`devDependencies`.
+
 **Build verde mas "Deployment build failed".** Quase sempre é a Output directory
 preenchida: apague-a e deixe o Entry file em `server.js`. As vulnerabilidades do
 `npm audit` **não** travam deploys — a Hostinger só propõe um pull request.

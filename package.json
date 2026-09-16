@@ -32,14 +32,15 @@
     "engine:estado": "node apps/engine/dist/index.js estado",
     "start": "node server.js"
   },
-  "devDependencies": {
-    "@types/node": "^22.10.2",
-    "typescript": "^5.7.2"
-  },
   "overrides": {
     "postcss": "$postcss"
   },
   "dependencies": {
-    "postcss": "8.5.28"
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@types/web-push": "^3.6.4",
+    "postcss": "8.5.28",
+    "typescript": "^5.7.2"
   }
 }
