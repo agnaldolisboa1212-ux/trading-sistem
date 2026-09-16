@@ -104,12 +104,17 @@ painel por dentro da máquina.
 
 | Campo | Valor |
 |---|---|
-| Framework preset | **Other / Express** — NÃO "Next.js": o painel está em `apps/dashboard` e usa servidor próprio |
+| Framework preset | **Next.js** (o que a Hostinger deteta) |
 | Versão do Node | **22** — o `@supabase/supabase-js` exige ≥ 22; com o 20 dá avisos no build e pode falhar a correr |
 | Root directory | `/` (raiz do repositório) — o painel depende dos pacotes em `packages/` |
-| Build command | `build` |
-| Output directory | `apps/dashboard/.next` |
-| **Entry file** | **`server.js`** — sem ele a Hostinger não arranca nada e o domínio responde 404 |
+| Build command | `npm run build` |
+| Output directory | `.next` (ou vazio) |
+| Entry file | **vazio** |
+| Start command | `npm start` (a Hostinger usa `npm run start -- -p $PORT`, que dá no mesmo) |
+
+O painel é compilado em `apps/dashboard/.next`, mas a Hostinger procura o `.next` na
+raiz. O `npm run build` termina a criar essa ligação (`scripts/ligar-next-na-raiz.mjs`).
+Com o preset **Other/Express** também funciona: aí o Entry file é `server.js`.
 
 `npm start` corre `server.js`: um só processo que **escuta ele próprio** na porta
 `PORT` e arranca os motores e o ouvinte da conta como processo filho, reiniciando-o se
