@@ -28,6 +28,8 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
+import { SelectorMercado } from '@/components/vivo/SelectorMercado';
+import { usarPortfolio } from '@/components/vivo/usarPortfolio';
 import { ListaIndices } from '@/components/vivo/ListaIndices';
 import { Ligacao } from '@/components/vivo/Preco';
 import { dinheiro, usarConta } from '@/components/vivo/usarConta';
@@ -55,6 +57,8 @@ export default function Page() {
       </div>
 
       <CartaoSaldo />
+
+      <MeusInstrumentos />
 
       <Posicoes />
 
@@ -124,6 +128,69 @@ export default function Page() {
         </p>
       </section>
     </div>
+  );
+}
+
+/**
+ * Os instrumentos que a conta segue.
+ *
+ * É daqui que saem os sinais: só chegam ao telemóvel e ao início os dos
+ * instrumentos desta lista.
+ */
+function MeusInstrumentos() {
+  const p = usarPortfolio();
+  const [escolher, setEscolher] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const correr = async (accao: Promise<string | null>) => {
+    setErro(await accao);
+  };
+
+  return (
+    <section>
+      <div className="section-head">
+        <h2>Os meus instrumentos</h2>
+        <span className="grow" />
+        <button type="button" className="btn ghost" onClick={() => setEscolher(true)}>
+          + adicionar
+        </button>
+      </div>
+      <p className="section-cap">
+        Só recebe sinais — no telemóvel e no início — dos instrumentos desta lista.
+      </p>
+
+      {p.instrumentos === null ? (
+        <div className="brilho" style={{ height: 60, borderRadius: 16 }} />
+      ) : p.instrumentos.length === 0 ? (
+        <div className="empty">
+          <strong>Ainda não segue nenhum instrumento.</strong>
+          Adicione os mercados que quer acompanhar para começar a receber sinais.
+        </div>
+      ) : (
+        <div className="chips-portfolio">
+          {p.instrumentos.map((c) => (
+            <span key={c} className="chip-portfolio">
+              <Link href={`/grafico?s=${encodeURIComponent(c)}&tf=15m`}>{c}</Link>
+              <button type="button" aria-label={`Remover ${c} do portfólio`} onClick={() => void correr(p.remover(c))}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {erro && <div className="ob__erro">{erro}</div>}
+
+      {escolher && (
+        <SelectorMercado
+          actual=""
+          aoFechar={() => setEscolher(false)}
+          aoEscolher={(c) => {
+            setEscolher(false);
+            void correr(p.adicionar(c));
+          }}
+        />
+      )}
+    </section>
   );
 }
 

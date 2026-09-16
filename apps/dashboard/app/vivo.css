@@ -2523,3 +2523,193 @@ body:has(.terminal--cheio) .bottomnav {
 .visoes__estruturas .btn {
   margin-top: var(--s3);
 }
+
+/* --- Ecrã inteiro com análise ------------------------------------------------ */
+
+/* Dentro do ecrã inteiro o gráfico deixa de ser fixo: divide o espaço com a
+   barra da análise por baixo. */
+.terminal--cheio .grafico--cheio {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-top: 0;
+}
+
+.analise-viva--compacta {
+  flex: none;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  padding-top: var(--s2);
+}
+
+.analise-viva--compacta .visoes {
+  padding-bottom: var(--s2);
+  align-items: center;
+}
+
+.visoes__relogio {
+  flex: none;
+  margin-left: auto;
+  padding-left: var(--s2);
+  white-space: nowrap;
+}
+
+.analise-compacta__linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s4) var(--s3);
+  font-size: 13px;
+}
+
+.analise-compacta__linha b {
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.analise-compacta__linha em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+/* --- Lista de sinais da conta ------------------------------------------------ */
+
+.sinal-linha {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.sinal-linha:last-child {
+  border-bottom: none;
+}
+
+.sinal-linha .sinal-tr {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.sinal-linha--terminado .sinal-tr {
+  opacity: 0.6;
+}
+
+.sinal-linha__eliminar {
+  flex: none;
+  width: 40px;
+  border: none;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--text-faint);
+  font-size: 20px;
+}
+
+.sinal-linha__eliminar:hover {
+  color: var(--bear);
+}
+
+.etiqueta-estado {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  background: var(--surface-3);
+  color: var(--text-dim);
+}
+
+.etiqueta-estado.bull {
+  background: color-mix(in srgb, var(--bull) 18%, transparent);
+  color: var(--bull);
+}
+
+.etiqueta-estado.bear {
+  background: color-mix(in srgb, var(--bear) 18%, transparent);
+  color: var(--bear);
+}
+
+.etiqueta-estado.curso {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.sinais-terminados__abrir,
+.sinais-terminados__limpar {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sinais-terminados__limpar {
+  font-size: 12.5px;
+  color: var(--bear);
+}
+
+/* --- Portfólio: estrela e instrumentos seguidos ------------------------------ */
+
+.estrela {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--s2);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.estrela span {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.estrela.activa {
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+  color: var(--warn);
+}
+
+.chips-portfolio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.chip-portfolio {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.chip-portfolio a {
+  padding: 6px 4px 6px 12px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.chip-portfolio button {
+  border: none;
+  background: none;
+  padding: 6px 10px 6px 6px;
+  color: var(--text-faint);
+  font-size: 16px;
+}

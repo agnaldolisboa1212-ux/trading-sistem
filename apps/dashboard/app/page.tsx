@@ -26,7 +26,10 @@ import Link from 'next/link';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
 import { Fita } from '@/components/vivo/Fita';
 import { PainelAgentes } from '@/components/vivo/PainelAgentes';
+import { ListaSinais } from '@/components/vivo/ListaSinais';
 import { PainelMotores } from '@/components/vivo/PainelMotores';
+import { ehAdministrador } from '@/lib/administracao';
+import { utilizadorDaSessao } from '@/lib/supabase/servidor';
 import { Ligacao } from '@/components/vivo/Preco';
 import { Sparkline, formaDoProgresso } from '@/components/Sparkline';
 import { loadDashboardData } from '@/lib/data';
@@ -68,7 +71,12 @@ function iniciais(nome: string | null): string {
 }
 
 export default async function Page() {
-  const [data, prefs] = await Promise.all([loadDashboardData(), lerPreferenciasServidor()]);
+  const [data, prefs, utilizador] = await Promise.all([
+    loadDashboardData(),
+    lerPreferenciasServidor(),
+    utilizadorDaSessao(),
+  ]);
+  const admin = ehAdministrador(utilizador);
 
   const diagnosticos =
     data.source === 'none'
@@ -108,10 +116,11 @@ export default async function Page() {
         pessoa escolheu no onboarding — e mostra o progresso enquanto trabalha.
       */}
       {/*
-        Os motores correm num processo à parte. Este painel diz se estão vivos e
-        mostra o que o de tempo real anunciou — atualiza sozinho.
+        Os sinais do portfólio desta conta, ordenados, com estado. O estado dos
+        motores só interessa a quem gere o servidor.
       */}
-      <PainelMotores />
+      <ListaSinais />
+      {admin && <PainelMotores compacto />}
 
       <PainelAgentes simbolos={prefs.instrumentos} timeframe={prefs.timeframe} />
 

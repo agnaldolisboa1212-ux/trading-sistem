@@ -38,6 +38,7 @@ import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
 import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
 import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
+import { usarPortfolio } from '@/components/vivo/usarPortfolio';
 import {
   acharSimbolo,
   formatarPreco,
@@ -69,6 +70,7 @@ function Terminal() {
   const [desenho, setDesenho] = useState<Desenho>(DESENHO_VAZIO);
 
   const s = acharSimbolo(codigo);
+  const portfolio = usarPortfolio();
   const velas = usarVelas(codigo, tf, 300);
   const preco = usarPreco(codigo);
   const horario = usarHorario(codigo);
@@ -159,6 +161,16 @@ function Terminal() {
     return (
       <div className="terminal--cheio" role="dialog" aria-modal="true" aria-label={s.nome}>
         {grafico}
+        <AnaliseAoVivo
+          codigo={codigo}
+          tf={tf}
+          velas={velas.velas}
+          casas={s.casas}
+          visao={visao}
+          aoMudarVisao={(v) => navegar(codigo, tf, v)}
+          aoMudarDesenho={setDesenho}
+          compacto
+        />
       </div>
     );
   }
@@ -179,6 +191,22 @@ function Terminal() {
             ▾
           </span>
         </button>
+        {portfolio.instrumentos !== null && (
+          <button
+            type="button"
+            className={`estrela ${portfolio.tem(codigo) ? 'activa' : ''}`}
+            onClick={() => void portfolio.alternar(codigo)}
+            aria-pressed={portfolio.tem(codigo)}
+            title={
+              portfolio.tem(codigo)
+                ? 'No seu portfólio: recebe os sinais deste instrumento. Tocar para remover.'
+                : 'Adicionar ao portfólio para receber os sinais deste instrumento'
+            }
+          >
+            {portfolio.tem(codigo) ? '★' : '☆'}
+            <span>{portfolio.tem(codigo) ? 'no portfólio' : 'portfólio'}</span>
+          </button>
+        )}
         <div className="grow" />
         <SaldoCompacto />
       </div>

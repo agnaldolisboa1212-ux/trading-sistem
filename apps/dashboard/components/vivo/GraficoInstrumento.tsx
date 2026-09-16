@@ -85,21 +85,33 @@ export function GraficoInstrumento({
       {cheio ? (
         <div className="terminal--cheio" role="dialog" aria-modal="true" aria-label={nome}>
           {grafico}
+          <AnaliseAoVivo
+            codigo={codigo}
+            tf={tf}
+            velas={velas.velas}
+            casas={casas}
+            visao={visao}
+            aoMudarVisao={(v) => ir(tf, v)}
+            aoMudarDesenho={setDesenho}
+            mmxm={mmxm}
+            compacto
+          />
         </div>
       ) : (
-        grafico
+        <>
+          {grafico}
+          <AnaliseAoVivo
+            codigo={codigo}
+            tf={tf}
+            velas={velas.velas}
+            casas={casas}
+            visao={visao}
+            aoMudarVisao={(v) => ir(tf, v)}
+            aoMudarDesenho={setDesenho}
+            mmxm={mmxm}
+          />
+        </>
       )}
-
-      <AnaliseAoVivo
-        codigo={codigo}
-        tf={tf}
-        velas={velas.velas}
-        casas={casas}
-        visao={visao}
-        aoMudarVisao={(v) => ir(tf, v)}
-        aoMudarDesenho={setDesenho}
-        mmxm={mmxm}
-      />
 
       <Link
         className="btn ghost block"

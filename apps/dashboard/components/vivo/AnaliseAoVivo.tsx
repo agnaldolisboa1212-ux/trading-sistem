@@ -90,6 +90,7 @@ export function AnaliseAoVivo({
   aoMudarDesenho,
   aoNegociar,
   mmxm,
+  compacto = false,
 }: {
   codigo: string;
   tf: Timeframe;
@@ -101,6 +102,11 @@ export function AnaliseAoVivo({
   aoNegociar?: () => void;
   /** Se vier, a visão MMXM usa-a em vez de perguntar ao servidor. */
   mmxm?: MmxmPronto | null;
+  /**
+   * Ecrã inteiro: só o selector e uma linha com o plano da visão escolhida. O
+   * gráfico precisa do espaço; o detalhe está no ecrã normal.
+   */
+  compacto?: boolean;
 }) {
   /*
    * 0 até montar: o servidor e o browser calculariam horas diferentes para o
@@ -175,6 +181,69 @@ export function AnaliseAoVivo({
     if (!sv || !sinalVivo(sv.estado)) return '';
     return sv.sinal.direction === 'bullish' ? 'compra' : 'venda';
   };
+
+  if (compacto) {
+    const sv = visao === 'mmxm' ? null : (actual?.sinal ?? null);
+    const m = visao === 'mmxm' ? mmxmActivo : null;
+    return (
+      <div className="analise-viva analise-viva--compacta">
+        <div className="visoes" role="tablist" aria-label="Estratégia desenhada no gráfico">
+          {VISOES.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              role="tab"
+              aria-selected={visao === v.id}
+              className={`visoes__botao ${visao === v.id ? 'activo' : ''}`}
+              onClick={() => aoMudarVisao(v.id)}
+            >
+              {marca(v.id) && <i className={`visoes__ponto ${marca(v.id)}`} aria-label="plano vivo" />}
+              {v.curto}
+            </button>
+          ))}
+          <span className="analise-viva__relogio visoes__relogio" aria-live="off">
+            {agora === 0 ? tf : `${tf} · ${relogio(falta)}`}
+          </span>
+        </div>
+        <div className="analise-compacta__linha">
+          {sv ? (
+            <>
+              <span className={`lado-pill ${sv.sinal.direction === 'bullish' ? 'compra' : 'venda'}`}>
+                {sv.sinal.direction === 'bullish' ? 'COMPRA' : 'VENDA'}
+              </span>
+              <span className="grow">
+                entrada <b>{fmt(sv.sinal.entryPrice)}</b> · stop <b className="bear-t">{fmt(sv.sinal.stopLoss)}</b>
+                {sv.sinal.targets[0] && (
+                  <>
+                    {' '}· TP1 <b className="bull-t">{fmt(sv.sinal.targets[0].price)}</b>
+                  </>
+                )}
+                <em>
+                  {sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} velas`} · {ROTULO_ESTADO[sv.estado]}
+                </em>
+              </span>
+              <b>{sv.sinal.maxRMultiple.toFixed(1)}R</b>
+            </>
+          ) : m ? (
+            <span className="grow">
+              <b>{m.titulo}</b>
+              <em>{m.linhas[0]}</em>
+            </span>
+          ) : (
+            <span className="grow">
+              <em>
+                {!analise.pronta
+                  ? 'a carregar histórico…'
+                  : visao === 'mmxm'
+                    ? 'a pedir a análise MMXM…'
+                    : `sem sinal recente${visao === 'resumo' ? '' : ' nesta estratégia'} · estruturas no gráfico`}
+              </em>
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="analise-viva">

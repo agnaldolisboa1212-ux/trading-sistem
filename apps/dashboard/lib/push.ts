@@ -253,20 +253,21 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
 /**
  * Esta subscricao quer este aviso?
  *
- * Subscricoes sem conta (de antes do login obrigatorio) continuam a receber
- * tudo: a app liga-as a conta da proxima vez que a pessoa a abrir.
+ * So recebe quem tem o instrumento no PORTFOLIO. Portfolio vazio nao recebe
+ * sinais nenhuns — a pessoa escolhe o que segue. Subscricoes sem conta (de
+ * antes do login obrigatorio) tambem nao: a app liga-as a conta assim que a
+ * pessoa entra. Avisos sem instrumento (testes, contas) nao sao filtrados.
  */
 export function querAviso(
   s: Pick<Subscritor, 'utilizador'>,
   prefs: ReadonlyMap<string, PreferenciaAvisos> | null,
   simbolo: string | undefined,
 ): boolean {
-  if (!s.utilizador || !prefs) return true;
+  if (!simbolo) return true;
+  if (!s.utilizador || !prefs) return false;
   const p = prefs.get(s.utilizador);
-  if (!p) return true;
-  if (!p.activos) return false;
-  if (simbolo && p.instrumentos.length > 0 && !p.instrumentos.includes(simbolo)) return false;
-  return true;
+  if (!p || !p.activos) return false;
+  return p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase());
 }
 
 /** O servico de push so aceita ate 32 caracteres de base64 URL-safe. */
