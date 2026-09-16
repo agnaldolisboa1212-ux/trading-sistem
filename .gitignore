@@ -1,8 +1,9 @@
 node_modules/
 dist/
 .next/
-# A raiz tem uma LIGACAO .next (scripts/ligar-next-na-raiz.mjs). `.next/` com
-# barra so apanha pastas, e o git ve ligacoes como ficheiros.
+# Builds antigos criavam uma LIGACAO .next na raiz (hoje apagada por
+# scripts/limpar-next-na-raiz.mjs). `.next/` com barra so apanha pastas, e o git
+# ve ligacoes como ficheiros — nunca pode chegar ao repositorio.
 /.next
 *.tsbuildinfo
 .env

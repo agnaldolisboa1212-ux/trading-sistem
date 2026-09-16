@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "description": "Sistema de sinais de trading baseado em MMXM (Market Maker Models), SMT Divergence e Time & Price alignment — escala macro (diario/semanal) para swing trading.",
   "type": "module",
+  "main": "server.js",
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -12,7 +13,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -b && npm run build -w @trading/dashboard && node scripts/ligar-next-na-raiz.mjs",
+    "build": "node scripts/limpar-next-na-raiz.mjs && tsc -b && npm run build -w @trading/dashboard",
     "typecheck": "tsc -b",
     "test": "npm run build -w @trading/engine && node --test packages/core/test/*.test.mjs apps/engine/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "engine:scan": "npm run scan -w @trading/engine",

@@ -104,21 +104,30 @@ painel por dentro da máquina.
 
 | Campo | Valor |
 |---|---|
-| Framework preset | **Next.js** (o que a Hostinger deteta) |
+| Framework preset | **Express** (ou Other) — **não** Next.js |
 | Versão do Node | **22** — o `@supabase/supabase-js` exige ≥ 22; com o 20 dá avisos no build e pode falhar a correr |
-| Root directory | `/` (raiz do repositório) — o painel depende dos pacotes em `packages/` |
+| Root directory | `./` (raiz do repositório) — o painel depende dos pacotes em `packages/` |
 | Build command | `npm run build` |
-| Output directory | `.next` (ou vazio) |
-| Entry file | **vazio** |
-| Start command | `npm start` (a Hostinger usa `npm run start -- -p $PORT`, que dá no mesmo) |
+| Output directory | **vazio** |
+| Entry file | `server.js` |
 
-O painel é compilado em `apps/dashboard/.next`, mas a Hostinger procura o `.next` na
-raiz. O `npm run build` termina a criar essa ligação (`scripts/ligar-next-na-raiz.mjs`).
-Com o preset **Other/Express** também funciona: aí o Entry file é `server.js`.
+**Como a Hostinger lê estes campos** (regras de deploy dela, no repositório
+`hostinger/hostinger-templates`):
 
-`npm start` corre `server.js`: um só processo que **escuta ele próprio** na porta
-`PORT` e arranca os motores e o ouvinte da conta como processo filho, reiniciando-o se
-cair. Na Hostinger é o **Entry file**: `server.js`.
+- O **Entry file é procurado DENTRO da Output directory**. Com a Output directory
+  vazia, `server.js` é lido da raiz do repositório, que é onde está. Com `.next` lá
+  escrito, procura `.next/server.js`, não encontra, e o deploy falha **depois** de
+  um build verde, com a análise a dizer que `server.js` "não existe".
+- **Sem Entry file** não arranca processo nenhum: serve a Output directory como site
+  estático. Para esta aplicação isso dá **404 em todas as páginas**.
+- **Ligações simbólicas partem o deploy.** Por isso o build já não cria o `.next` na
+  raiz, e apaga o que builds antigos lá deixaram.
+- O preset **Next.js** tem pipeline próprio e não sabe lidar com um monorepo — o
+  painel vive em `apps/dashboard`, não na raiz.
+
+`server.js` é um só processo que **escuta ele próprio** na porta `PORT` e arranca os
+motores e o ouvinte da conta como processo filho, reiniciando-o se cair. É também o
+`main` e o `npm start` do `package.json`.
 
 **Porque não um script que lança processos.** O primeiro deploy respondia 503 em
 todas as páginas: o `npm start` de então só lançava o `next start` e o motor como
@@ -127,9 +136,13 @@ considerava a aplicação em baixo.
 
 Para correr só o painel, sem motores: `MOTORES=desligados`.
 
-**Build verde mas o domínio responde 404 ("This Page Does Not Exist").** A aplicação
-não arrancou. Confirme o Entry file e veja os **Runtime Logs** (não o log do build):
-a primeira linha deve ser `[servidor] painel a responder em … (Node 22…)`.
+**Build verde mas "Deployment build failed".** Quase sempre é a Output directory
+preenchida: apague-a e deixe o Entry file em `server.js`. As vulnerabilidades do
+`npm audit` **não** travam deploys — a Hostinger só propõe um pull request.
+
+**Deploy verde mas o domínio responde 404 ("This Page Does Not Exist").** A aplicação
+não arrancou, ou o Entry file está vazio. Veja os **Runtime Logs** (não o log do
+build): a primeira linha deve ser `[servidor] painel a responder em … (Node 22…)`.
 
 **Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
 outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
