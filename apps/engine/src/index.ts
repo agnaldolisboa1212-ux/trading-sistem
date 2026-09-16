@@ -198,6 +198,26 @@ if (comando === 'scan') {
     }
   }
 
+  /*
+   * Lançado pelo server.js: se o pai morrer sem conseguir parar este processo
+   * (SIGKILL, por exemplo ao passar o limite de memória do alojamento), o motor
+   * não pode ficar órfão — outro processo da aplicação fica com os motores e
+   * haveria avisos em duplicado.
+   */
+  let pararTudo: () => void = () => process.exit(0);
+  const pai = Number(process.env['MOTOR_PAI_PID']);
+  if (Number.isInteger(pai) && pai > 0) {
+    setInterval(() => {
+      try {
+        process.kill(pai, 0);
+      } catch (erro) {
+        if ((erro as NodeJS.ErrnoException).code === 'EPERM') return;
+        console.log('[motores] o processo que lançou os motores terminou — a parar');
+        pararTudo();
+      }
+    }, 5_000).unref();
+  }
+
   estado.marcarArranque('agendador', { diario: config.cron, tempoReal: config.tempoReal.cron });
   console.log(`[motor principal]  cron="${config.cron}" | ${describeConfig(config)}`);
   console.log(
@@ -228,6 +248,7 @@ if (comando === 'scan') {
     closeDerivConnection();
     process.exit(0);
   };
+  pararTudo = parar;
   process.on('SIGINT', parar);
   process.on('SIGTERM', parar);
 

@@ -384,7 +384,12 @@ function lancarMotores(urlInterno, tentativa = 0) {
   const flags = NODE_MAIOR < 22 ? ['--experimental-websocket'] : [];
   const filho = spawn(process.execPath, [...flags, MOTOR, 'schedule'], {
     cwd: RAIZ,
-    env: { ...process.env, DASHBOARD_URL: process.env.DASHBOARD_URL || urlInterno },
+    // MOTOR_PAI_PID: o motor pára sozinho se este processo morrer sem o avisar.
+    env: {
+      ...process.env,
+      DASHBOARD_URL: process.env.DASHBOARD_URL || urlInterno,
+      MOTOR_PAI_PID: String(process.pid),
+    },
     stdio: ['ignore', 'inherit', 'inherit'],
   });
   motores = filho;
