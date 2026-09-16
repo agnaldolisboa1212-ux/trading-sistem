@@ -222,6 +222,10 @@ Definem-se no painel da Hostinger — nunca no repositório. Todas as de `.env.e
 | `ADMIN_EMAILS` | opcional; quem vê o estado do servidor nas Definições (por omissão, `DERIV_DONO_EMAIL`) |
 | `DERIV_TOKEN_NO_PAINEL` | **não definir**. Em produção cada pessoa, o dono incluído, entra com a própria conta Deriv; o `DERIV_TOKEN` fica só para os motores |
 | `DASHBOARD_URL` | **deixar vazio** — o motor usa a porta de `PORT` |
+| `CTRADER_CLIENT_ID` | Client ID da aplicação cTrader Open API (negociação CFD) |
+| `CTRADER_CLIENT_SECRET` | Client Secret da mesma aplicação — só no painel da Hostinger |
+| `CTRADER_REDIRECT` | `https://trivohub.io/api/ctrader/oauth/retorno` (obrigatória em produção) |
+| `CTRADER_LIMITE_LOTES` | opcional; volume máximo por ordem, em lotes (por omissão `1`) |
 
 **As `NEXT_PUBLIC_*` têm de existir antes do build.** O Next copia-as para o código
 do browser durante a compilação; se forem definidas depois, o painel fica sem
@@ -230,6 +234,25 @@ Supabase até ao deploy seguinte.
 **Na Deriv**, registe o mesmo `DERIV_OAUTH_REDIRECT` na aplicação
 (developers.deriv.com → Registered apps). Tem de coincidir letra a letra: `https`,
 domínio, sem barra no fim.
+
+### Negociação CFD — Deriv cTrader
+
+As contas que o painel negoceia são as **Deriv cTrader** (CFD) de cada pessoa, pela
+cTrader Open API. A API da Deriv não negoceia MT5, e a de opções não serve para CFD.
+
+1. Em [openapi.ctrader.com](https://openapi.ctrader.com) → *Applications* → *Add new
+   app*. Em *Redirect URIs* ponha `https://trivohub.io/api/ctrader/oauth/retorno` —
+   letra a letra, sem barra no fim. A aprovação pela Spotware pode demorar.
+2. Copie o Client ID e o Client Secret para as variáveis `CTRADER_*` acima, na
+   Hostinger. Também é precisa a `COFRE_CHAVE`: é ela que cifra os tokens no cookie.
+3. Cada pessoa precisa de uma conta Deriv cTrader (comece pela demo, criada no painel
+   da Deriv). Depois: **Definições → Corretora → Ligar conta Deriv cTrader**, entrar com
+   o cTrader ID e autorizar.
+
+O que o painel faz com a ligação: saldo e capital, ordens a mercado, limite e stop com
+SL/TP, colar a ordem de um sinal, modificar SL/TP e preço, fechar tudo ou parte, e
+cancelar pendentes. Cada acção pede confirmação; na conta real pede também que se
+marque que se percebe o risco. Os tokens ficam no servidor e nunca chegam ao browser.
 
 ### O que o erro "Can't resolve '@trading/data'" era
 
@@ -248,7 +271,7 @@ git check-ignore -v packages/*/package.json
 1. **Rodar as credenciais** que passaram por conversas e ficheiros partilhados:
    token Deriv, chave secreta do Supabase, token do Telegram, chave da API do n8n.
 2. **Conta demo primeiro.** A troca para real está nas Definições e pede confirmação.
-3. `DERIV_LIMITE_ORDEM` é um travão contra o dedo escorregar, não gestão de risco.
+3. `CTRADER_LIMITE_LOTES` é um travão contra o dedo escorregar, não gestão de risco.
 4. Nenhuma estratégia tem vantagem demonstrada: o MMXM deu 17 operações em 6
    anos com 81% do lucro num único negócio, e as quatro institucionais nunca foram
    backtestadas. O sistema mostra planos; a decisão e o risco são de quem opera.
