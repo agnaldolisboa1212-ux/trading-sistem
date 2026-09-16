@@ -137,7 +137,9 @@ async function motorTempoReal(): Promise<void> {
  */
 async function esperarPainel(): Promise<void> {
   if (!process.env['MOTOR_SEGREDO']) return;
-  const url = (process.env['DASHBOARD_URL'] ?? 'http://localhost:3000').replace(/\/+$/, '');
+  const url = (
+    process.env['DASHBOARD_URL'] || `http://127.0.0.1:${process.env['PORT'] || '3000'}`
+  ).replace(/\/+$/, '');
   const limite = Date.now() + 120_000;
   let avisou = false;
 

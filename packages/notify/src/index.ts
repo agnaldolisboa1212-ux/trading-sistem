@@ -315,7 +315,11 @@ export interface AvisoPush {
 function pushConfig(): { url: string; segredo: string } | null {
   const segredo = process.env['MOTOR_SEGREDO'] ?? '';
   if (!segredo) return null;
-  const url = (process.env['DASHBOARD_URL'] ?? 'http://localhost:3000').replace(/\/+$/, '');
+  // Sem DASHBOARD_URL, o painel e o processo irmao na mesma maquina, na porta
+  // que a plataforma deu em PORT (a Hostinger escolhe-a; nao e sempre 3000).
+  const url = (
+    process.env['DASHBOARD_URL'] || `http://127.0.0.1:${process.env['PORT'] || '3000'}`
+  ).replace(/\/+$/, '');
   return { url, segredo };
 }
 

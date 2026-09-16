@@ -100,6 +100,51 @@ painel por dentro da máquina.
 
 ---
 
+## 4. Hostinger (aplicação Node.js a partir do GitHub)
+
+| Campo | Valor |
+|---|---|
+| Versão do Node | **22** — o `@supabase/supabase-js` exige ≥ 22; com o 20 dá avisos no build e pode falhar a correr |
+| Diretório raiz | `/` — a raiz do repositório, porque o painel depende dos pacotes em `packages/` |
+| Instalação | `npm ci` |
+| Build | `npm run build` |
+| Arranque | `npm start` |
+
+`npm start` arranca os dois motores, o ouvinte da conta e o painel (`next start`),
+reinicia-os se caírem e usa a porta que a Hostinger der em `PORT`.
+
+### Variáveis de ambiente
+
+Definem-se no painel da Hostinger — nunca no repositório. Todas as de `.env.example`, e ainda:
+
+| Variável | Valor |
+|---|---|
+| `NODE_ENV` | `production` — liga o login obrigatório nas rotas da conta |
+| `DERIV_OAUTH_REDIRECT` | `https://trivohub.io/api/deriv/oauth/retorno` (o domínio que usar) |
+| `COFRE_CHAVE` | nova, 32+ caracteres aleatórios — não reutilize a do computador |
+| `DERIV_DONO_EMAIL` | o seu email de login na plataforma |
+| `DASHBOARD_URL` | **deixar vazio** — o motor usa a porta de `PORT` |
+
+**As `NEXT_PUBLIC_*` têm de existir antes do build.** O Next copia-as para o código
+do browser durante a compilação; se forem definidas depois, o painel fica sem
+Supabase até ao deploy seguinte.
+
+**Na Deriv**, registe o mesmo `DERIV_OAUTH_REDIRECT` na aplicação
+(developers.deriv.com → Registered apps). Tem de coincidir letra a letra: `https`,
+domínio, sem barra no fim.
+
+### O que o erro "Can't resolve '@trading/data'" era
+
+O `.gitignore` tinha `**/data/*.json`, que escondia `packages/data/package.json` e
+`packages/data/tsconfig.json`. Sem eles, o pacote não existia para o npm. Corrigido
+no commit `e5ff23b`. Se voltar a acontecer com outro pacote:
+
+```bash
+git check-ignore -v packages/*/package.json
+```
+
+---
+
 ## Antes de dinheiro real
 
 1. **Rodar as credenciais** que passaram por conversas e ficheiros partilhados:
