@@ -129,10 +129,20 @@ painel por dentro da máquina.
 motores e o ouvinte da conta como processo filho, reiniciando-o se cair. É também o
 `main` e o `npm start` do `package.json`.
 
-**Porque não um script que lança processos.** O primeiro deploy respondia 503 em
-todas as páginas: o `npm start` de então só lançava o `next start` e o motor como
-processos à parte, e a plataforma, não vendo o processo dela a escutar na porta,
-considerava a aplicação em baixo.
+**Como a Hostinger o arranca.** Não é com `node server.js`: o `.htaccess` do domínio
+entrega os pedidos ao LiteSpeed, que carrega a aplicação com o `lsnode.js`. Isso impõe
+três regras ao `server.js`, todas já cumpridas — não as desfaça:
+
+- O `lsnode` faz **`require()`** do ficheiro. Por isso é **CommonJS e sem `await` no
+  topo**, e a raiz do repositório não declara `"type": "module"`. Um módulo ES com
+  `await` no topo dá `ERR_REQUIRE_ASYNC_MODULE` e o site fica em **503**.
+- **Só a primeira chamada a `listen()` conta**, e liga ao socket do LiteSpeed (a porta
+  é ignorada); as outras são ignoradas sem aviso. A escuta interna do motor usa o
+  `listen` original.
+- O LiteSpeed pode **parar a aplicação quando não há visitas** e arrancá-la no pedido
+  seguinte — e os motores vão com ela. Se o painel mostrar os motores parados sem
+  ninguém ter mexido, é isto. Resolve-se com um pedido periódico, por exemplo uma
+  tarefa Cron no hPanel a cada 5 minutos: `curl -s https://trivohub.io/api/motores`.
 
 Para correr só o painel, sem motores: `MOTORES=desligados`.
 
@@ -145,9 +155,11 @@ que o build precisa estão nas `dependencies` da raiz — não os devolva a
 preenchida: apague-a e deixe o Entry file em `server.js`. As vulnerabilidades do
 `npm audit` **não** travam deploys — a Hostinger só propõe um pull request.
 
-**Deploy verde mas o domínio responde 404 ("This Page Does Not Exist").** A aplicação
-não arrancou, ou o Entry file está vazio. Veja os **Runtime Logs** (não o log do
-build): a primeira linha deve ser `[servidor] painel a responder em … (Node 22…)`.
+**Deploy verde mas o domínio responde 404 ("This Page Does Not Exist").** O Entry
+file está vazio. **Se responde 503**, a aplicação morreu ao arrancar. Nos dois casos,
+veja os **Runtime Logs** (não o log do build): deve aparecer
+`[servidor] painel a responder em socket do LiteSpeed (Node 22…)` e depois
+`[servidor] Next pronto`.
 
 **Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
 outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
