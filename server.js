@@ -31,16 +31,27 @@
  *     `DASHBOARD_URL`, só em 127.0.0.1.
  *
  * Com `node server.js` (computador, VPS) o lsnode não existe e tudo é o normal.
+ *
+ * ── SE A COMPILAÇÃO NÃO ESTIVER AQUI ───────────────────────────────────────
+ *
+ * A Hostinger compila numa pasta e arranca a aplicação a partir de uma cópia.
+ * O `apps/dashboard/.next` não chegou a essa cópia, e por isso o painel compila
+ * agora para `apps/dashboard/compilado`. Se mesmo assim faltar alguma coisa, o
+ * arranque escreve nos logs o que encontrou e compila ali mesmo, respondendo
+ * "a compilar" entretanto em vez de morrer. `COMPILAR_NO_ARRANQUE=nao` desliga
+ * isto.
  */
 
 const { spawn } = require('node:child_process');
-const { existsSync } = require('node:fs');
+const { existsSync, readdirSync } = require('node:fs');
 const http = require('node:http');
 const net = require('node:net');
 const { join } = require('node:path');
 
 const RAIZ = __dirname;
 const PAINEL = join(RAIZ, 'apps', 'dashboard');
+// Igual ao `distDir` de produção em apps/dashboard/next.config.mjs.
+const BUILD_ID = join(PAINEL, 'compilado', 'BUILD_ID');
 const MOTOR = join(RAIZ, 'apps', 'engine', 'dist', 'index.js');
 const PORTA = process.env.PORT || '3000';
 const NODE_MAIOR = Number(process.versions.node.split('.')[0]);
@@ -60,11 +71,6 @@ if (NODE_MAIOR < 22) {
   );
 }
 
-if (!existsSync(join(PAINEL, '.next', 'BUILD_ID'))) {
-  log('ERRO: o painel não está compilado (falta apps/dashboard/.next). Corra `npm run build` antes do arranque.');
-  process.exit(1);
-}
-
 /*
  * Uma rejeição não tratada numa rota não pode derrubar o site inteiro: por
  * omissão o Node termina o processo, e a plataforma voltaria a responder 503
@@ -72,27 +78,99 @@ if (!existsSync(join(PAINEL, '.next', 'BUILD_ID'))) {
  */
 process.on('unhandledRejection', (erro) => log('rejeição não tratada:', erro));
 
-// --- o Next ----------------------------------------------------------------
-const next = require('next');
-const app = next({ dev: false, dir: PAINEL });
-const atender = app.getRequestHandler();
-const pronto = app.prepare().then(
-  () => {
-    log('Next pronto');
-    return true;
-  },
+// --- compilação e Next -----------------------------------------------------
+/** 'a compilar' | 'a arrancar' | 'pronto' | 'falhou' */
+let fase = 'a arrancar';
+let atender = null;
+
+function diagnostico() {
+  log('pasta da aplicação:', RAIZ, '| pasta de trabalho:', process.cwd());
+  for (const rel of [
+    'package.json',
+    'node_modules/next/package.json',
+    'node_modules/@trading/core/package.json',
+    'packages/core/dist/index.js',
+    'apps/engine/dist/index.js',
+    'apps/dashboard/.next/BUILD_ID',
+    'apps/dashboard/compilado/BUILD_ID',
+  ]) {
+    log(`   ${existsSync(join(RAIZ, rel)) ? 'existe  ' : 'FALTA   '} ${rel}`);
+  }
+  for (const pasta of [RAIZ, PAINEL]) {
+    try {
+      log(`   conteúdo de ${pasta}: ${readdirSync(pasta).join('  ')}`);
+    } catch (erro) {
+      log(`   não foi possível ler ${pasta}: ${erro.message}`);
+    }
+  }
+}
+
+/** Corre um script de Node com o mesmo binário, sem depender do PATH. */
+function correrNode(args) {
+  return new Promise((resolver, rejeitar) => {
+    const filho = spawn(process.execPath, args, {
+      cwd: RAIZ,
+      env: { ...process.env, NODE_ENV: 'production' },
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    filho.on('error', rejeitar);
+    filho.on('exit', (codigo) =>
+      codigo === 0 ? resolver() : rejeitar(new Error(`${args.join(' ')} terminou com ${codigo}`)),
+    );
+  });
+}
+
+async function arrancar() {
+  if (!existsSync(BUILD_ID) || !existsSync(MOTOR)) {
+    log('AVISO: a compilação não está nesta pasta.');
+    diagnostico();
+    if (process.env.COMPILAR_NO_ARRANQUE === 'nao') {
+      throw new Error('sem compilação, e COMPILAR_NO_ARRANQUE=nao');
+    }
+    fase = 'a compilar';
+    log('a compilar aqui — demora 1 a 3 minutos…');
+    // --force: o tsconfig.tsbuildinfo pode ter vindo na cópia sem o dist/, e
+    // aí o tsc acharia que não há nada a fazer.
+    await correrNode([require.resolve('typescript/bin/tsc'), '-b', '--force']);
+    await correrNode([require.resolve('next/dist/bin/next'), 'build', PAINEL]);
+    log('compilação concluída');
+    fase = 'a arrancar';
+  }
+
+  const next = require('next');
+  const app = next({ dev: false, dir: PAINEL });
+  await app.prepare();
+  atender = app.getRequestHandler();
+  fase = 'pronto';
+  log('Next pronto');
+}
+
+const pronto = arrancar().then(
+  () => true,
   (erro) => {
-    log('ERRO: o Next não arrancou:', erro);
+    fase = 'falhou';
+    log('ERRO: o painel não arrancou:', erro);
     return false;
   },
 );
 
 function tratar(pedido, resposta) {
+  // A compilar demora minutos: responde já, em vez de deixar o pedido pendurado
+  // até o servidor web desistir.
+  if (fase === 'a compilar' || fase === 'falhou') {
+    resposta.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Retry-After': '60' });
+    resposta.end(
+      fase === 'a compilar'
+        ? 'O painel está a ser compilado neste servidor. Volte a abrir daqui a 2 minutos.'
+        : 'O painel não arrancou. Os detalhes estão nos logs do servidor.',
+    );
+    return;
+  }
   pronto
     .then((ok) => {
       if (ok) return atender(pedido, resposta);
       resposta.statusCode = 503;
-      resposta.end('o painel não arrancou — ver os logs do servidor');
+      resposta.end('O painel não arrancou. Os detalhes estão nos logs do servidor.');
     })
     .catch((erro) => {
       log('erro ao responder', pedido.url, erro);
