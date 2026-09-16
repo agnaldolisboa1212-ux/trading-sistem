@@ -139,6 +139,12 @@ três regras ao `server.js`, todas já cumpridas — não as desfaça:
 - **Só a primeira chamada a `listen()` conta**, e liga ao socket do LiteSpeed (a porta
   é ignorada); as outras são ignoradas sem aviso. A escuta interna do motor usa o
   `listen` original.
+- A aplicação **corre de uma cópia** da pasta onde foi compilada, e o
+  `apps/dashboard/.next` não chegava a essa cópia. Por isso o painel compila, em
+  produção, para **`apps/dashboard/compilado`** (em desenvolvimento continua `.next`).
+  Se mesmo assim faltar a compilação, o arranque escreve nos logs o que encontrou
+  (`existe` / `FALTA` por ficheiro) e **compila ali mesmo**, respondendo 503 "a
+  compilar" durante 1 a 3 minutos. `COMPILAR_NO_ARRANQUE=nao` desliga isto.
 - O LiteSpeed pode **parar a aplicação quando não há visitas** e arrancá-la no pedido
   seguinte — e os motores vão com ela. Se o painel mostrar os motores parados sem
   ninguém ter mexido, é isto. Resolve-se com um pedido periódico, por exemplo uma
@@ -159,7 +165,8 @@ preenchida: apague-a e deixe o Entry file em `server.js`. As vulnerabilidades do
 file está vazio. **Se responde 503**, a aplicação morreu ao arrancar. Nos dois casos,
 veja os **Runtime Logs** (não o log do build): deve aparecer
 `[servidor] painel a responder em socket do LiteSpeed (Node 22…)` e depois
-`[servidor] Next pronto`.
+`[servidor] Next pronto`. Se aparecer `AVISO: a compilação não está nesta pasta`, as
+linhas seguintes dizem o que a cópia da Hostinger trouxe e o que não trouxe.
 
 **Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
 outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
