@@ -40,8 +40,19 @@ export async function GET(pedido: Request) {
   if (code) {
     const { error } = await db.auth.exchangeCodeForSession(code);
     if (error) {
+      /*
+       * Com `?code=` o Supabase JÁ validou o link antes de redireccionar; o que
+       * falhou foi abrir a sessão, porque o link foi aberto noutro browser (o
+       * do Gmail, por exemplo). Num registo isso quer dizer: email confirmado,
+       * falta só entrar.
+       */
+      if (proximo === '/onboarding') {
+        return para(
+          `/entrar?info=${encodeURIComponent('Email confirmado. Entre com o seu email e palavra-passe.')}`,
+        );
+      }
       return falhou(
-        'Não foi possível confirmar com este link neste browser. Abra-o no mesmo dispositivo onde pediu, ou use o código do email.',
+        'Este link abriu num browser diferente daquele onde o pediu. Abra-o no mesmo dispositivo, ou use o código de seis dígitos do email.',
       );
     }
     return para(proximo);

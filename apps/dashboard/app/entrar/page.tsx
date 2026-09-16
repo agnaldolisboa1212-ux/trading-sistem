@@ -15,7 +15,13 @@
 import Link from 'next/link';
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { authConfigurada, entrar, pedirCodigoEntrada, validarCodigo } from '@/lib/auth';
+import {
+  authConfigurada,
+  entrar,
+  pedirCodigoEntrada,
+  reenviarConfirmacao,
+  validarCodigo,
+} from '@/lib/auth';
 import { destinoSeguro } from '@/lib/acesso';
 import {
   CampoCodigo,
@@ -46,6 +52,8 @@ function Entrar() {
   const [palavraPasse, setPalavraPasse] = useState('');
   const [codigo, setCodigo] = useState('');
   const [erro, setErro] = useState<string | null>(parametros.get('erro'));
+  const [info, setInfo] = useState<string | null>(parametros.get('info'));
+  const [porConfirmar, setPorConfirmar] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
   if (!authConfigurada) {
@@ -58,13 +66,31 @@ function Entrar() {
 
   const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  const correr = async (accao: () => Promise<{ ok: boolean; erro?: string }>, depois: () => void) => {
+  const correr = async (
+    accao: () => Promise<{ ok: boolean; erro?: string; codigo?: string }>,
+    depois: () => void,
+  ) => {
     setErro(null);
+    setInfo(null);
     setOcupado(true);
     const r = await accao();
     setOcupado(false);
     if (r.ok) depois();
-    else setErro(r.erro ?? 'Ocorreu um erro.');
+    else {
+      setErro(r.erro ?? 'Ocorreu um erro.');
+      setPorConfirmar(r.codigo === 'email_not_confirmed');
+    }
+  };
+
+  const reenviar = async () => {
+    const r = await reenviarConfirmacao(email);
+    setPorConfirmar(false);
+    if (r.ok) {
+      setErro(null);
+      setInfo('Enviámos outro email de confirmação. Toque no botão dele e volte a entrar.');
+    } else {
+      setErro(r.erro);
+    }
   };
 
   const comPalavraPasse = () =>
@@ -181,7 +207,13 @@ function Entrar() {
         )}
       </div>
 
+      {info && <Info>{info}</Info>}
       <Erro texto={erro} />
+      {porConfirmar && (
+        <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={() => void reenviar()}>
+          Reenviar o email de confirmação
+        </button>
+      )}
 
       <p className="conta__rodape">
         Ainda não tem conta? <Link href="/registar">Criar conta</Link>

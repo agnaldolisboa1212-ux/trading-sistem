@@ -497,3 +497,12 @@ body:has(.wrap.ob) .bottomnav {
   margin-top: 1px;
   accent-color: var(--accent);
 }
+
+.conta__espera {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  color: var(--text-dim);
+}

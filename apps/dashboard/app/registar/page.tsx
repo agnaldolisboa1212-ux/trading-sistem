@@ -5,8 +5,13 @@
  *
  * Com a confirmação de email ligada no Supabase (o recomendado), a conta só
  * entra depois de confirmar: pelo link do email ou pelo código de seis dígitos,
- * se o modelo do email o incluir. O código é o que funciona dentro da app
- * instalada — o link abre no browser, que é outra sessão.
+ * se o modelo do email o incluir (o modelo por omissão só traz o link).
+ *
+ * O link pode ser aberto noutro dispositivo — no Gmail do telemóvel, por
+ * exemplo — e aí a sessão abre-se lá, não aqui. Por isso este ecrã tenta entrar
+ * com o email e a palavra-passe que acabaram de ser escritos, de poucos em
+ * poucos segundos e sempre que a pessoa volta à app: assim que o email estiver
+ * confirmado, entra sozinho.
  *
  * Sem confirmação, o registo já devolve sessão e segue para o onboarding.
  */
@@ -15,6 +20,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
   authConfigurada,
+  entrar,
   problemaPalavraPasse,
   reenviarConfirmacao,
   registar,
@@ -49,6 +55,38 @@ export default function Page() {
     const t = setTimeout(() => setEspera((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [espera]);
+
+  const [verCodigo, setVerCodigo] = useState(false);
+
+  /*
+   * Espera pela confirmação: tenta entrar de 8 em 8 segundos, e logo que a app
+   * volta a ficar visível (a pessoa foi ao email e voltou). Pára ao fim de 20
+   * minutos — o link do email também expira.
+   */
+  useEffect(() => {
+    if (passo !== 'confirmar' || !palavraPasse) return;
+    let parado = false;
+    let aTentar = false;
+    const inicio = Date.now();
+    const tentar = async () => {
+      if (parado || aTentar || document.hidden) return;
+      if (Date.now() - inicio > 20 * 60_000) return;
+      aTentar = true;
+      const r = await entrar(email, palavraPasse);
+      aTentar = false;
+      if (r.ok && !parado) irPara('/onboarding');
+    };
+    const intervalo = setInterval(() => void tentar(), 8_000);
+    const aoVoltar = () => void tentar();
+    document.addEventListener('visibilitychange', aoVoltar);
+    window.addEventListener('focus', aoVoltar);
+    return () => {
+      parado = true;
+      clearInterval(intervalo);
+      document.removeEventListener('visibilitychange', aoVoltar);
+      window.removeEventListener('focus', aoVoltar);
+    };
+  }, [passo, email, palavraPasse]);
 
   if (!authConfigurada) {
     return (
@@ -108,18 +146,30 @@ export default function Page() {
         <Marca titulo="Confirme o email" sub={email} />
         <div className="card">
           <Info>
-            Enviámos uma mensagem para <strong>{email}</strong>. Toque no link, ou escreva aqui o
-            código de seis dígitos se o email o tiver. Veja também o spam.
+            Enviámos uma mensagem para <strong>{email}</strong>. Abra-a e toque no botão de
+            confirmar — pode ser noutro telemóvel ou computador. <strong>Esta página entra
+            sozinha</strong> assim que o email estiver confirmado. Veja também o spam.
           </Info>
-          <CampoCodigo rotulo="Código" valor={codigo} mudar={setCodigo} aoCompletar={() => void confirmar()} />
-          <button
-            type="button"
-            className="btn primary block"
-            onClick={() => void confirmar()}
-            disabled={ocupado || codigo.length < 6}
-          >
-            {ocupado ? 'a confirmar…' : 'Confirmar'}
-          </button>
+          <div className="conta__espera" aria-live="polite">
+            <span className="analise-viva__pulso" aria-hidden="true" />à espera da confirmação…
+          </div>
+          {verCodigo ? (
+            <>
+              <CampoCodigo rotulo="Código do email" valor={codigo} mudar={setCodigo} aoCompletar={() => void confirmar()} />
+              <button
+                type="button"
+                className="btn primary block"
+                onClick={() => void confirmar()}
+                disabled={ocupado || codigo.length < 6}
+              >
+                {ocupado ? 'a confirmar…' : 'Confirmar'}
+              </button>
+            </>
+          ) : (
+            <button type="button" className="ob__link" onClick={() => setVerCodigo(true)}>
+              o email trouxe um código de 6 dígitos?
+            </button>
+          )}
           <button
             type="button"
             className="ob__link"
