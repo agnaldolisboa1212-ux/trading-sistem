@@ -145,7 +145,7 @@ async function esperarPainel(): Promise<void> {
 
   while (Date.now() < limite) {
     try {
-      const r = await fetch(`${url}/api/motores`, { signal: AbortSignal.timeout(15_000) });
+      const r = await fetch(`${url}/api/saude`, { signal: AbortSignal.timeout(15_000) });
       if (r.ok) {
         console.log(`[motores] painel disponível em ${url} — avisos push activos`);
         return;

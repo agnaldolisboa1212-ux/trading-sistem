@@ -1,5 +1,5 @@
 /**
- * Envia uma notificacao de teste a todos os subscritores.
+ * Envia uma notificacao de teste aos dispositivos de QUEM PEDE.
  *
  * Existe porque "as notificacoes estao configuradas" e uma afirmacao que so se
  * pode verificar recebendo uma. O ecra de definicoes chama esta rota e mostra
@@ -8,19 +8,16 @@
  */
 
 import { NextResponse } from 'next/server';
-import { exigirLogin } from '@/lib/deriv/oauth';
 import { enviarAviso, configPush } from '@/lib/push';
 import { utilizadorDoPedido } from '@/lib/sessao-plataforma';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(pedido: Request) {
-  /*
-   * Em produção só com sessão iniciada. Sem isto, qualquer pessoa que
-   * descobrisse o URL mandava notificações para o telemóvel de TODOS os
-   * utilizadores, quantas vezes quisesse.
-   */
-  if (exigirLogin() && !(await utilizadorDoPedido(pedido))) {
+  // Só para os dispositivos da própria conta: um teste não pode tocar no
+  // telemóvel de todos os utilizadores.
+  const utilizador = await utilizadorDoPedido(pedido);
+  if (!utilizador) {
     return NextResponse.json({ erro: 'Entre na plataforma para enviar um teste.' }, { status: 401 });
   }
 
@@ -33,12 +30,16 @@ export async function POST(pedido: Request) {
     );
   }
 
-  const r = await enviarAviso({
-    titulo: 'Sistema de Trading',
-    corpo: 'As notificacoes estao a funcionar. Vai receber alertas de entrada e saida aqui.',
-    url: '/',
-    tag: 'teste',
-  });
+  const r = await enviarAviso(
+    {
+      titulo: 'Sistema de Trading',
+      corpo: 'As notificacoes estao a funcionar. Vai receber alertas de entrada e saida aqui.',
+      url: '/',
+      tag: 'teste',
+      validadeS: 300,
+    },
+    { utilizador: utilizador.id },
+  );
 
   return NextResponse.json({ ok: true, ...r });
 }

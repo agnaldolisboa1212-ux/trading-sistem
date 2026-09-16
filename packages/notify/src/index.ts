@@ -310,6 +310,20 @@ export interface AvisoPush {
   url?: string;
   /** Avisos com a mesma tag substituem-se no ecra em vez de empilharem. */
   tag?: string;
+  /**
+   * Segundos que o servico de push pode segurar o aviso ate o entregar. Por
+   * omissao (no painel) uma hora; um sinal de 15 minutos nao serve depois disso.
+   */
+  validadeS?: number;
+  /**
+   * `high` para sinais: o Android em repouso atrasa avisos de urgencia normal
+   * durante minutos. `normal` para o que pode esperar.
+   */
+  urgencia?: 'high' | 'normal';
+  /** Um aviso por entregar com o mesmo topico e substituido pelo novo. */
+  topico?: string;
+  /** Instrumento do aviso: so chega a quem o escolheu nas preferencias. */
+  simbolo?: string;
 }
 
 function pushConfig(): { url: string; segredo: string } | null {
@@ -384,6 +398,10 @@ export async function broadcastEntry(signal: TradeSignal): Promise<NotifyResult[
       corpo: `Entrada ${signal.entryPrice.toFixed(5)} · stop ${signal.stopLoss.toFixed(5)} · MMXM ${signal.timeframe}`,
       url: `/instrumento/${signal.symbol}?tf=${signal.timeframe}`,
       tag: signal.id,
+      // Swing em velas diárias: continua útil durante horas.
+      validadeS: 6 * 3600,
+      urgencia: 'high',
+      simbolo: signal.symbol,
     }),
   ]);
 }
@@ -397,6 +415,9 @@ export async function broadcastExit(exit: ExitSignal): Promise<NotifyResult[]> {
       corpo: `${exit.reason} a ${exit.price.toFixed(5)} · fechar ${(exit.closeFraction * 100).toFixed(0)}%`,
       url: `/instrumento/${exit.symbol}`,
       tag: `saida-${exit.signalId}`,
+      validadeS: 6 * 3600,
+      urgencia: 'high',
+      simbolo: exit.symbol,
     }),
     sendToN8n('signal.exit', {
       signalId: exit.signalId,
@@ -448,6 +469,30 @@ export interface SinalTempoReal {
   /** Abertura da vela que gerou o sinal (ms UTC). */
   geradoEm: number;
   avisos: string[];
+  /** Preco no momento do anuncio (a vela seguinte, em formacao). */
+  precoActual?: number;
+  /** Onde esta esse preco em relacao ao plano. */
+  estadoPreco?: 'na-entrada' | 'a-aguardar' | 'melhor-que-entrada';
+  /** Distancia do preco a entrada, em R; positivo = a favor. */
+  distanciaR?: number;
+  /** Segundos que o push pode esperar pela entrega. */
+  validadeAvisoS?: number;
+}
+
+/** Frase curta sobre o preco actual, para o aviso e para o Telegram. */
+export function frasePreco(s: SinalTempoReal): string | null {
+  if (s.precoActual === undefined || s.estadoPreco === undefined) return null;
+  const compra = s.direccao === 'bullish';
+  const r = s.distanciaR ?? 0;
+  const dist = `${r >= 0 ? '+' : '-'}${Math.abs(r).toFixed(1)}R`;
+  switch (s.estadoPreco) {
+    case 'na-entrada':
+      return 'no preco de entrada agora';
+    case 'a-aguardar':
+      return `${dist} da entrada · esperar ${compra ? 'recuo' : 'subida'} ate ${s.entrada.toFixed(s.casas)}`;
+    case 'melhor-que-entrada':
+      return `${dist} · ${compra ? 'abaixo' : 'acima'} da entrada, stop intacto`;
+  }
 }
 
 const NOME_ESTRATEGIA: Record<string, string> = {
@@ -472,12 +517,16 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
   const razao = s.razao.length > 200 ? `${s.razao.slice(0, 197)}...` : s.razao;
   const acordo = s.concordam && s.concordam > 1 ? ` · ${s.concordam} estrategias de acordo` : '';
 
+  const agora = frasePreco(s);
   const linhas = [
     `${compra ? '🟢' : '🔴'} *${compra ? 'COMPRA' : 'VENDA'} ${escapeMarkdown(s.simbolo)}* · ${escapeMarkdown(s.timeframe)}`,
     '',
     `entrada \`${n(s.entrada)}\``,
     `stop    \`${n(s.stop)}\``,
     alvos,
+    ...(agora && s.precoActual !== undefined
+      ? ['', `agora   \`${n(s.precoActual)}\` · ${escapeMarkdown(agora)}`]
+      : []),
     '',
     `*${escapeMarkdown(s.rMaximo.toFixed(1))}R* · conviccao ${Math.round(s.conviccao * 100)}% · ${escapeMarkdown((NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia) + acordo)}`,
     '',
@@ -501,9 +550,20 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
     }),
     sendPush({
       titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${s.rMaximo.toFixed(1)}R`,
-      corpo: `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)} · ${estrategia}`,
-      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.timeframe}`,
+      corpo: [
+        `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}`,
+        s.precoActual !== undefined ? `Agora ${s.precoActual.toFixed(s.casas)} · ${frasePreco(s)}` : null,
+        estrategia,
+      ]
+        .filter(Boolean)
+        .join(String.fromCharCode(10)),
+      // Abre o gráfico já na estratégia que deu o sinal.
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.timeframe}&v=${s.estrategia}`,
       tag: s.id,
+      validadeS: s.validadeAvisoS,
+      urgencia: 'high',
+      topico: `${s.simbolo}-${s.timeframe}`,
+      simbolo: s.simbolo,
     }),
   ]);
 }

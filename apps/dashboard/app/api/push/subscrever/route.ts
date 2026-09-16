@@ -12,6 +12,7 @@
 
 import { NextResponse } from 'next/server';
 import { registarSubscritor, removerSubscritor, estadoPush } from '@/lib/push';
+import { utilizadorDoPedido } from '@/lib/sessao-plataforma';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,7 +25,6 @@ export async function POST(pedido: Request) {
   let corpo: {
     endpoint?: string;
     keys?: { p256dh?: string; auth?: string };
-    utilizador?: string | null;
   };
   try {
     corpo = (await pedido.json()) as typeof corpo;
@@ -42,10 +42,17 @@ export async function POST(pedido: Request) {
     return NextResponse.json({ erro: 'endpoint invalido' }, { status: 400 });
   }
 
+  // A conta vem da sessão, nunca do corpo: senão qualquer pessoa ligava o seu
+  // telemóvel aos avisos de outra conta.
+  const utilizador = await utilizadorDoPedido(pedido);
+  if (!utilizador) {
+    return NextResponse.json({ erro: 'Entre na plataforma para ligar os avisos.' }, { status: 401 });
+  }
+
   try {
     await registarSubscritor(
       { endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth } },
-      corpo.utilizador ?? null,
+      utilizador.id,
     );
     return NextResponse.json({ ok: true });
   } catch (err) {

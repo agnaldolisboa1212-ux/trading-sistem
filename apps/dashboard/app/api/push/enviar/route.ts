@@ -46,23 +46,33 @@ export async function POST(pedido: Request) {
     );
   }
 
-  let corpo: { titulo?: unknown; corpo?: unknown; url?: unknown; tag?: unknown };
+  let corpo: Record<string, unknown>;
   try {
-    corpo = (await pedido.json()) as typeof corpo;
+    corpo = (await pedido.json()) as Record<string, unknown>;
   } catch {
     return NextResponse.json({ erro: 'corpo inválido' }, { status: 400 });
   }
 
-  const titulo = typeof corpo.titulo === 'string' ? corpo.titulo.slice(0, 120) : '';
-  const texto = typeof corpo.corpo === 'string' ? corpo.corpo.slice(0, 300) : '';
-  if (!titulo || !texto) {
+  const texto = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
+  const titulo = texto(corpo['titulo'], 120);
+  const mensagem = texto(corpo['corpo'], 300);
+  if (!titulo || !mensagem) {
     return NextResponse.json({ erro: 'titulo e corpo são obrigatórios' }, { status: 400 });
   }
   // Só caminhos internos: um aviso que abre um site externo ao tocar seria um
   // vector de phishing com o nome da app.
-  const url = typeof corpo.url === 'string' && corpo.url.startsWith('/') ? corpo.url : '/';
-  const tag = typeof corpo.tag === 'string' ? corpo.tag.slice(0, 120) : undefined;
+  const url = texto(corpo['url'], 300);
+  const validade = Number(corpo['validadeS']);
 
-  const r = await enviarAviso({ titulo, corpo: texto, url, tag });
+  const r = await enviarAviso({
+    titulo,
+    corpo: mensagem,
+    url: url.startsWith('/') && !url.startsWith('//') ? url : '/',
+    tag: texto(corpo['tag'], 120) || undefined,
+    validadeS: Number.isFinite(validade) && validade > 0 ? Math.min(validade, 86_400) : undefined,
+    urgencia: corpo['urgencia'] === 'normal' ? 'normal' : 'high',
+    topico: texto(corpo['topico'], 64) || undefined,
+    simbolo: texto(corpo['simbolo'], 20) || undefined,
+  });
   return NextResponse.json({ ok: true, ...r });
 }

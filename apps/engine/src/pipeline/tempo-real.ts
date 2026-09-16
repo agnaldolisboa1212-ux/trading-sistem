@@ -39,11 +39,14 @@ import type { EngineConfig } from '../config.js';
 import { dirDados, tabelaAusente } from './estado.js';
 import {
   GRANULARIDADE_S,
+  avaliarPrecoActual,
   cortarVelaAberta,
   escolherPorConfluencia,
   escolherVigilancia,
   idSinal,
   mercadoParado,
+  sinalFresco,
+  validadeAvisoS,
   type OrigemVigilancia,
 } from './tempo-real-puro.js';
 
@@ -433,6 +436,38 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
 
         // --- 6. deduplicação ----------------------------------------------
         let novo = !vistos.has(sinal.id);
+
+        // --- 6b. ainda vale a pena avisar? --------------------------------
+        if (novo) {
+          const agoraAnuncio = Date.now();
+          if (!sinalFresco(ultima.time, gran, agoraAnuncio)) {
+            analise.nota = 'sinal antigo (o motor esteve parado) — não anunciado';
+            analises.push(analise);
+            continue;
+          }
+          // O preço de agora é o fecho da vela em formação, que veio no mesmo pedido.
+          const emFormacao = brutas[brutas.length - 1];
+          const actual = emFormacao && emFormacao.time > ultima.time ? emFormacao.close : ultima.close;
+          const preco = avaliarPrecoActual({
+            direccao: sinal.direccao,
+            entrada: sinal.entrada,
+            stop: sinal.stop,
+            alvo: sinal.alvos[0]?.preco ?? null,
+            actual,
+          });
+          if (!preco.anunciar) {
+            analise.nota =
+              preco.estado === 'invalidado'
+                ? 'o preço já tocou no stop antes do anúncio — não anunciado'
+                : `o preço já fez ${Math.round(preco.progresso * 100)}% do caminho até ao alvo — não anunciado`;
+            analises.push(analise);
+            continue;
+          }
+          sinal.precoActual = actual;
+          sinal.estadoPreco = preco.estado as NonNullable<SinalTempoReal['estadoPreco']>;
+          sinal.distanciaR = preco.distanciaR;
+          sinal.validadeAvisoS = validadeAvisoS(gran);
+        }
         if (novo && db && persistencia === 'supabase') {
           const est = await inserir(db, sinal, erros);
           if (est === 'repetido') novo = false;
@@ -499,7 +534,8 @@ export function formatarRelatorioTempoReal(r: RelatorioTempoReal): string {
     const marca = a.novo ? '>>>' : e ? ' = ' : a.nota ? ' ! ' : '   ';
     const corpo = e
       ? `${e.direccao === 'bullish' ? 'COMPRA' : 'VENDA '} ${e.rMaximo.toFixed(1)}R ` +
-        `conv=${Math.round(e.conviccao * 100)}% ${e.estrategia}${a.novo ? ' (novo, anunciado)' : ' (já anunciado)'}`
+        `conv=${Math.round(e.conviccao * 100)}% ${e.estrategia}` +
+        (a.novo ? ' (novo, anunciado)' : a.nota ? ` (${a.nota})` : ' (já anunciado)')
       : (a.nota ?? `sem sinal (${a.velas} velas)`);
     linhas.push(`${marca} ${a.simbolo.padEnd(8)} ${a.timeframe.padEnd(4)} ${corpo}`);
   }

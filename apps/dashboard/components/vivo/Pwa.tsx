@@ -40,6 +40,7 @@ export function RegistarSW() {
       // ficheiros do Next em cache: nao tem hash e mudam a cada recompilacao.
       const script = process.env.NODE_ENV === 'production' ? '/sw.js' : '/sw.js?dev=1';
       navigator.serviceWorker.register(script, { scope: '/' }).catch(() => undefined);
+      void ligarSubscricaoAConta();
     };
     if (document.readyState === 'complete') registar();
     else {
@@ -49,6 +50,33 @@ export function RegistarSW() {
   }, []);
 
   return null;
+}
+
+/**
+ * Liga a subscrição push deste dispositivo à conta que entrou.
+ *
+ * Os avisos agora seguem as preferências de cada conta (mercados escolhidos,
+ * avisos ligados). Uma subscrição feita antes do login obrigatório não tinha
+ * dono; outra pessoa pode entrar no mesmo telemóvel. Uma vez por sessão do
+ * browser, e só com permissão já dada — nunca pede permissão aqui.
+ */
+async function ligarSubscricaoAConta(): Promise<void> {
+  try {
+    if (!('PushManager' in window) || Notification.permission !== 'granted') return;
+    if (/^\/(entrar|registar|recuperar|auth)(\/|$)/.test(window.location.pathname)) return;
+    if (sessionStorage.getItem('push-ligado') === '1') return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return;
+    const r = await fetch('/api/push/subscrever', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub.toJSON()),
+    });
+    if (r.ok) sessionStorage.setItem('push-ligado', '1');
+  } catch {
+    /* sem rede ou sem sessão: tenta na próxima visita */
+  }
 }
 
 export type EstadoInstalacao = 'instalada' | 'pronta' | 'ios' | 'indisponivel';

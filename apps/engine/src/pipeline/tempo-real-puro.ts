@@ -55,6 +55,94 @@ export function mercadoParado(
   return agora - fecho > granularidadeS * 1000 * 3;
 }
 
+/**
+ * O sinal ainda é notícia?
+ *
+ * Mede desde o FECHO da vela. Com o motor a correr, um sinal sai 1 a 30
+ * segundos depois (medido no Supabase). Mais do que isto só acontece quando o
+ * motor esteve parado — o alojamento pode parar a aplicação sem visitas — e a
+ * primeira passagem ao acordar anunciaria como novo um sinal de há quase uma
+ * hora, com o preço já longe da entrada.
+ *
+ * Limite: meia vela, e nunca mais de 10 minutos (15m → 7,5 min; 1h → 10 min).
+ */
+export function sinalFresco(aberturaVela: number, granularidadeS: number, agora: number): boolean {
+  const fecho = aberturaVela + granularidadeS * 1000;
+  const limite = Math.min(10 * 60_000, (granularidadeS * 1000) / 2);
+  return agora - fecho <= limite;
+}
+
+/**
+ * Quanto tempo o serviço de push pode segurar o aviso antes de desistir, em
+ * segundos. Por omissão são 4 semanas: um telemóvel sem rede recebia de manhã o
+ * sinal de 15 minutos da noite anterior. Meia vela, entre 5 e 30 minutos.
+ */
+export function validadeAvisoS(granularidadeS: number): number {
+  return Math.max(300, Math.min(1800, Math.round(granularidadeS / 2)));
+}
+
+export type EstadoPreco = 'na-entrada' | 'a-aguardar' | 'melhor-que-entrada' | 'passou' | 'invalidado';
+
+export interface AvaliacaoPreco {
+  estado: EstadoPreco;
+  /** Só `passou` e `invalidado` impedem o anúncio. */
+  anunciar: boolean;
+  /** Distância do preço à entrada em unidades de risco; positivo = a favor. */
+  distanciaR: number;
+  /** Fracção do caminho entrada → primeiro alvo já percorrida (0..1+). */
+  progresso: number;
+}
+
+/** A partir de metade do caminho até ao primeiro alvo, a entrada perdeu-se. */
+export const PROGRESSO_MAXIMO = 0.5;
+/** Até esta distância (em R) o preço conta como estando na entrada. */
+export const TOLERANCIA_ENTRADA_R = 0.15;
+
+/**
+ * Onde está o preço AGORA em relação ao plano do sinal.
+ *
+ * A queixa: "os sinais chegam e o preço já está avançado em relação à entrada".
+ * O plano é calculado no fecho da vela; muitas entradas são no RETESTE de um
+ * nível, abaixo do preço de fecho numa compra. Quem recebe o aviso precisa de
+ * saber de que lado está o preço, e há dois casos em que avisar não serve:
+ *
+ *   invalidado  o preço já tocou no stop
+ *   passou      já fez metade do caminho até ao primeiro alvo — entrar agora é
+ *               outro trade, com metade do potencial e o mesmo stop
+ */
+export function avaliarPrecoActual(p: {
+  direccao: 'bullish' | 'bearish';
+  entrada: number;
+  stop: number;
+  /** Primeiro alvo; sem ele usa-se 2R. */
+  alvo: number | null;
+  actual: number;
+}): AvaliacaoPreco {
+  const lado = p.direccao === 'bullish' ? 1 : -1;
+  const risco = Math.abs(p.entrada - p.stop);
+  if (!(risco > 0) || !Number.isFinite(p.actual)) {
+    return { estado: 'na-entrada', anunciar: true, distanciaR: 0, progresso: 0 };
+  }
+
+  const desvio = (p.actual - p.entrada) * lado;
+  const distanciaR = desvio / risco;
+  const caminho = p.alvo !== null ? (p.alvo - p.entrada) * lado : 2 * risco;
+  const progresso = caminho > 0 ? desvio / caminho : 0;
+
+  if ((p.actual - p.stop) * lado <= 0) {
+    return { estado: 'invalidado', anunciar: false, distanciaR, progresso };
+  }
+  if (progresso >= PROGRESSO_MAXIMO) {
+    return { estado: 'passou', anunciar: false, distanciaR, progresso };
+  }
+  if (Math.abs(distanciaR) <= TOLERANCIA_ENTRADA_R) {
+    return { estado: 'na-entrada', anunciar: true, distanciaR, progresso };
+  }
+  return desvio > 0
+    ? { estado: 'a-aguardar', anunciar: true, distanciaR, progresso }
+    : { estado: 'melhor-que-entrada', anunciar: true, distanciaR, progresso };
+}
+
 /** Lê `INTRADAY_TIMEFRAMES`, descartando o que a Deriv não aceita. */
 export function lerTimeframes(bruto: string | undefined, omissao: readonly string[]): string[] {
   const lista = (bruto ?? '')

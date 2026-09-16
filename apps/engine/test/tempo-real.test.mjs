@@ -9,12 +9,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  avaliarPrecoActual,
   cortarVelaAberta,
   escolherPorConfluencia,
   escolherVigilancia,
   idSinal,
   lerTimeframes,
   mercadoParado,
+  sinalFresco,
+  validadeAvisoS,
 } from '../dist/pipeline/tempo-real-puro.js';
 
 const vela = (time) => ({ time, open: 1, high: 2, low: 0.5, close: 1.5, volume: 0 });
@@ -110,4 +113,75 @@ test('confluência: sentidos opostos não anunciam nada', () => {
 
 test('confluência: sem sinais', () => {
   assert.deepEqual(escolherPorConfluencia([]), { escolhido: null, concordam: 0, conflito: false });
+});
+
+// --- validade no momento do anúncio ----------------------------------------
+
+test('frescura: um sinal de 15m anunciado 20 s depois do fecho é notícia', () => {
+  const abertura = Date.UTC(2026, 8, 16, 16, 30);
+  const fecho = abertura + MIN15 * 1000;
+  assert.equal(sinalFresco(abertura, MIN15, fecho + 20_000), true);
+});
+
+test('frescura: ao acordar 40 min depois do fecho de uma vela de 1h já não é', () => {
+  const abertura = Date.UTC(2026, 8, 16, 16, 0);
+  const fecho = abertura + 3600 * 1000;
+  assert.equal(sinalFresco(abertura, 3600, fecho + 40 * 60_000), false);
+  // o limite de uma vela de 1h é 10 minutos, não meia hora
+  assert.equal(sinalFresco(abertura, 3600, fecho + 11 * 60_000), false);
+  assert.equal(sinalFresco(abertura, 3600, fecho + 9 * 60_000), true);
+});
+
+test('validade do push: meia vela, entre 5 e 30 minutos', () => {
+  assert.equal(validadeAvisoS(60), 300);
+  assert.equal(validadeAvisoS(900), 450);
+  assert.equal(validadeAvisoS(3600), 1800);
+  assert.equal(validadeAvisoS(86400), 1800);
+});
+
+const compra = { direccao: 'bullish', entrada: 100, stop: 98, alvo: 106 };
+const venda = { direccao: 'bearish', entrada: 100, stop: 102, alvo: 94 };
+
+test('preço: na entrada', () => {
+  const r = avaliarPrecoActual({ ...compra, actual: 100.2 });
+  assert.equal(r.estado, 'na-entrada');
+  assert.equal(r.anunciar, true);
+});
+
+test('preço: compra com o preço acima da entrada espera o recuo', () => {
+  const r = avaliarPrecoActual({ ...compra, actual: 101.5 });
+  assert.equal(r.estado, 'a-aguardar');
+  assert.equal(r.anunciar, true);
+  assert.equal(r.distanciaR, 0.75);
+});
+
+test('preço: compra que já fez metade do caminho até ao alvo não é anunciada', () => {
+  const r = avaliarPrecoActual({ ...compra, actual: 103 });
+  assert.equal(r.estado, 'passou');
+  assert.equal(r.anunciar, false);
+});
+
+test('preço: compra com o stop já tocado não é anunciada', () => {
+  const r = avaliarPrecoActual({ ...compra, actual: 97.9 });
+  assert.equal(r.estado, 'invalidado');
+  assert.equal(r.anunciar, false);
+});
+
+test('preço: compra abaixo da entrada com o stop intacto é melhor preço', () => {
+  const r = avaliarPrecoActual({ ...compra, actual: 99 });
+  assert.equal(r.estado, 'melhor-que-entrada');
+  assert.equal(r.anunciar, true);
+});
+
+test('preço: venda espelha a compra', () => {
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 98.5 }).estado, 'a-aguardar');
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 97 }).estado, 'passou');
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 102.1 }).estado, 'invalidado');
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 101 }).estado, 'melhor-que-entrada');
+});
+
+test('preço: sem alvo usa 2R como caminho', () => {
+  const r = avaliarPrecoActual({ ...compra, alvo: null, actual: 102 });
+  // 2R = 4 pontos; 2 pontos percorridos = metade → passou
+  assert.equal(r.estado, 'passou');
 });

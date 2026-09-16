@@ -190,29 +190,126 @@ export interface Aviso {
   readonly url?: string;
   /** Notificacoes com a mesma tag substituem-se em vez de empilharem. */
   readonly tag?: string;
+  /**
+   * Quanto tempo o servico de push pode segurar o aviso ate o entregar. O
+   * `web-push` usa 4 semanas por omissao: um telemovel sem rede recebia de
+   * manha o sinal de 15 minutos da noite anterior.
+   */
+  readonly validadeS?: number;
+  /**
+   * `high` por omissao. Com `normal`, o Android em repouso junta os avisos e
+   * entrega-os minutos depois — era o "os sinais chegam atrasados".
+   */
+  readonly urgencia?: 'high' | 'normal';
+  /** Um aviso ainda por entregar com o mesmo topico e substituido. */
+  readonly topico?: string;
+  /** Instrumento: so chega a quem o tem nas preferencias. */
+  readonly simbolo?: string;
 }
 
 export interface ResultadoEnvio {
   readonly enviadas: number;
   readonly removidas: number;
   readonly falhas: number;
+  /** Subscricoes de quem desligou os avisos ou nao segue este instrumento. */
+  readonly filtradas: number;
+}
+
+interface PreferenciaAvisos {
+  readonly activos: boolean;
+  readonly instrumentos: readonly string[];
+}
+
+/** Preferencias de avisos de todas as contas — lidas com a chave do servidor. */
+async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | null> {
+  const sb = supabaseServidor();
+  if (!sb) return null;
+  try {
+    const r = await fetch(
+      `${sb.url}/rest/v1/perfis_utilizador?select=utilizador_id,instrumentos,avisos_ativos`,
+      {
+        headers: { apikey: sb.chave, Authorization: `Bearer ${sb.chave}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!r.ok) return null;
+    const linhas = (await r.json()) as Array<{
+      utilizador_id: string;
+      instrumentos: string[] | null;
+      avisos_ativos: boolean | null;
+    }>;
+    return new Map(
+      linhas.map((l) => [
+        l.utilizador_id,
+        { activos: l.avisos_ativos !== false, instrumentos: l.instrumentos ?? [] },
+      ]),
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Envia a todos os subscritores.
+ * Esta subscricao quer este aviso?
+ *
+ * Subscricoes sem conta (de antes do login obrigatorio) continuam a receber
+ * tudo: a app liga-as a conta da proxima vez que a pessoa a abrir.
+ */
+export function querAviso(
+  s: Pick<Subscritor, 'utilizador'>,
+  prefs: ReadonlyMap<string, PreferenciaAvisos> | null,
+  simbolo: string | undefined,
+): boolean {
+  if (!s.utilizador || !prefs) return true;
+  const p = prefs.get(s.utilizador);
+  if (!p) return true;
+  if (!p.activos) return false;
+  if (simbolo && p.instrumentos.length > 0 && !p.instrumentos.includes(simbolo)) return false;
+  return true;
+}
+
+/** O servico de push so aceita ate 32 caracteres de base64 URL-safe. */
+function topicoValido(t: string | undefined): string | undefined {
+  const limpo = (t ?? '').replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 32);
+  return limpo || undefined;
+}
+
+/**
+ * Envia aos subscritores que querem este aviso — ou so aos de uma conta.
  *
  * Uma subscricao que devolve 404 ou 410 esta MORTA — o utilizador desinstalou a
  * app ou limpou os dados do site. Nesse caso apaga-se, senao a lista cresce
- * para sempre com destinos que nunca mais respondem e cada envio fica mais
- * lento do que o anterior.
+ * para sempre com destinos que nunca mais respondem.
  */
-export async function enviarAviso(aviso: Aviso): Promise<ResultadoEnvio> {
+export async function enviarAviso(
+  aviso: Aviso,
+  destino: { utilizador?: string } = {},
+): Promise<ResultadoEnvio> {
   const cfg = configPush();
-  if (!cfg) return { enviadas: 0, removidas: 0, falhas: 0 };
+  if (!cfg) return { enviadas: 0, removidas: 0, falhas: 0, filtradas: 0 };
 
   webpush.setVapidDetails(cfg.assunto, cfg.publica, cfg.privada);
 
-  const lista = await subscritores();
+  const todas = await subscritores();
+  const prefs = destino.utilizador ? null : await preferenciasAvisos();
+  const lista = destino.utilizador
+    ? todas.filter((s) => s.utilizador === destino.utilizador)
+    : todas.filter((s) => querAviso(s, prefs, aviso.simbolo));
+
+  const carga = JSON.stringify({
+    titulo: aviso.titulo,
+    corpo: aviso.corpo,
+    url: aviso.url,
+    tag: aviso.tag,
+    enviadoEm: Date.now(),
+  });
+  const opcoes = {
+    TTL: Math.max(60, Math.round(aviso.validadeS ?? 3600)),
+    urgency: aviso.urgencia ?? 'high',
+    topic: topicoValido(aviso.topico),
+  } as const;
+
   let enviadas = 0;
   let removidas = 0;
   let falhas = 0;
@@ -220,10 +317,7 @@ export async function enviarAviso(aviso: Aviso): Promise<ResultadoEnvio> {
   await Promise.all(
     lista.map(async (s) => {
       try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: s.keys },
-          JSON.stringify(aviso),
-        );
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, carga, opcoes);
         enviadas++;
       } catch (err) {
         const codigo = (err as { statusCode?: number }).statusCode;
@@ -237,7 +331,7 @@ export async function enviarAviso(aviso: Aviso): Promise<ResultadoEnvio> {
     }),
   );
 
-  return { enviadas, removidas, falhas };
+  return { enviadas, removidas, falhas, filtradas: todas.length - lista.length };
 }
 
 export interface EstadoPush {

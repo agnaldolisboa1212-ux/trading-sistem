@@ -117,6 +117,9 @@ self.addEventListener('push', (evento) => {
     // dezenas de alertas do mesmo instrumento.
     renotify: Boolean(dados.tag),
     data: { url: dados.url || '/' },
+    // A hora em que o servidor enviou, e nao a da entrega: um aviso que
+    // chegou tarde mostra-se com a hora certa.
+    timestamp: typeof dados.enviadoEm === 'number' ? dados.enviadoEm : Date.now(),
     vibrate: [60, 40, 60],
     actions: dados.url ? [{ action: 'abrir', title: 'Ver' }] : [],
   };
