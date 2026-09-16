@@ -39,11 +39,20 @@ export async function credencialDoPedido(pedido: Request): Promise<ResultadoCred
   const utilizador = await utilizadorDoPedido(pedido);
   const oauth = abrir<SessaoOAuth>((await cookies()).get(COOKIE_SESSAO)?.value);
 
+  /*
+   * O token do servidor (`DERIV_TOKEN`) fica para os motores. Em produção o
+   * painel não o usa: cada pessoa, o dono incluído, entra com a sua conta Deriv
+   * pelo "Entrar com a Deriv". Antes o dono via a conta ligada sem nunca ter
+   * feito login na Deriv, e parecia que a app operava com a conta dele para
+   * toda a gente. `DERIV_TOKEN_NO_PAINEL=true` repõe o atalho para o dono.
+   */
+  const tokenNoPainel = !exigirLogin() || process.env['DERIV_TOKEN_NO_PAINEL'] === 'true';
+
   const d = decidirCredencial({
     exigirLogin: exigirLogin(),
     utilizador,
     oauth,
-    tokenDono: process.env['DERIV_TOKEN'] ?? null,
+    tokenDono: tokenNoPainel ? (process.env['DERIV_TOKEN'] ?? null) : null,
     emailsDono: (process.env['DERIV_DONO_EMAIL'] ?? '')
       .split(',')
       .map((s) => s.trim().toLowerCase())

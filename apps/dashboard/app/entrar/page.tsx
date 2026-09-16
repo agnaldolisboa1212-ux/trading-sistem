@@ -1,183 +1,191 @@
 'use client';
 
 /**
- * Entrada na plataforma — email e código de verificação.
+ * Entrar — email e palavra-passe, ou um código por email.
  *
- * Dois passos no mesmo ecrã, sem navegação entre eles: pedir o código e
- * validá-lo. Separá-los em duas rotas obrigaria a carregar o email de uma para
- * a outra e perdê-lo-ia num refresh.
+ * Quem chega aqui vindo de outra página traz `?voltar=` (posto pelo
+ * middleware) e volta para lá depois de entrar. O destino passa por
+ * `destinoSeguro`: só caminhos desta app.
  *
- * Sem palavra-passe de propósito. Um código por email evita gerir recuperação,
- * força mínima e fugas — e quem entra já tem de ter acesso ao email de qualquer
- * maneira, por isso não acrescenta atrito real.
+ * As duas formas partilham o ecrã. O código serve a quem esqueceu a
+ * palavra-passe e não a quer mudar agora, e a quem entra num dispositivo que não
+ * é seu.
  */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { authConfigurada, pedirCodigo, sessaoAtual, validarCodigo, lerPerfil } from '@/lib/auth';
+import Link from 'next/link';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { authConfigurada, entrar, pedirCodigoEntrada, validarCodigo } from '@/lib/auth';
+import { destinoSeguro } from '@/lib/acesso';
+import {
+  CampoCodigo,
+  CampoPalavraPasse,
+  CampoTexto,
+  Erro,
+  Info,
+  Marca,
+  irPara,
+} from '@/components/conta/Conta';
 import '../onboarding.css';
 
-type Passo = 'email' | 'codigo';
+type Modo = 'palavra-passe' | 'pedir-codigo' | 'codigo';
 
 export default function Page() {
-  const router = useRouter();
-  const [passo, setPasso] = useState<Passo>('email');
-  const [email, setEmail] = useState('');
-  const [codigo, setCodigo] = useState('');
-  const [erro, setErro] = useState<string | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [aVerificar, setAVerificar] = useState(true);
+  return (
+    <Suspense fallback={<div className="wrap ob" />}>
+      <Entrar />
+    </Suspense>
+  );
+}
 
-  // Já autenticado? Não faz sentido pedir de novo.
-  useEffect(() => {
-    void (async () => {
-      const s = await sessaoAtual();
-      if (s) {
-        const p = await lerPerfil();
-        router.replace(p?.onboarding_em ? '/' : '/onboarding');
-        return;
-      }
-      setAVerificar(false);
-    })();
-  }, [router]);
+function Entrar() {
+  const parametros = useSearchParams();
+  const destino = destinoSeguro(parametros.get('voltar'));
+  const [modo, setModo] = useState<Modo>('palavra-passe');
+  const [email, setEmail] = useState('');
+  const [palavraPasse, setPalavraPasse] = useState('');
+  const [codigo, setCodigo] = useState('');
+  const [erro, setErro] = useState<string | null>(parametros.get('erro'));
+  const [ocupado, setOcupado] = useState(false);
 
   if (!authConfigurada) {
     return (
       <div className="wrap ob">
-        <div className="setup">
-          <p>
-            O login precisa do Supabase. Defina <code>NEXT_PUBLIC_SUPABASE_URL</code> e{' '}
-            <code>NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code> em{' '}
-            <code>apps/dashboard/.env.local</code>.
-          </p>
-        </div>
+        <Erro texto="O login precisa do Supabase: defina NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY." />
       </div>
     );
   }
 
-  if (aVerificar) {
-    return (
-      <div className="wrap ob">
-        <div className="skeleton" style={{ height: 200 }} />
-      </div>
-    );
-  }
+  const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
-  const enviar = async () => {
+  const correr = async (accao: () => Promise<{ ok: boolean; erro?: string }>, depois: () => void) => {
     setErro(null);
     setOcupado(true);
-    const r = await pedirCodigo(email.trim());
+    const r = await accao();
     setOcupado(false);
-    if (r.ok) setPasso('codigo');
-    else setErro(r.erro ?? 'Não foi possível enviar o código.');
+    if (r.ok) depois();
+    else setErro(r.erro ?? 'Ocorreu um erro.');
   };
 
-  const confirmar = async () => {
-    setErro(null);
-    setOcupado(true);
-    const r = await validarCodigo(email.trim(), codigo);
-    if (!r.ok) {
-      setOcupado(false);
-      setErro(r.erro ?? 'Código inválido.');
-      return;
-    }
-    // Perfil novo vai para o onboarding; quem já o fez vai direto ao painel.
-    const p = await lerPerfil();
-    setOcupado(false);
-    router.replace(p?.onboarding_em ? '/' : '/onboarding');
-  };
+  const comPalavraPasse = () =>
+    void correr(() => entrar(email, palavraPasse), () => irPara(destino));
+
+  const pedirCodigo = () =>
+    void correr(() => pedirCodigoEntrada(email), () => setModo('codigo'));
+
+  const comCodigo = () =>
+    void correr(() => validarCodigo(email, codigo, 'email'), () => irPara(destino));
 
   return (
     <div className="wrap ob">
-      <div className="ob__marca">
-        <span className="ob__logo" aria-hidden="true">
-          ◎
-        </span>
-        <div>
-          <h1>Bem-vindo</h1>
-          <p className="dim">Sinais MMXM &amp; SMT</p>
-        </div>
-      </div>
+      <Marca titulo="Entrar" sub="Sistema de Trading" />
 
-      {passo === 'email' ? (
-        <div className="card">
-          <label className="ob__label" htmlFor="email">
-            O seu email
-          </label>
-          <input
-            id="email"
-            className="ob__input"
-            type="email"
-            inputMode="email"
+      <div className="card">
+        {modo !== 'codigo' && (
+          <CampoTexto
+            rotulo="Email"
+            tipo="email"
             autoComplete="email"
             placeholder="nome@exemplo.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && email.includes('@')) void enviar();
-            }}
+            valor={email}
+            mudar={setEmail}
+            aoEnter={modo === 'pedir-codigo' && emailValido ? pedirCodigo : undefined}
           />
-          <p className="ob__ajuda">
-            Enviamos um código de seis dígitos. Não é preciso palavra-passe.
-          </p>
+        )}
 
-          <button
-            type="button"
-            className="btn primary block"
-            onClick={() => void enviar()}
-            disabled={ocupado || !email.includes('@')}
-          >
-            {ocupado ? 'a enviar…' : 'Receber código'}
-          </button>
-        </div>
-      ) : (
-        <div className="card">
-          <label className="ob__label" htmlFor="codigo">
-            Código enviado para {email}
-          </label>
-          <input
-            id="codigo"
-            className="ob__input ob__input--codigo"
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="000000"
-            maxLength={6}
-            value={codigo}
-            onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && codigo.length === 6) void confirmar();
-            }}
-          />
+        {modo === 'palavra-passe' && (
+          <>
+            <CampoPalavraPasse
+              rotulo="Palavra-passe"
+              valor={palavraPasse}
+              mudar={setPalavraPasse}
+              aoEnter={emailValido && palavraPasse ? comPalavraPasse : undefined}
+            />
+            <div className="conta__linha">
+              <span />
+              <Link href="/recuperar">Esqueci-me da palavra-passe</Link>
+            </div>
+            <button
+              type="button"
+              className="btn primary block"
+              onClick={comPalavraPasse}
+              disabled={ocupado || !emailValido || !palavraPasse}
+            >
+              {ocupado ? 'a entrar…' : 'Entrar'}
+            </button>
 
-          <button
-            type="button"
-            className="btn primary block"
-            onClick={() => void confirmar()}
-            disabled={ocupado || codigo.length < 6}
-          >
-            {ocupado ? 'a validar…' : 'Entrar'}
-          </button>
+            <div className="conta__separador">ou</div>
+            <button
+              type="button"
+              className="btn ghost block"
+              onClick={() => {
+                setErro(null);
+                setModo('pedir-codigo');
+              }}
+            >
+              Entrar com código por email
+            </button>
+          </>
+        )}
 
-          <button
-            type="button"
-            className="ob__link"
-            onClick={() => {
-              setPasso('email');
-              setCodigo('');
-              setErro(null);
-            }}
-          >
-            usar outro email
-          </button>
-        </div>
-      )}
+        {modo === 'pedir-codigo' && (
+          <>
+            <p className="ob__ajuda">
+              Enviamos um código de seis dígitos para o email da sua conta.
+            </p>
+            <button
+              type="button"
+              className="btn primary block"
+              onClick={pedirCodigo}
+              disabled={ocupado || !emailValido}
+            >
+              {ocupado ? 'a enviar…' : 'Receber código'}
+            </button>
+            <button type="button" className="ob__link" onClick={() => setModo('palavra-passe')}>
+              usar a palavra-passe
+            </button>
+          </>
+        )}
 
-      {erro && <div className="ob__erro">{erro}</div>}
+        {modo === 'codigo' && (
+          <>
+            <Info>
+              Se existir uma conta com <strong>{email}</strong>, o código chegou agora. Veja também o
+              spam.
+            </Info>
+            <CampoCodigo
+              rotulo="Código"
+              valor={codigo}
+              mudar={setCodigo}
+              aoCompletar={comCodigo}
+            />
+            <button
+              type="button"
+              className="btn primary block"
+              onClick={comCodigo}
+              disabled={ocupado || codigo.length < 6}
+            >
+              {ocupado ? 'a validar…' : 'Entrar'}
+            </button>
+            <button
+              type="button"
+              className="ob__link"
+              onClick={() => {
+                setCodigo('');
+                setModo('pedir-codigo');
+              }}
+            >
+              pedir outro código
+            </button>
+          </>
+        )}
+      </div>
 
-      <footer className="note">
-        Modo paper. O sistema analisa e avisa; nenhuma ordem é enviada a nenhuma corretora.
-      </footer>
+      <Erro texto={erro} />
+
+      <p className="conta__rodape">
+        Ainda não tem conta? <Link href="/registar">Criar conta</Link>
+      </p>
     </div>
   );
 }

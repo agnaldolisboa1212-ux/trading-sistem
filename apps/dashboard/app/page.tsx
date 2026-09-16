@@ -58,6 +58,15 @@ const STEP_LABEL: Record<number, string> = {
   9: 'alvos',
 };
 
+/** "Agnaldo Lisboa" → "AL". Cada conta vê as suas, e não um "A" igual para todos. */
+function iniciais(nome: string | null): string {
+  const partes = (nome ?? '').trim().split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return '·';
+  const primeira = partes[0]!.charAt(0);
+  const ultima = partes.length > 1 ? partes[partes.length - 1]!.charAt(0) : '';
+  return (primeira + ultima).toUpperCase();
+}
+
 export default async function Page() {
   const [data, prefs] = await Promise.all([loadDashboardData(), lerPreferenciasServidor()]);
 
@@ -72,9 +81,9 @@ export default async function Page() {
   return (
     <div className="wrap">
       <div className="cabeca">
-        <span className="cabeca__avatar" aria-hidden="true">
-          {(prefs.nome ?? 'A').slice(0, 1).toUpperCase()}
-        </span>
+        <Link href="/definicoes" className="cabeca__avatar" aria-label="Conta e definições">
+          {iniciais(prefs.nome)}
+        </Link>
         <div className="cabeca__id">
           <p className="cabeca__saudacao">{prefs.nome ? `Olá, ${prefs.nome}` : 'Bem-vindo'}</p>
           <h1>{prefs.objetivoRotulo ?? 'Sistema de Trading'}</h1>

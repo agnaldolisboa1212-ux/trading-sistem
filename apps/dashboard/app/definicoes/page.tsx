@@ -15,16 +15,21 @@
  * componente de cliente; o resto é servidor e nunca deixa as credenciais sair.
  */
 
-import Link from 'next/link';
+import { PainelConta } from '@/components/conta/PainelConta';
 import { PainelDefinicoes } from '@/components/vivo/PainelDefinicoes';
 import { PainelMotores } from '@/components/vivo/PainelMotores';
+import { ehAdministrador } from '@/lib/administracao';
 import { estadoPush } from '@/lib/push';
 import { isConfigured } from '@/lib/supabase';
+import { utilizadorDaSessao } from '@/lib/supabase/servidor';
 import { API_CATALOG, defaultProviders } from '@trading/data';
+import '../onboarding.css';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Page() {
+  const admin = ehAdministrador(await utilizadorDaSessao());
+
   /*
    * A corretora ja nao e lida aqui. Um Server Component nao ve a sessao da
    * plataforma (vive no browser), e le-la com o token do servidor mostrava as
@@ -32,15 +37,6 @@ export default async function Page() {
    * servidor com a sessao de quem esta a ver.
    */
   const push = await estadoPush();
-
-  const providers = defaultProviders();
-  const semChave = providers.filter((p) => !p.requiresKey);
-  const comChave = providers.filter((p) => p.requiresKey);
-  const ativos = comChave.filter((p) => p.isConfigured());
-
-  const telegram = Boolean(process.env['TELEGRAM_BOT_TOKEN'] && process.env['TELEGRAM_CHAT_ID']);
-  const n8n = Boolean(process.env['N8N_WEBHOOK_URL']);
-  const modo = process.env['EXECUTION_MODE'] === 'live' ? 'live' : 'paper';
 
   return (
     <div className="wrap">
@@ -51,9 +47,38 @@ export default async function Page() {
         </div>
       </div>
 
+      <PainelConta />
+
       {/* Tudo o que é interativo vive aqui dentro. */}
       <PainelDefinicoes pushDisponivel={push.configurado} />
 
+      {/*
+        Daqui para baixo é o estado do servidor — chaves, integrações, fontes.
+        Interessa a quem o gere, não a quem usa a app.
+      */}
+      {admin && <Administracao push={push} />}
+
+      <footer className="note">
+        A estratégia MMXM não tem vantagem demonstrada: 17 operações em 6 anos de backtest, e um
+        único negócio em ouro vale 81% do lucro total. Retirar as três melhores deixa o resultado
+        negativo. Isto é uma afirmação sobre o <em>software</em> funcionar, não sobre o mercado.
+      </footer>
+    </div>
+  );
+}
+
+function Administracao({ push }: { push: Awaited<ReturnType<typeof estadoPush>> }) {
+  const providers = defaultProviders();
+  const semChave = providers.filter((p) => !p.requiresKey);
+  const comChave = providers.filter((p) => p.requiresKey);
+  const ativos = comChave.filter((p) => p.isConfigured());
+
+  const telegram = Boolean(process.env['TELEGRAM_BOT_TOKEN'] && process.env['TELEGRAM_CHAT_ID']);
+  const n8n = Boolean(process.env['N8N_WEBHOOK_URL']);
+  const modo = process.env['EXECUTION_MODE'] === 'live' ? 'live' : 'paper';
+
+  return (
+    <>
       <PainelMotores compacto />
 
       <section>
@@ -133,30 +158,7 @@ export default async function Page() {
         <p className="section-cap">{semChave.map((p) => p.id).join(' · ')}</p>
       </section>
 
-      <section>
-        <h2>Conta na plataforma</h2>
-        <div className="rows">
-          <div>
-            <span className="k">Preferências</span>
-            <span className="v">
-              <Link href="/onboarding">estratégia, objetivos, mercados</Link>
-            </span>
-          </div>
-          <div>
-            <span className="k">Sessão</span>
-            <span className="v">
-              <Link href="/entrar">entrar ou trocar de conta</Link>
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <footer className="note">
-        A estratégia MMXM não tem vantagem demonstrada: 17 operações em 6 anos de backtest, e um
-        único negócio em ouro vale 81% do lucro total. Retirar as três melhores deixa o resultado
-        negativo. Isto é uma afirmação sobre o <em>software</em> funcionar, não sobre o mercado.
-      </footer>
-    </div>
+    </>
   );
 }
 

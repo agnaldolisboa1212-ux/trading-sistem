@@ -20,27 +20,19 @@
  * uma estratégia desenhada para segurar posições semanas — e é isso que o MMXM
  * é. O passo 3 reordena-se conforme o passo 2, e diz porquê.
  *
- * ── GRAVA EM DOIS SÍTIOS ───────────────────────────────────────────────────
+ * ── NA CONTA ────────────────────────────────────────────────────────────────
  *
- * Supabase (verdade, sincroniza entre dispositivos) e um cookie local (para o
- * servidor pintar o primeiro ecrã já certo, sem esperar pela rede). Se o
- * Supabase não estiver configurado, o cookie sozinho mantém a app utilizável.
+ * O middleware só deixa chegar aqui com sessão iniciada. Tudo fica no perfil
+ * da conta (Supabase, com RLS: cada pessoa só lê e escreve o seu), e o fim do
+ * onboarding fica marcado na própria conta — é o que o middleware lê para
+ * deixar de mandar a pessoa para aqui. O cookie `prefs` é só uma cópia local
+ * para os ecrãs do browser não esperarem pela rede.
  */
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  ESTRATEGIAS,
-  authConfigurada,
-  guardarPerfil,
-  lerPerfil,
-  sessaoAtual,
-} from '@/lib/auth';
-import {
-  OBJETIVOS,
-  guardarPreferenciasCliente,
-  lerPreferenciasCliente,
-} from '@/lib/preferencias';
+import { ESTRATEGIAS, guardarPerfil, lerPerfil, marcarOnboarding, utilizadorAtual } from '@/lib/auth';
+import { OBJETIVOS, guardarPreferenciasCliente } from '@/lib/preferencias';
 import { CRIPTO, FOREX, INDICES, METAIS, SINTETICOS } from '@/lib/deriv/simbolos';
 import { apiFetch } from '@/lib/api';
 import { BotaoLigarDeriv } from '@/components/vivo/BotaoLigarDeriv';
@@ -69,43 +61,26 @@ export default function Page() {
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aVerificar, setAVerificar] = useState(true);
-  const [temSessao, setTemSessao] = useState(false);
 
   useEffect(() => {
     void (async () => {
-      // Repõe o que já houver localmente — quem volta a meio não recomeça.
-      const local = lerPreferenciasCliente();
-      if (local.nome) setNome(local.nome);
-      if (local.objetivos.length) setObjetivos(local.objetivos);
-      if (local.estrategia) setEstrategia(local.estrategia);
-      if (local.instrumentos.length) setInstrumentos(local.instrumentos);
+      const [utilizador, p] = await Promise.all([utilizadorAtual(), lerPerfil()]);
+      const nomeDaConta = (utilizador?.user_metadata as { nome?: string } | undefined)?.nome;
 
-      /*
-       * ── O ONBOARDING NÃO EXIGE SESSÃO ─────────────────────────────────
-       *
-       * Uma versão anterior mandava para `/entrar` quem não tivesse sessão. O
-       * efeito era que ninguém conseguia sequer ver as opções sem primeiro dar
-       * um email e esperar por um código — para escolher uma lista de mercados
-       * que fica gravada num cookie deste dispositivo.
-       *
-       * Agora a sessão é o que é: uma forma de sincronizar entre dispositivos.
-       * Sem ela, as preferências guardam-se localmente e a aplicação funciona
-       * na mesma. O passo final oferece a ligação a quem a quiser.
-       */
-      if (!authConfigurada) {
-        setAVerificar(false);
+      // Contas de antes das contas obrigatórias: o onboarding já estava feito
+      // no perfil, só faltava a marca na conta. Não se repete.
+      const marcado = (utilizador?.user_metadata as { onboarding?: boolean } | undefined)?.onboarding;
+      if (p?.onboarding_em && marcado !== true) {
+        await marcarOnboarding(p.nome ?? nomeDaConta ?? null);
+        window.location.assign('/');
         return;
       }
-      const sessao = await sessaoAtual();
-      setTemSessao(Boolean(sessao));
-      if (sessao) {
-        const p = await lerPerfil();
-        if (p) {
-          if (p.nome) setNome(p.nome);
-          if (p.estrategia) setEstrategia(p.estrategia);
-          if (p.instrumentos?.length) setInstrumentos(p.instrumentos);
-        }
-      }
+
+      // Quem volta para mudar preferências encontra as que tem.
+      if (p?.nome || nomeDaConta) setNome(p?.nome ?? nomeDaConta ?? '');
+      if (p?.objetivos?.length) setObjetivos(p.objetivos);
+      if (p?.estrategia) setEstrategia(p.estrategia);
+      if (p?.instrumentos?.length) setInstrumentos(p.instrumentos);
       setAVerificar(false);
     })();
   }, [router]);
@@ -149,15 +124,28 @@ export default function Page() {
   const concluir = async () => {
     setErro(null);
     setOcupado(true);
+    const nomeLimpo = nome.trim() || null;
 
-    // Local primeiro: se o Supabase falhar, a app fica utilizável na mesma.
-    guardarPreferenciasCliente({
-      nome: nome.trim() || null,
+    const r = await guardarPerfil({
+      nome: nomeLimpo,
       estrategia,
-      objetivos,
       instrumentos,
-      concluido: true,
+      objetivos,
+      onboarding_em: new Date().toISOString(),
     });
+    if (!r.ok) {
+      setOcupado(false);
+      setErro(`Não foi possível guardar: ${r.erro}`);
+      return;
+    }
+    const m = await marcarOnboarding(nomeLimpo);
+    if (!m.ok) {
+      setOcupado(false);
+      setErro(`Guardado, mas não foi possível concluir: ${m.erro}`);
+      return;
+    }
+
+    guardarPreferenciasCliente({ nome: nomeLimpo, estrategia, objetivos, instrumentos, concluido: true });
     if (foto) {
       try {
         localStorage.setItem('avatar', foto);
@@ -165,26 +153,8 @@ export default function Page() {
         /* modo privado — a foto não é essencial */
       }
     }
-
-    // Sem sessão não há onde gravar no servidor — e não é preciso: o cookie
-    // acima já deixou a aplicação utilizável.
-    if (authConfigurada && temSessao) {
-      const r = await guardarPerfil({
-        nome: nome.trim() || null,
-        estrategia,
-        instrumentos,
-        objetivos,
-        onboarding_em: new Date().toISOString(),
-      });
-      if (!r.ok) {
-        setOcupado(false);
-        setErro(`Guardado neste dispositivo, mas não no servidor: ${r.erro ?? 'erro'}`);
-        return;
-      }
-    }
-
-    setOcupado(false);
-    router.replace('/');
+    // Navegação completa: a sessão renovada tem de chegar ao middleware.
+    window.location.assign('/');
   };
 
   if (aVerificar) {
@@ -332,9 +302,8 @@ export default function Page() {
 
       {passo === 4 && (
         <>
-          <Titulo titulo="Quase pronto" sub="Estas duas ligações são opcionais" />
+          <Titulo titulo="Quase pronto" sub="A ligação à corretora é opcional" />
           <PassoCorretora />
-          <PassoConta temSessao={temSessao} />
 
           <div className="ob__acoes">
             <button type="button" className="btn ghost" onClick={() => setPasso(3)}>
@@ -502,45 +471,6 @@ function PassoNome({
         </button>
       </div>
     </>
-  );
-}
-
-/**
- * Conta da plataforma — para sincronizar entre dispositivos.
- *
- * Separada da corretora de propósito: são coisas diferentes. Esta guarda as
- * PREFERÊNCIAS (nome, mercados, estratégia) para as reencontrar noutro
- * telemóvel; a outra dá acesso ao dinheiro. Juntá-las num só passo faria
- * parecer que entrar com email é o que permite negociar, e não é.
- */
-function PassoConta({ temSessao }: { temSessao: boolean }) {
-  if (!authConfigurada) return null;
-
-  return (
-    <div className="card" style={{ marginTop: 12 }}>
-      {temSessao ? (
-        <div className="ob__ok">
-          <span aria-hidden="true">✓</span>
-          <div>
-            <strong>Sessão iniciada</strong>
-            <p className="dim" style={{ margin: '4px 0 0', fontSize: 13 }}>
-              As suas preferências ficam guardadas na conta e seguem-no para outros dispositivos.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <>
-          <strong>Sem sessão</strong>
-          <p className="ob__ajuda" style={{ marginTop: 8, marginBottom: 0 }}>
-            As escolhas ficam guardadas <strong>neste dispositivo</strong>. Para as reencontrar
-            noutro telemóvel, entre com o seu email — leva um código de seis dígitos e nada mais.
-          </p>
-          <a className="btn ghost" href="/entrar" style={{ marginTop: 10, display: 'block' }}>
-            Entrar com email
-          </a>
-        </>
-      )}
-    </div>
   );
 }
 

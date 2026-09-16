@@ -26,6 +26,30 @@ const nextConfig = {
    * escondia o botao "Inicio" durante o desenvolvimento.
    */
   devIndicators: false,
+  /*
+   * Cabeçalhos de segurança em todas as respostas:
+   *   X-Frame-Options      a app não abre dentro de um iframe de outro site
+   *                        (clickjacking: botões de "comprar" por baixo de um
+   *                        botão falso)
+   *   nosniff              o browser não adivinha tipos de ficheiro
+   *   Referrer-Policy      URLs internos não vazam para sites externos
+   *   Permissions-Policy   câmara, microfone e localização desligados
+   *   HSTS                 só HTTPS, durante um ano
+   */
+  async headers() {
+    return [
+      {
+        source: '/:caminho*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+        ],
+      },
+    ];
+  },
 };
 
 /*

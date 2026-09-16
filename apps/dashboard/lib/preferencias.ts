@@ -131,6 +131,30 @@ export function rotuloDe(objetivos: string[]): string | null {
   return nomes.length > 0 ? nomes.join(' · ') : null;
 }
 
+/** Preferências a partir da linha de `perfis_utilizador` (e do nome da conta). */
+export function dePerfil(
+  linha: {
+    nome?: string | null;
+    estrategia?: string | null;
+    objetivos?: string[] | null;
+    instrumentos?: string[] | null;
+    onboarding_em?: string | null;
+  } | null,
+  nomeDaConta: string | null,
+): Preferencias {
+  const objetivos = linha?.objetivos?.length ? linha.objetivos : ['swing'];
+  const nome = (linha?.nome ?? nomeDaConta ?? '').trim();
+  return {
+    nome: nome || null,
+    estrategia: linha?.estrategia || 'mmxm-smt',
+    objetivos,
+    instrumentos: linha?.instrumentos?.length ? linha.instrumentos : INSTRUMENTOS_OMISSAO,
+    objetivoRotulo: rotuloDe(objetivos),
+    timeframe: timeframeDe(objetivos),
+    concluido: Boolean(linha?.onboarding_em),
+  };
+}
+
 /** Interpreta o conteúdo do cookie, tolerando lixo e versões antigas. */
 export function interpretar(bruto: string | undefined): Preferencias {
   if (!bruto) return OMISSAO;

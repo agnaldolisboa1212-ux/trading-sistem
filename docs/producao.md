@@ -42,6 +42,31 @@ Sem isto os motores funcionam na mesma — gravam em `data/*.json` —, mas o
 perfil não sincroniza entre dispositivos e o painel só vê os motores se estiver
 na mesma máquina.
 
+### Contas (Authentication)
+
+A app só abre com sessão iniciada (`apps/dashboard/middleware.ts`): cada pessoa
+cria a sua conta, faz o seu onboarding e liga a sua Deriv. No Supabase:
+
+1. **Authentication → URL Configuration**: *Site URL* `https://trivohub.io`;
+   *Redirect URLs* `https://trivohub.io/**`. Sem isto os links dos emails voltam
+   para `localhost`.
+2. **Authentication → Emails → SMTP Settings**: ligar um servidor de email próprio.
+   **Sem ele o Supabase só envia emails para os membros do projecto, e no máximo 2
+   por hora** — os outros utilizadores nunca recebem a confirmação nem a
+   recuperação. Com um email da Hostinger (ex. `nao-responder@trivohub.io`): host
+   `smtp.hostinger.com`, porta `465`, utilizador = o email, a palavra-passe dele.
+3. **Authentication → Sign In / Providers → Email**: *Confirm email* ligado;
+   *Minimum password length* 8.
+4. **Authentication → Emails → Templates** (recomendado): em *Confirm signup*,
+   *Reset password* e *Magic link*, acrescentar o código `{{ .Token }}` ao texto.
+   Dentro da app instalada no telemóvel o link abre no browser, que é outra sessão;
+   o código de seis dígitos escreve-se na própria app.
+5. **Authentication → Multi-Factor**: *TOTP* ligado (vem ligado por omissão). É o
+   que permite a verificação em dois passos nas Definições.
+
+Quem gere o servidor vê, nas Definições, as integrações e as chaves: os emails em
+`ADMIN_EMAILS` (ou, sem ela, `DERIV_DONO_EMAIL`).
+
 ---
 
 ## 2. Variáveis de ambiente
@@ -194,6 +219,8 @@ Definem-se no painel da Hostinger — nunca no repositório. Todas as de `.env.e
 | `DERIV_OAUTH_REDIRECT` | `https://trivohub.io/api/deriv/oauth/retorno` (o domínio que usar) |
 | `COFRE_CHAVE` | nova, 32+ caracteres aleatórios — não reutilize a do computador |
 | `DERIV_DONO_EMAIL` | o seu email de login na plataforma |
+| `ADMIN_EMAILS` | opcional; quem vê o estado do servidor nas Definições (por omissão, `DERIV_DONO_EMAIL`) |
+| `DERIV_TOKEN_NO_PAINEL` | **não definir**. Em produção cada pessoa, o dono incluído, entra com a própria conta Deriv; o `DERIV_TOKEN` fica só para os motores |
 | `DASHBOARD_URL` | **deixar vazio** — o motor usa a porta de `PORT` |
 
 **As `NEXT_PUBLIC_*` têm de existir antes do build.** O Next copia-as para o código

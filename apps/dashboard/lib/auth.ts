@@ -1,51 +1,322 @@
 'use client';
 
 /**
- * Autenticação da plataforma — Supabase Auth no browser.
+ * Contas da plataforma — Supabase Auth no browser.
  *
- * NÃO CONFUNDIR com a ligação à Deriv. São dois logins com propósitos e riscos
- * diferentes:
+ * NÃO CONFUNDIR com a ligação à Deriv. São dois logins com riscos diferentes:
  *
- *   plataforma (aqui) — quem é o utilizador deste painel. Chave publicável,
- *                       pode viver no browser, RLS limita o que ele vê.
- *   corretora (Deriv) — acesso a dinheiro real. O token NUNCA chega ao browser;
- *                       vive só em rotas de servidor.
+ *   plataforma (aqui) — quem é o utilizador desta app: preferências, avisos,
+ *                       e qual ligação Deriv é dele. Sessão em cookies, que o
+ *                       `middleware.ts` confirma antes de servir qualquer página.
+ *   corretora (Deriv) — acesso a dinheiro. O token NUNCA chega ao browser;
+ *                       vive cifrado num cookie `httpOnly` ligado a esta conta.
  *
- * Método: código por email (OTP), não palavra-passe. Evita gerir recuperação,
- * força de palavra-passe e fugas — e o utilizador já tem de ter acesso ao email
- * de qualquer forma.
+ * ── MÉTODOS ────────────────────────────────────────────────────────────────
+ *
+ * Email e palavra-passe para o dia a dia, porque funciona dentro da app
+ * instalada sem ir ao email a cada entrada. Código por email como alternativa e
+ * para confirmar a conta e recuperar a palavra-passe. Verificação em dois
+ * passos (TOTP, com uma app como o Google Authenticator) opcional, nas
+ * definições.
  */
 
-import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
+import type { Factor, Session, User } from '@supabase/supabase-js';
+import { supabaseConfigurado } from './supabase/config';
+import { clienteNavegador } from './supabase/navegador';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-const chave =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-  '';
+export const authConfigurada = supabaseConfigurado;
 
-export const authConfigurada = Boolean(url && chave);
+/** Mantido para `lib/api.ts` e outros que só precisam do cliente. */
+export function authCliente() {
+  return clienteNavegador();
+}
 
-let cliente: SupabaseClient | null = null;
+export type Resultado<T = undefined> =
+  | { ok: true; valor: T }
+  | { ok: false; erro: string; codigo?: string };
+
+const SEM_SUPABASE: Resultado<never> = { ok: false, erro: 'Supabase não configurado.' };
 
 /**
- * Cliente com sessão persistente.
- *
- * Ao contrário do cliente de leitura em `lib/supabase.ts` (que usa
- * `persistSession: false` porque corre no servidor a cada pedido), este guarda
- * a sessão para o utilizador não ter de voltar a autenticar-se a cada visita.
+ * As mensagens do Supabase vêm em inglês e, algumas, a falar de coisas internas.
+ * A pessoa precisa de saber o que fazer a seguir.
  */
-export function authCliente(): SupabaseClient | null {
-  if (!authConfigurada) return null;
-  cliente ??= createClient(url, chave, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+export function traduzirErro(e: { code?: string; message?: string } | null | undefined): string {
+  if (!e) return 'Ocorreu um erro. Tente de novo.';
+  switch (e.code) {
+    case 'invalid_credentials':
+      return 'Email ou palavra-passe errados.';
+    case 'email_not_confirmed':
+      return 'Ainda não confirmou o email. Procure a mensagem que enviámos, incluindo no spam.';
+    case 'user_already_exists':
+    case 'email_exists':
+      return 'Já existe uma conta com este email. Entre, ou recupere a palavra-passe.';
+    case 'weak_password':
+      return 'Palavra-passe fraca: use pelo menos 8 caracteres, com letras e números.';
+    case 'over_email_send_rate_limit':
+      return 'Foram enviados demasiados emails. Espere alguns minutos e tente de novo.';
+    case 'over_request_rate_limit':
+      return 'Demasiadas tentativas seguidas. Espere um minuto.';
+    case 'email_address_not_authorized':
+      return 'O envio de emails ainda não está configurado para este endereço. Contacte o administrador.';
+    case 'otp_expired':
+      return 'O código está errado ou expirou. Peça outro.';
+    case 'same_password':
+      return 'A nova palavra-passe tem de ser diferente da actual.';
+    case 'signup_disabled':
+      return 'O registo de novas contas está fechado.';
+    case 'email_address_invalid':
+    case 'validation_failed':
+      return 'Esse email não é válido.';
+    case 'mfa_verification_failed':
+    case 'mfa_challenge_expired':
+      return 'Código errado ou expirado. Use o código que a app mostra agora.';
+    case 'reauthentication_needed':
+    case 'insufficient_aal':
+      return 'Por segurança, confirme primeiro o código da verificação em dois passos.';
+    case 'session_not_found':
+    case 'refresh_token_not_found':
+      return 'A sessão terminou. Entre de novo.';
+    case 'user_banned':
+      return 'Esta conta está suspensa.';
+  }
+  const m = e.message ?? '';
+  if (/failed to fetch|network/i.test(m)) return 'Sem ligação ao servidor. Verifique a internet.';
+  return m || 'Ocorreu um erro. Tente de novo.';
+}
+
+function falha(e: { code?: string; message?: string } | null | undefined): Resultado<never> {
+  return { ok: false, erro: traduzirErro(e), codigo: e?.code };
+}
+
+// ---------------------------------------------------------------------------
+// Palavra-passe
+// ---------------------------------------------------------------------------
+
+export const PALAVRA_PASSE_MINIMO = 8;
+
+/** Devolve o que falta, ou `null` se serve. */
+export function problemaPalavraPasse(p: string): string | null {
+  if (p.length < PALAVRA_PASSE_MINIMO) return `Pelo menos ${PALAVRA_PASSE_MINIMO} caracteres.`;
+  if (!/[a-zA-Z]/.test(p) || !/\d/.test(p)) return 'Use letras e números.';
+  return null;
+}
+
+/** 0 (fraca) a 4 (forte) — só para a barra de força, não é uma garantia. */
+export function forcaPalavraPasse(p: string): number {
+  let pontos = 0;
+  if (p.length >= PALAVRA_PASSE_MINIMO) pontos++;
+  if (p.length >= 12) pontos++;
+  if (/[a-z]/.test(p) && /[A-Z]/.test(p)) pontos++;
+  if (/\d/.test(p) && /[^a-zA-Z0-9]/.test(p)) pontos++;
+  return pontos;
+}
+
+const origem = () => (typeof window === 'undefined' ? '' : window.location.origin);
+
+// ---------------------------------------------------------------------------
+// Entrar, registar, recuperar
+// ---------------------------------------------------------------------------
+
+export async function entrar(email: string, palavraPasse: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.signInWithPassword({ email: email.trim(), password: palavraPasse });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+/** `precisaConfirmar`: a conta foi criada mas só entra depois de confirmar o email. */
+export async function registar(p: {
+  nome: string;
+  email: string;
+  palavraPasse: string;
+}): Promise<Resultado<{ precisaConfirmar: boolean }>> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { data, error } = await db.auth.signUp({
+    email: p.email.trim(),
+    password: p.palavraPasse,
+    options: {
+      data: { nome: p.nome.trim() },
+      emailRedirectTo: `${origem()}/auth/confirmar?proximo=/onboarding`,
     },
   });
-  return cliente;
+  if (error) return falha(error);
+  // Com a confirmação de email ligada, um email já registado devolve um
+  // utilizador sem identidades em vez de erro — para não revelar quem tem conta.
+  // Diz-se o mesmo que a um registo novo: "veja o seu email".
+  return { ok: true, valor: { precisaConfirmar: !data.session } };
 }
+
+export async function reenviarConfirmacao(email: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.resend({
+    type: 'signup',
+    email: email.trim(),
+    options: { emailRedirectTo: `${origem()}/auth/confirmar?proximo=/onboarding` },
+  });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+/**
+ * Valida um código de seis dígitos enviado por email.
+ *
+ *   signup    confirmar a conta
+ *   recovery  recuperar a palavra-passe (abre uma sessão para a mudar)
+ *   email     entrar sem palavra-passe
+ */
+export async function validarCodigo(
+  email: string,
+  codigo: string,
+  tipo: 'signup' | 'recovery' | 'email',
+): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.verifyOtp({ email: email.trim(), token: codigo.trim(), type: tipo });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+/** Código para entrar sem palavra-passe. Não cria contas: para isso há o registo. */
+export async function pedirCodigoEntrada(email: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.signInWithOtp({
+    email: email.trim(),
+    options: { shouldCreateUser: false },
+  });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+export async function pedirRecuperacao(email: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.resetPasswordForEmail(email.trim(), {
+    redirectTo: `${origem()}/auth/confirmar?proximo=/recuperar/nova`,
+  });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+export async function definirPalavraPasse(nova: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.updateUser({ password: nova });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+/**
+ * Sair.
+ *
+ * A ligação Deriv é desligada primeiro: é um cookie deste browser, e num
+ * telemóvel partilhado a próxima pessoa não pode herdar o acesso à corretora.
+ * `todos`: termina também as sessões nos outros dispositivos.
+ */
+export async function sair(todos = false): Promise<void> {
+  try {
+    await fetch('/api/deriv/oauth/sair', { method: 'POST' });
+  } catch {
+    /* sem rede: o cookie Deriv expira sozinho numa hora */
+  }
+  try {
+    await clienteNavegador()?.auth.signOut({ scope: todos ? 'global' : 'local' });
+  } catch {
+    /* os cookies locais são limpos na mesma */
+  }
+  try {
+    localStorage.removeItem('avatar');
+  } catch {
+    /* modo privado */
+  }
+  document.cookie = 'prefs=; path=/; max-age=0';
+}
+
+export async function sessaoAtual(): Promise<Session | null> {
+  const db = clienteNavegador();
+  if (!db) return null;
+  const { data } = await db.auth.getSession();
+  return data.session;
+}
+
+export async function utilizadorAtual(): Promise<User | null> {
+  const db = clienteNavegador();
+  if (!db) return null;
+  const { data } = await db.auth.getUser();
+  return data.user;
+}
+
+/**
+ * Marca o onboarding como feito na própria conta.
+ *
+ * Vai para `user_metadata` porque é o que o middleware lê no token, sem ir à
+ * base de dados a cada pedido. A sessão é renovada logo a seguir: o token antigo
+ * ainda diria "por fazer" e o middleware mandaria a pessoa de volta.
+ */
+export async function marcarOnboarding(nome: string | null): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.updateUser({
+    data: { onboarding: true, ...(nome ? { nome } : {}) },
+  });
+  if (error) return falha(error);
+  const { error: erroRenovar } = await db.auth.refreshSession();
+  return erroRenovar ? falha(erroRenovar) : { ok: true, valor: undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Verificação em dois passos (TOTP)
+// ---------------------------------------------------------------------------
+
+export async function factores2fa(): Promise<Factor[]> {
+  const db = clienteNavegador();
+  if (!db) return [];
+  const { data } = await db.auth.mfa.listFactors();
+  return data?.totp ?? [];
+}
+
+/** Começa a activação: devolve o QR para a app de autenticação ler. */
+export async function iniciar2fa(): Promise<
+  Resultado<{ factorId: string; qr: string; segredo: string }>
+> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+
+  // Uma activação abandonada deixa um factor por verificar, e o Supabase recusa
+  // outro com o mesmo nome. Limpa-se antes de começar.
+  const { data: lista } = await db.auth.mfa.listFactors();
+  for (const f of lista?.all ?? []) {
+    if (f.factor_type === 'totp' && f.status !== 'verified') {
+      await db.auth.mfa.unenroll({ factorId: f.id });
+    }
+  }
+
+  const { data, error } = await db.auth.mfa.enroll({
+    factorType: 'totp',
+    friendlyName: `App de autenticação ${new Date().toISOString().slice(0, 10)}`,
+  });
+  if (error || !data) return falha(error);
+  return { ok: true, valor: { factorId: data.id, qr: data.totp.qr_code, segredo: data.totp.secret } };
+}
+
+/** Confirma a activação, ou o código pedido ao entrar. */
+export async function confirmar2fa(factorId: string, codigo: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.mfa.challengeAndVerify({ factorId, code: codigo.trim() });
+  return error ? falha(error) : { ok: true, valor: undefined };
+}
+
+export async function desactivar2fa(factorId: string): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const { error } = await db.auth.mfa.unenroll({ factorId });
+  if (error) return falha(error);
+  await db.auth.refreshSession();
+  return { ok: true, valor: undefined };
+}
+
+// ---------------------------------------------------------------------------
+// Perfil
+// ---------------------------------------------------------------------------
 
 export interface Perfil {
   utilizador_id: string;
@@ -55,79 +326,31 @@ export interface Perfil {
   instrumentos: string[];
   /** Até dois. Coluna criada pela migração 0004. */
   objetivos?: string[];
+  avisos_ativos?: boolean;
+  montante_por_operacao?: number;
   deriv_ligada: boolean;
   deriv_account_id: string | null;
   deriv_ambiente: 'demo' | 'real' | null;
   onboarding_em: string | null;
 }
 
-/** Envia o código de verificação para o email. */
-export async function pedirCodigo(email: string): Promise<{ ok: boolean; erro?: string }> {
-  const db = authCliente();
-  if (!db) return { ok: false, erro: 'Supabase não configurado.' };
-
-  const { error } = await db.auth.signInWithOtp({
-    email,
-    options: {
-      // Cria a conta se ainda não existir — não há ecrã de registo separado.
-      shouldCreateUser: true,
-    },
-  });
-
-  return error ? { ok: false, erro: error.message } : { ok: true };
-}
-
-/** Valida o código de seis dígitos e abre a sessão. */
-export async function validarCodigo(
-  email: string,
-  codigo: string,
-): Promise<{ ok: boolean; erro?: string; sessao?: Session }> {
-  const db = authCliente();
-  if (!db) return { ok: false, erro: 'Supabase não configurado.' };
-
-  const { data, error } = await db.auth.verifyOtp({
-    email,
-    token: codigo.trim(),
-    type: 'email',
-  });
-
-  if (error) return { ok: false, erro: error.message };
-  return { ok: true, sessao: data.session ?? undefined };
-}
-
-export async function sessaoAtual(): Promise<Session | null> {
-  const db = authCliente();
+async function idAtual(): Promise<string | null> {
+  const db = clienteNavegador();
   if (!db) return null;
   const { data } = await db.auth.getSession();
-  return data.session;
-}
-
-export async function sair(): Promise<void> {
-  await authCliente()?.auth.signOut();
+  return data.session?.user?.id ?? null;
 }
 
 /**
- * Lê o perfil do utilizador autenticado.
- *
- * A migração cria a linha automaticamente por trigger no registo, mas o trigger
- * pode falhar em projetos onde a função não tem privilégio para escrever na
- * tabela. Por isso: se não existir, cria-se aqui. Um perfil em falta bloquearia
- * o onboarding inteiro.
+ * Lê o perfil de quem entrou. Se ainda não existir linha, cria-a: o trigger da
+ * migração 0003 nem sempre tem privilégios para o fazer.
  */
 export async function lerPerfil(): Promise<Perfil | null> {
-  const db = authCliente();
-  if (!db) return null;
+  const db = clienteNavegador();
+  const uid = await idAtual();
+  if (!db || !uid) return null;
 
-  const { data: sessao } = await db.auth.getSession();
-  const uid = sessao.session?.user?.id;
-  if (!uid) return null;
-
-  const { data } = await db
-    .from('perfis_utilizador')
-    .select('*')
-    .eq('utilizador_id', uid)
-    .maybeSingle();
-
+  const { data } = await db.from('perfis_utilizador').select('*').eq('utilizador_id', uid).maybeSingle();
   if (data) return data as Perfil;
 
   const { data: criado } = await db
@@ -135,37 +358,28 @@ export async function lerPerfil(): Promise<Perfil | null> {
     .insert({ utilizador_id: uid })
     .select('*')
     .maybeSingle();
-
   return (criado as Perfil | null) ?? null;
 }
 
-/** Grava preferências. Só os campos passados são tocados. */
+/**
+ * Grava preferências. Só os campos passados são tocados.
+ *
+ * `upsert` e não `update`: sem linha, um `update` devolve sucesso a afectar zero
+ * linhas e o onboarding dizia "guardado" sem guardar. As políticas RLS limitam
+ * a inserção e a actualização ao próprio `auth.uid()`.
+ */
 export async function guardarPerfil(
   campos: Partial<Omit<Perfil, 'utilizador_id'>>,
-): Promise<{ ok: boolean; erro?: string }> {
-  const db = authCliente();
-  if (!db) return { ok: false, erro: 'Supabase não configurado.' };
+): Promise<Resultado> {
+  const db = clienteNavegador();
+  if (!db) return SEM_SUPABASE;
+  const uid = await idAtual();
+  if (!uid) return { ok: false, erro: 'A sessão terminou. Entre de novo.' };
 
-  const { data: sessao } = await db.auth.getSession();
-  const uid = sessao.session?.user?.id;
-  if (!uid) return { ok: false, erro: 'Sessão expirada.' };
-
-  /*
-   * `upsert`, e não `update`.
-   *
-   * A migração 0003 tenta criar o perfil automaticamente com um trigger em
-   * `auth.users` — mas avisa que nem todos os projetos dão privilégios para
-   * isso e, nesse caso, ignora-o em silêncio. Sem o trigger não existe linha, e
-   * um `update` sobre linha nenhuma devolve SUCESSO a afetar zero linhas: o
-   * onboarding dizia "guardado" e não guardava nada. O `upsert` cria a linha
-   * quando falta e atualiza quando existe; as políticas RLS de inserção e de
-   * atualização limitam ambas a `auth.uid()`.
-   */
   const { error } = await db
     .from('perfis_utilizador')
     .upsert({ utilizador_id: uid, ...campos }, { onConflict: 'utilizador_id' });
-
-  return error ? { ok: false, erro: error.message } : { ok: true };
+  return error ? falha(error) : { ok: true, valor: undefined };
 }
 
 /** Catálogo de estratégias oferecidas no onboarding. */
@@ -179,18 +393,9 @@ export interface EstrategiaDisponivel {
 }
 
 /*
- * Registo das estratégias.
- *
- * `pronta` significa uma coisa concreta e verificável: **existe código que a
- * corre sobre dados reais e devolve um plano de negociação**. Não significa que
- * ganhe dinheiro — nenhuma destas tem vantagem demonstrada, e o rodapé do
- * ecrã de escolha diz isso por extenso.
- *
- * As duas institucionais estiveram marcadas como "em construção" enquanto
- * eram. Deixaram de o ser: vivem em `packages/core/src/strategies/`, têm 18
- * testes automáticos e correm em `/api/radar` para todo o instrumento fora do
- * universo MMXM. Manter a etiqueta seria mentir na direção segura, o que
- * continua a ser mentir.
+ * `pronta` significa uma coisa concreta: existe código que a corre sobre dados
+ * reais e devolve um plano. Não significa que ganhe dinheiro — nenhuma destas
+ * tem vantagem demonstrada, e o ecrã de escolha diz isso por extenso.
  */
 export const ESTRATEGIAS: EstrategiaDisponivel[] = [
   {
