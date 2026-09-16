@@ -30,7 +30,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { GraficoVivo } from '@/components/vivo/GraficoVivo';
-import { Negociar } from '@/components/vivo/Negociar';
+import { Negociar, type PlanoParaOrdem } from '@/components/vivo/Negociar';
 import { Ligacao, Variacao } from '@/components/vivo/Preco';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
@@ -67,6 +67,9 @@ function Terminal() {
   const [selector, setSelector] = useState(false);
   const [cheio, setCheio] = useState(false);
   const [aba, setAba] = useState<'analise' | 'ordem' | 'info'>('analise');
+  /** Plano a colar no bilhete: do cartão da análise, ou do sinal que abriu esta página. */
+  const [plano, setPlano] = useState<PlanoParaOrdem | null>(null);
+  const sinalId = params.get('sinal');
   /** O que a estratégia escolhida desenha por cima das velas. */
   const [desenho, setDesenho] = useState<Desenho>(DESENHO_VAZIO);
 
@@ -79,12 +82,14 @@ function Terminal() {
 
   const navegar = useCallback(
     (novoS: string, novoTf: Timeframe, novaVisao: VisaoId = visao) => {
+      // O sinal que abriu a página acompanha trocas de timeframe e de visão, não de instrumento.
+      const sinal = sinalId && novoS === codigo ? `&sinal=${encodeURIComponent(sinalId)}` : '';
       router.replace(
-        `/grafico?s=${encodeURIComponent(novoS)}&tf=${novoTf}${novaVisao === 'resumo' ? '' : `&v=${novaVisao}`}`,
+        `/grafico?s=${encodeURIComponent(novoS)}&tf=${novoTf}${novaVisao === 'resumo' ? '' : `&v=${novaVisao}`}${sinal}`,
         { scroll: false },
       );
     },
-    [router, visao],
+    [router, visao, sinalId, codigo],
   );
 
   /*
@@ -100,6 +105,33 @@ function Terminal() {
     // Só na montagem: depois disto o URL manda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /*
+   * Aberto a partir de um sinal (lista ou aviso): o plano desse sinal fica
+   * pronto no bilhete, com a entrada, o stop e os alvos tal como foram enviados.
+   */
+  useEffect(() => {
+    setPlano(null);
+    if (!sinalId) return;
+    let vivo = true;
+    void fetch('/api/sinais', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { sinais?: Array<Omit<PlanoParaOrdem, 'origem'> & { id: string; simbolo: string; timeframe: string; geradoEm: string }> } | null) => {
+        const s = j?.sinais?.find((x) => x.id === sinalId);
+        if (!vivo || !s || s.simbolo.toUpperCase() !== codigo) return;
+        setPlano({
+          direccao: s.direccao,
+          entrada: s.entrada,
+          stop: s.stop,
+          alvos: s.alvos,
+          origem: `Sinal ${s.timeframe} · ${new Date(s.geradoEm).toLocaleString('pt-PT', { dateStyle: 'short', timeStyle: 'short' })}`,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [sinalId, codigo]);
 
   // Sair do ecrã inteiro com Escape, como qualquer overlay.
   useEffect(() => {
@@ -283,11 +315,14 @@ function Terminal() {
           visao={visao}
           aoMudarVisao={(v) => navegar(codigo, tf, v)}
           aoMudarDesenho={setDesenho}
-          aoNegociar={() => setAba('ordem')}
+          aoNegociar={(p) => {
+            setPlano(p);
+            setAba('ordem');
+          }}
         />
       </div>
 
-      {aba === 'ordem' && <Negociar codigo={codigo} />}
+      {aba === 'ordem' && <Negociar codigo={codigo} sinal={plano} />}
 
       {aba === 'info' && (
         <Informacao codigo={codigo} nome={s.nome} continuo={s.continuo} casas={s.casas} tf={tf} />

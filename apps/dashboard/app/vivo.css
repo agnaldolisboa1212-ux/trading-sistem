@@ -2894,3 +2894,271 @@ body:has(.terminal--cheio) .bottomnav {
   color: var(--text-dim);
   white-space: nowrap;
 }
+
+/* ===========================================================================
+   Terminal de negociação cTrader — bilhete, posições e pendentes
+   =========================================================================== */
+
+.negociar-ct {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.negociar-ct__ligar,
+.bilhete,
+.carteira {
+  padding: var(--s4);
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.negociar-ct__ligar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.negociar-ct__ligar p {
+  margin: 0 0 var(--s2);
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.negociar-ct__conta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px var(--s2);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.negociar-ct__login {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.negociar-ct__valores {
+  display: flex;
+  gap: var(--s3);
+  color: var(--text-dim);
+}
+
+.negociar-ct__valores b {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bilhete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* O plano do sinal, pronto a colar. */
+.bilhete__sinal {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-2));
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.bilhete__sinal .grow {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bilhete__sinal b {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bilhete__sinal em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.bilhete__sinal select {
+  min-height: 34px;
+  padding: 0 6px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.bilhete__sinal .btn {
+  min-height: 34px;
+  padding: 0 14px;
+  flex: none;
+}
+
+.bilhete__campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s3);
+}
+
+.campo__passo {
+  display: flex;
+  gap: 4px;
+}
+
+.campo__passo button {
+  flex: none;
+  width: 38px;
+  min-height: var(--tap);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.campo .campo__passo input {
+  min-width: 0;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.nt-erro,
+.nt-ok {
+  padding: var(--s2) var(--s3);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.nt-erro {
+  background: color-mix(in srgb, var(--bear) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bear) 40%, transparent);
+}
+
+.nt-ok {
+  background: color-mix(in srgb, var(--bull) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bull) 36%, transparent);
+}
+
+.folha .nt-erro,
+.folha .bilhete__campos,
+.folha > .campo {
+  margin-top: var(--s3);
+}
+
+.nt-acoes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s2);
+  margin-top: var(--s4);
+}
+
+.nt-acoes .btn {
+  min-height: var(--tap);
+}
+
+.carteira__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s1);
+}
+
+.carteira__topo .segmentos {
+  width: auto;
+  flex: 1 1 auto;
+}
+
+.carteira__filtro {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.carteira__vazio {
+  margin: var(--s4) 0 var(--s2);
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.linha-ct {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  padding: var(--s3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.linha-ct:last-of-type {
+  border-bottom: none;
+}
+
+.linha-ct__id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.linha-ct__id b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.linha-ct__id em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.linha-ct__lucro {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.linha-ct__accoes {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--s2);
+}
+
+.linha-ct__accoes button {
+  flex: 1 1 0;
+  min-height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.linha-ct__accoes .linha-ct__fechar {
+  color: var(--bear);
+  border-color: color-mix(in srgb, var(--bear) 36%, transparent);
+  background: color-mix(in srgb, var(--bear) 8%, var(--surface-2));
+}

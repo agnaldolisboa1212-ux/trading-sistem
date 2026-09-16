@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Candle, Timeframe as TimeframeCore } from '@trading/core';
 import type { Vela } from '@/lib/deriv/live';
 import { formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
+import type { PlanoParaOrdem } from './Negociar';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
@@ -99,7 +100,8 @@ export function AnaliseAoVivo({
   visao: VisaoId;
   aoMudarVisao: (v: VisaoId) => void;
   aoMudarDesenho: (d: Desenho) => void;
-  aoNegociar?: () => void;
+  /** Abre o painel de ordem com este plano pronto a colar. */
+  aoNegociar?: (plano: PlanoParaOrdem) => void;
   /** Se vier, a visão MMXM usa-a em vez de perguntar ao servidor. */
   mmxm?: MmxmPronto | null;
   /**
@@ -350,7 +352,7 @@ function CartaoSinal({
 }: {
   sv: SinalVisao;
   fmt: (v: number) => string;
-  aoNegociar?: () => void;
+  aoNegociar?: (plano: PlanoParaOrdem) => void;
 }) {
   const s = sv.sinal;
   const compra = s.direction === 'bullish';
@@ -395,8 +397,21 @@ function CartaoSinal({
       </div>
 
       {aoNegociar && vivo && (
-        <button type="button" className="btn ghost block" style={{ marginTop: 12 }} onClick={aoNegociar}>
-          Abrir o painel de ordem
+        <button
+          type="button"
+          className="btn ghost block"
+          style={{ marginTop: 12 }}
+          onClick={() =>
+            aoNegociar({
+              direccao: s.direction,
+              entrada: s.entryPrice,
+              stop: s.stopLoss,
+              alvos: s.targets.map((t) => ({ preco: t.price, r: t.rMultiple })),
+              origem: nomeVisao(s.strategy),
+            })
+          }
+        >
+          Levar este plano para a ordem
         </button>
       )}
     </div>

@@ -7,7 +7,7 @@
  *   2. para quê     — objetivo (até dois)
  *   3. como         — estratégia
  *   4. o quê        — mercados
- *   5. corretora    — ligar a Deriv (opcional, e dá para saltar)
+ *   5. corretora    — conta Deriv cTrader (opcional, liga-se nas definições)
  *
  * Um passo por rota obrigaria a guardar o estado entre elas e a lidar com o
  * botão "voltar" do browser a meio de um formulário. Cinco passos num só
@@ -34,8 +34,7 @@ import { useRouter } from 'next/navigation';
 import { ESTRATEGIAS, guardarPerfil, lerPerfil, marcarOnboarding, utilizadorAtual } from '@/lib/auth';
 import { OBJETIVOS, guardarPreferenciasCliente } from '@/lib/preferencias';
 import { CRIPTO, FOREX, INDICES, METAIS, SINTETICOS } from '@/lib/deriv/simbolos';
-import { apiFetch } from '@/lib/api';
-import { BotaoLigarDeriv } from '@/components/vivo/BotaoLigarDeriv';
+import { usarCtrader } from '@/components/vivo/usarCtrader';
 import '../onboarding.css';
 
 const GRUPOS = [
@@ -474,57 +473,30 @@ function PassoNome({
   );
 }
 
-/** Estado da ligação à Deriv, lido no momento. */
+/**
+ * A corretora: Deriv cTrader (CFD).
+ *
+ * Não abre a autorização a meio do onboarding — sair para a cTrader perdia as
+ * escolhas dos passos anteriores. Mostra o estado e diz onde se liga depois.
+ */
 function PassoCorretora() {
-  const [estado, setEstado] = useState<{
-    ligada: boolean;
-    contas: number;
-    demo: string | null;
-    erro: string | null;
-  } | null>(null);
+  const c = usarCtrader();
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await apiFetch('/api/deriv/estado');
-        const j = (await r.json()) as {
-          ligada: boolean;
-          contas: Array<{ account_id: string; account_type: string; balance: string }>;
-          erro: string | null;
-        };
-        const demo = j.contas?.find((c) => c.account_type === 'demo');
-        setEstado({
-          ligada: j.ligada,
-          contas: j.contas?.length ?? 0,
-          demo: demo ? `${demo.account_id} · ${demo.balance} USD` : null,
-          erro: j.erro,
-        });
-      } catch (e) {
-        setEstado({
-          ligada: false,
-          contas: 0,
-          demo: null,
-          erro: e instanceof Error ? e.message : String(e),
-        });
-      }
-    })();
-  }, []);
+  if (c.aCarregar) return <div className="brilho" style={{ height: 120, borderRadius: 16 }} />;
 
-  if (!estado) return <div className="brilho" style={{ height: 120, borderRadius: 16 }} />;
-
-  if (estado.ligada) {
+  if (c.ligada) {
     return (
       <div className="card">
         <div className="ob__ok">
           <span aria-hidden="true">✓</span>
           <div>
-            <strong>Deriv ligada</strong>
+            <strong>Deriv cTrader ligada</strong>
             <p className="dim" style={{ margin: '4px 0 0', fontSize: 13 }}>
-              {estado.contas} conta(s) encontrada(s).
-              {estado.demo && (
+              {c.contas.length} conta(s) CFD autorizada(s).
+              {c.conta && (
                 <>
                   {' '}
-                  Vai começar na demo: <code>{estado.demo}</code>.
+                  Conta activa: <code>#{c.conta.login ?? c.conta.id}</code> ({c.conta.real ? 'real' : 'demo'}).
                 </>
               )}
             </p>
@@ -540,14 +512,17 @@ function PassoCorretora() {
 
   return (
     <div className="card">
-      <strong>Ainda não ligada.</strong>
+      <strong>Negociar com a sua conta Deriv cTrader</strong>
       <p className="ob__ajuda" style={{ marginTop: 8 }}>
-        Entre com a sua conta Deriv. Abre a página de login da própria Deriv — a sua senha nunca
-        passa por esta aplicação — e volta aqui com a conta ligada.
+        As ordens saem da sua própria conta CFD da Deriv, na plataforma cTrader — nunca da conta de
+        outra pessoa. Depois de concluir, ligue-a em <strong>Definições → Corretora</strong>: abre a
+        página da cTrader, entra com o seu cTrader ID e autoriza. A sua palavra-passe nunca passa
+        por esta aplicação.
       </p>
-      <BotaoLigarDeriv />
       <p className="ob__ajuda" style={{ marginBottom: 0 }}>
-        Pode concluir sem isto: a análise, os gráficos e os sinais funcionam sem corretora ligada.
+        {c.configurado
+          ? 'Pode concluir sem isto: a análise, os gráficos e os sinais funcionam sem corretora ligada.'
+          : 'A negociação CFD ainda não está disponível neste servidor; a análise, os gráficos e os sinais já funcionam.'}
       </p>
     </div>
   );

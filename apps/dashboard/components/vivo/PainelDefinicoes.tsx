@@ -15,25 +15,22 @@
  * A assimetria é deliberada: o erro caro só acontece numa direção. Ninguém se
  * arruinou por carregar sem querer em "demo".
  *
- * A escolha é gravada num cookie `httpOnly` pelo servidor, não no
- * `localStorage`. Um valor que o JavaScript da página consegue reescrever não é
+ * A escolha é gravada na sessão cTrader cifrada, num cookie `httpOnly`, e não
+ * no `localStorage`. Um valor que o JavaScript da página consegue reescrever não é
  * sítio para guardar qual das contas recebe as ordens.
  */
 
-import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
-import { apiFetch, desligarContaDeriv } from '@/lib/api';
-import { BotaoLigarDeriv } from './BotaoLigarDeriv';
+import { useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { usarAvisos, usarInstalacao } from './Pwa';
-import { actualizarConta } from './usarConta';
-
-export interface ContaResumo {
-  id: string;
-  tipo: 'demo' | 'real';
-  saldo: string;
-  moeda: string;
-}
+import {
+  desligarCtrader,
+  dinheiroConta,
+  escolherContaCtrader,
+  ligarCtrader,
+  usarCtrader,
+  type ContaCtrader,
+} from './usarCtrader';
 
 export function PainelDefinicoes({ pushDisponivel }: { pushDisponivel: boolean }) {
   return (
@@ -47,90 +44,54 @@ export function PainelDefinicoes({ pushDisponivel }: { pushDisponivel: boolean }
 
 // ---------------------------------------------------------------------------
 
-interface EstadoDerivApi {
-  configurada: boolean;
-  ligada: boolean;
-  contas: Array<{ account_id: string; account_type: string; balance: string; currency: string }>;
-  erro: string | null;
-  codigo: string;
-  origem: 'oauth' | 'dono' | null;
-  expiraEm: number | null;
-  contaActiva: string | null;
-  podeLigar: boolean;
-}
-
 /**
- * A corretora de QUEM está a ver.
+ * A conta Deriv cTrader (CFD) de QUEM está a ver.
  *
- * Pede o estado ao servidor com a sessão da plataforma e mostra um de cinco
- * ecrãs: ligada (com a origem e as contas), sem sessão, sem login Deriv,
- * sessão Deriv expirada, ou servidor por configurar. Cada um tem uma ação
- * diferente, e "não está a funcionar" não serve a nenhum.
+ * Liga com o cTrader ID da pessoa — nunca com a conta do dono do servidor — e
+ * mostra as contas que esse login autorizou. Passar para uma conta real pede
+ * confirmação; voltar para a demo não.
  */
 function Corretora() {
-  const [estado, setEstado] = useState<EstadoDerivApi | null>(null);
-  const [aTrocar, setATrocar] = useState<string | null>(null);
-  const [confirmar, setConfirmar] = useState<ContaResumo | null>(null);
+  const c = usarCtrader();
+  const [aTrocar, setATrocar] = useState<number | null>(null);
+  const [confirmar, setConfirmar] = useState<ContaCtrader | null>(null);
   const [falha, setFalha] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
-
-  const carregar = useCallback(async () => {
-    try {
-      const r = await apiFetch('/api/deriv/estado');
-      setEstado((await r.json()) as EstadoDerivApi);
-    } catch (e) {
-      setFalha(e instanceof Error ? e.message : String(e));
-    }
-  }, []);
+  const [aLigar, setALigar] = useState(false);
 
   useEffect(() => {
-    void carregar();
-    // Regresso do login da Deriv: `?deriv=ligada` ou `?deriv=erro&motivo=…`.
+    // Regresso da autorização cTrader: `?ctrader=ligada` ou `?ctrader=erro&motivo=…`.
     const q = new URLSearchParams(window.location.search);
-    const resultado = q.get('deriv');
+    const resultado = q.get('ctrader');
     if (resultado === 'ligada') {
-      setAviso({ ok: true, texto: 'Conta Deriv ligada. Já pode ver o saldo e negociar.' });
+      setAviso({ ok: true, texto: 'Conta cTrader ligada. Escolha abaixo a conta que recebe as ordens.' });
     } else if (resultado === 'erro') {
       setAviso({ ok: false, texto: `Não foi possível ligar a conta: ${q.get('motivo') ?? 'erro desconhecido'}` });
     }
     // Tira os parâmetros do endereço para um recarregar não repetir a mensagem.
     if (resultado) window.history.replaceState(null, '', window.location.pathname);
-  }, [carregar]);
+  }, []);
 
-  const contas: ContaResumo[] = (estado?.contas ?? []).map((c) => ({
-    id: c.account_id,
-    tipo: c.account_type === 'real' ? 'real' : 'demo',
-    saldo: c.balance,
-    moeda: c.currency,
-  }));
-
-  const trocar = async (c: ContaResumo) => {
+  const trocar = async (conta: ContaCtrader) => {
     setFalha(null);
-    setATrocar(c.id);
-    try {
-      const r = await apiFetch('/api/deriv/conta', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // `confirmar` só é enviado depois do diálogo de confirmação da conta real.
-        body: JSON.stringify({ accountId: c.id, confirmar: c.tipo === 'real' }),
-      });
-      const j = (await r.json()) as { erro?: string };
-      if (!r.ok) throw new Error(j.erro ?? `HTTP ${r.status}`);
-      setConfirmar(null);
-      await Promise.all([carregar(), actualizarConta()]);
-    } catch (e) {
-      setFalha(e instanceof Error ? e.message : String(e));
-    } finally {
-      setATrocar(null);
+    setATrocar(conta.id);
+    const erro = await escolherContaCtrader(conta.id, conta.real);
+    setATrocar(null);
+    if (erro) setFalha(erro);
+    else setConfirmar(null);
+  };
+
+  const ligar = async () => {
+    setFalha(null);
+    setALigar(true);
+    const erro = await ligarCtrader();
+    if (erro) {
+      setFalha(erro);
+      setALigar(false);
     }
   };
 
-  const desligar = async () => {
-    await desligarContaDeriv();
-    await Promise.all([carregar(), actualizarConta()]);
-  };
-
-  if (!estado) {
+  if (c.aCarregar) {
     return (
       <section>
         <h2>Corretora</h2>
@@ -139,13 +100,9 @@ function Corretora() {
     );
   }
 
-  const expira = estado.expiraEm
-    ? new Date(estado.expiraEm).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
-    : null;
-
   return (
     <section>
-      <h2>Corretora</h2>
+      <h2>Corretora · Deriv cTrader</h2>
 
       {aviso && (
         <div className={aviso.ok ? 'notice' : 'ob__erro'} style={{ marginBottom: 10 }}>
@@ -153,25 +110,20 @@ function Corretora() {
         </div>
       )}
 
-      {estado.ligada ? (
+      {!c.configurado ? (
+        <div className="empty" style={{ textAlign: 'left' }}>
+          <strong>A negociação CFD ainda não está configurada no servidor.</strong>
+          Falta registar a aplicação na cTrader Open API e definir <code>CTRADER_CLIENT_ID</code>,{' '}
+          <code>CTRADER_CLIENT_SECRET</code> e <code>CTRADER_REDIRECT</code>.
+        </div>
+      ) : c.ligada ? (
         <>
-          <div className="rows" style={{ marginBottom: 10 }}>
-            <div>
-              <span className="k">Ligação</span>
-              <span className="v">
-                {estado.origem === 'oauth'
-                  ? `a sua conta Deriv${expira ? ` · até às ${expira}` : ''}`
-                  : 'token do servidor (dono)'}
-              </span>
-            </div>
-          </div>
-
           <div className="grupo__caixa">
-            {contas.map((c) => {
-              const on = estado.contaActiva === c.id;
+            {c.contas.map((conta) => {
+              const on = c.conta?.id === conta.id;
               return (
                 <button
-                  key={c.id}
+                  key={conta.id}
                   type="button"
                   className="conta-linha"
                   aria-pressed={on}
@@ -179,92 +131,72 @@ function Corretora() {
                   onClick={() => {
                     if (on) return;
                     // Só a passagem para real pára para confirmar.
-                    if (c.tipo === 'real') setConfirmar(c);
-                    else void trocar(c);
+                    if (conta.real) setConfirmar(conta);
+                    else void trocar(conta);
                   }}
                 >
-                  <span className={`conta-linha__selo ${c.tipo}`}>
-                    {c.tipo === 'real' ? 'REAL' : 'DEMO'}
+                  <span className={`conta-linha__selo ${conta.real ? 'real' : 'demo'}`}>
+                    {conta.real ? 'REAL' : 'DEMO'}
                   </span>
                   <span className="conta-linha__id">
-                    <strong>{c.id}</strong>
+                    <strong>#{conta.login ?? conta.id}</strong>
                     <em>
-                      {c.saldo} {c.moeda}
+                      {on && c.saldo !== null ? `${dinheiroConta(c.saldo, c.moeda)} · ` : ''}
+                      {conta.corretora || 'Deriv'} · CFD
                     </em>
                   </span>
                   <span className="conta-linha__marca" aria-hidden="true">
-                    {on ? '✓' : ''}
+                    {aTrocar === conta.id ? '…' : on ? '✓' : ''}
                   </span>
                 </button>
               );
             })}
           </div>
 
+          {c.contas.length === 0 && (
+            <div className="empty" style={{ textAlign: 'left' }}>
+              <strong>Nenhuma conta cTrader neste login.</strong>
+              Crie uma conta Deriv cTrader (comece pela demo) no painel da Deriv e ligue de novo.
+            </div>
+          )}
+
           <p className="section-cap">
-            A conta escolhida recebe as ordens que confirmar no gráfico. Comece pela demo: os
-            preços, o preenchimento e o resultado são reais, só o dinheiro é que não.
+            A conta marcada recebe as ordens que confirmar no terminal. Comece pela demo: preços e
+            execução são reais, só o dinheiro é que não. Os tokens ficam cifrados no servidor e
+            nunca chegam ao browser.
           </p>
 
-          {estado.origem === 'oauth' && (
-            <button type="button" className="btn ghost" onClick={() => void desligar()}>
-              Desligar a conta Deriv
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="btn ghost" onClick={() => void ligar()} disabled={aLigar}>
+              Autorizar outras contas
             </button>
-          )}
-          {estado.origem === 'dono' && estado.podeLigar && (
-            <>
-              <p className="section-cap">
-                Está a usar o token do servidor. Para usar a sua própria conta, entre com a Deriv.
-              </p>
-              <BotaoLigarDeriv texto="Entrar com a minha conta Deriv" />
-            </>
-          )}
-        </>
-      ) : estado.codigo === 'SemSessao' ? (
-        <div className="empty" style={{ textAlign: 'left' }}>
-          <strong>Entre na plataforma primeiro.</strong>
-          A conta de trading fica associada ao seu utilizador, por isso é preciso ter sessão
-          iniciada antes de a ligar.
-          <div>
-            <Link href="/entrar" className="btn primary">
-              Entrar
-            </Link>
+            <button type="button" className="btn ghost" onClick={() => void desligarCtrader()}>
+              Desligar a cTrader
+            </button>
           </div>
-        </div>
-      ) : estado.codigo === 'DerivNaoConfigurada' || !estado.podeLigar ? (
-        <div className="empty" style={{ textAlign: 'left' }}>
-          <strong>O login com a Deriv não está configurado no servidor.</strong>
-          Faltam <code>DERIV_APP_ID</code> e <code>COFRE_CHAVE</code> em{' '}
-          <code>apps/dashboard/.env.local</code>.
-        </div>
+        </>
       ) : (
         <div className="empty" style={{ textAlign: 'left' }}>
-          <strong>
-            {estado.codigo === 'DerivExpirou' ? 'A sessão Deriv expirou.' : 'Conta Deriv não ligada.'}
-          </strong>
-          {estado.codigo === 'DerivExpirou'
-            ? 'A Deriv dá sessões de uma hora. Ligar de novo é um toque — com a sessão da Deriv ainda aberta, nem volta a pedir a senha.'
-            : (estado.erro ??
-              'Entre com a sua conta Deriv para ver o saldo, as posições e negociar a partir daqui.')}
+          <strong>Conta cTrader não ligada.</strong>
+          {c.erro ??
+            'Entre com o seu cTrader ID para ver o saldo, as posições e negociar CFD a partir daqui — abrir, modificar e fechar ordens, ou colar a ordem de um sinal.'}
           <div style={{ marginTop: 12 }}>
-            <BotaoLigarDeriv
-              texto={estado.codigo === 'DerivExpirou' ? 'Ligar de novo' : 'Entrar com a Deriv'}
-            />
+            <button type="button" className="btn primary" onClick={() => void ligar()} disabled={aLigar}>
+              {aLigar ? 'a abrir…' : 'Ligar conta Deriv cTrader'}
+            </button>
           </div>
           <p className="section-cap" style={{ marginTop: 10 }}>
-            Abre a página de login da própria Deriv. A sua senha nunca passa por esta aplicação.
+            Abre a página da própria cTrader. A sua palavra-passe nunca passa por esta aplicação,
+            e cada utilizador liga a sua própria conta.
           </p>
         </div>
       )}
 
       {confirmar && (
-        <div className="notice" role="alertdialog" aria-label="Confirmar conta real">
-          <strong>Passar para a conta real {confirmar.id}?</strong>
+        <div className="notice" role="alertdialog" aria-label="Confirmar conta real" style={{ marginTop: 10 }}>
+          <strong>Passar para a conta real #{confirmar.login ?? confirmar.id}?</strong>
           <div style={{ marginTop: 6, marginBottom: 10, lineHeight: 1.55 }}>
-            A partir daí, cada ordem que confirmar gasta dinheiro verdadeiro. Saldo atual:{' '}
-            <strong>
-              {confirmar.saldo} {confirmar.moeda}
-            </strong>
-            .
+            A partir daí, cada ordem que confirmar arrisca dinheiro verdadeiro.
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" className="btn ghost" onClick={() => setConfirmar(null)}>

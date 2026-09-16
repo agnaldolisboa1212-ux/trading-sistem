@@ -3,8 +3,8 @@
 /**
  * Cartão de saldo — o primeiro elemento do Início quando há conta ligada.
  *
- * O pedido era claro: depois de ligar a Deriv, o saldo deve estar à vista sem
- * ter de entrar no separador financeiro. É o que este componente faz.
+ * A conta é a Deriv cTrader (CFD) da pessoa: saldo, capital com o lucro das
+ * posições abertas, e o selo demo/real.
  *
  * ── O QUE ELE MOSTRA CONFORME O ESTADO ─────────────────────────────────────
  *
@@ -21,23 +21,23 @@
  */
 
 import Link from 'next/link';
-import { dinheiro, usarConta } from './usarConta';
+import { dinheiroConta, usarCtrader } from './usarCtrader';
 import { Ligacao } from './Preco';
 
 export function CartaoSaldo({ nome }: { nome?: string | null }) {
-  const c = usarConta();
+  const c = usarCtrader();
 
   if (c.aCarregar) {
     return <div className="brilho" style={{ height: 230, borderRadius: 24 }} />;
   }
 
   if (!c.ligada) {
-    return <ConviteLigar erro={c.erro} />;
+    return <ConviteLigar erro={c.erro} configurado={c.configurado} />;
   }
 
+  const real = c.conta?.real === true;
   const abertas = c.posicoes.length;
   const emAberto = c.posicoes.reduce((a, p) => a + p.lucro, 0);
-  const taxa = c.operacoesFechadas > 0 ? (c.vitorias / c.operacoesFechadas) * 100 : null;
 
   return (
     <div className="saldo">
@@ -46,9 +46,7 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
           {nome ? `Olá, ${nome}` : 'Saldo disponível'}
         </span>
         <span className="grow" />
-        <span className={`saldo__selo ${c.tipo === 'real' ? 'real' : 'demo'}`}>
-          {c.tipo === 'real' ? 'conta real' : 'demo'}
-        </span>
+        <span className={`saldo__selo ${real ? 'real' : 'demo'}`}>{real ? 'conta real' : 'demo'}</span>
       </div>
 
       <div className="saldo__valor">
@@ -76,17 +74,23 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
             </span>
           </>
         )}
-        {taxa !== null && (
+        {c.ordens.length > 0 && (
           <>
             <span>·</span>
             <span>
-              {taxa.toFixed(0)}% de acerto em {c.operacoesFechadas}
+              {c.ordens.length} pendente{c.ordens.length === 1 ? '' : 's'}
             </span>
+          </>
+        )}
+        {abertas > 0 && (
+          <>
+            <span>·</span>
+            <span>capital {dinheiroConta(c.capital, c.moeda)}</span>
           </>
         )}
       </div>
 
-      <div className="saldo__accoes">
+      <div className="saldo__accoes" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <Link href="/mercados" className="saldo__accao">
           <i aria-hidden="true">◈</i>
           Negociar
@@ -94,10 +98,6 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
         <Link href="/portfolio" className="saldo__accao">
           <i aria-hidden="true">◱</i>
           Portfólio
-        </Link>
-        <Link href="/conta" className="saldo__accao">
-          <i aria-hidden="true">≡</i>
-          Movimentos
         </Link>
         <Link href="/definicoes" className="saldo__accao">
           <i aria-hidden="true">⚙</i>
@@ -115,7 +115,7 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
  * corretora aparece por extenso porque é a única informação que distingue "o
  * token expirou" de "a rede está em baixo" — e as duas pedem ações diferentes.
  */
-function ConviteLigar({ erro }: { erro: string | null }) {
+function ConviteLigar({ erro, configurado }: { erro: string | null; configurado: boolean }) {
   return (
     <div className="saldo">
       <div className="saldo__topo">
@@ -125,9 +125,11 @@ function ConviteLigar({ erro }: { erro: string | null }) {
         Ligar conta
       </div>
       <div className="saldo__linha" style={{ display: 'block', lineHeight: 1.5 }}>
-        {erro
-          ? `A Deriv respondeu: ${erro}`
-          : 'Ligue a sua conta Deriv para ver o saldo, as posições e negociar a partir daqui.'}
+        {!configurado
+          ? 'A negociação CFD ainda não está disponível neste servidor.'
+          : erro
+            ? `A cTrader respondeu: ${erro}`
+            : 'Ligue a sua conta Deriv cTrader para ver o saldo, as posições e negociar a partir daqui.'}
       </div>
       <div className="saldo__accoes" style={{ gridTemplateColumns: '1fr' }}>
         <Link href="/definicoes" className="saldo__accao">
@@ -141,15 +143,14 @@ function ConviteLigar({ erro }: { erro: string | null }) {
 
 /** Versão compacta, para o cabeçalho de outras páginas. */
 export function SaldoCompacto() {
-  const c = usarConta();
+  const c = usarCtrader();
   if (!c.ligada || c.saldo === null) return null;
+  const real = c.conta?.real === true;
 
   return (
     <Link href="/portfolio" className="saldo-mini" title="Ver conta">
-      <span className={`saldo-mini__selo ${c.tipo === 'real' ? 'real' : 'demo'}`}>
-        {c.tipo === 'real' ? 'REAL' : 'DEMO'}
-      </span>
-      <span className="num-vivo">{dinheiro(c.saldo, c.moeda)}</span>
+      <span className={`saldo-mini__selo ${real ? 'real' : 'demo'}`}>{real ? 'REAL' : 'DEMO'}</span>
+      <span className="num-vivo">{dinheiroConta(c.capital ?? c.saldo, c.moeda)}</span>
     </Link>
   );
 }

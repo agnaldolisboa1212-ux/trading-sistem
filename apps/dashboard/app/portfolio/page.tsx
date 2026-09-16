@@ -25,14 +25,14 @@
  */
 
 import Link from 'next/link';
-import { apiFetch } from '@/lib/api';
 import { useState } from 'react';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
 import { usarPortfolio } from '@/components/vivo/usarPortfolio';
 import { ListaIndices } from '@/components/vivo/ListaIndices';
 import { Ligacao } from '@/components/vivo/Preco';
-import { dinheiro, usarConta } from '@/components/vivo/usarConta';
+import { Carteira } from '@/components/vivo/Negociar';
+import { usarCtrader } from '@/components/vivo/usarCtrader';
 import { INDICES, SINTETICOS, CRIPTO, METAIS } from '@/lib/deriv/simbolos';
 
 type Aba = 'indices' | 'sinteticos' | 'materias';
@@ -195,80 +195,22 @@ function MeusInstrumentos() {
 }
 
 /**
- * Posições abertas, com lucro a mexer.
+ * Posições e ordens pendentes da conta cTrader, com lucro a mexer.
  *
- * O valor vem do `portfolio` da Deriv de 20 em 20 segundos. Não é ao segundo de
- * propósito: cada leitura custa uma sessão autenticada com OTP, e o número que
- * muda ao segundo é o preço do instrumento — esse tem fluxo próprio, público.
+ * É a mesma carteira do terminal, sem filtro de instrumento: modificar SL/TP,
+ * fechar tudo ou parte e cancelar pendentes, cada acção com confirmação.
  */
 function Posicoes() {
-  const c = usarConta();
-  const [aFechar, setAFechar] = useState<number | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
-
+  const c = usarCtrader();
   if (!c.ligada) return null;
-
-  const fechar = async (id: number) => {
-    setErro(null);
-    setAFechar(id);
-    try {
-      const r = await apiFetch('/api/deriv/fechar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractId: id }),
-      });
-      const j = (await r.json()) as { erro?: string };
-      if (!r.ok) throw new Error(j.erro ?? `HTTP ${r.status}`);
-      await c.actualizar();
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
-    } finally {
-      setAFechar(null);
-    }
-  };
-
   return (
     <section>
       <div className="section-head">
-        <h2>Posições abertas</h2>
+        <h2>Posições e ordens</h2>
         <span className="grow" />
-        <span className="section-note">{c.posicoes.length}</span>
+        <span className="section-note">{c.posicoes.length + c.ordens.length}</span>
       </div>
-
-      {c.posicoes.length === 0 ? (
-        <div className="empty">
-          <strong>Nada aberto.</strong>
-          Quando comprar um contrato ele aparece aqui com o valor atual e o botão de vender.
-        </div>
-      ) : (
-        <div className="grupo__caixa">
-          {c.posicoes.map((p) => (
-            <div key={p.contract_id} className="posicao">
-              <div className="posicao__id">
-                <div className="posicao__nome">{p.simbolo}</div>
-                <div className="posicao__sub">{p.descricao}</div>
-              </div>
-              <div
-                className={`posicao__valor ${p.lucro >= 0 ? 'bull-t' : 'bear-t'}`}
-                aria-label="Resultado atual"
-              >
-                {p.lucro >= 0 ? '+' : ''}
-                {dinheiro(p.lucro, c.moeda)}
-              </div>
-              <button
-                type="button"
-                className="posicao__fechar"
-                onClick={() => void fechar(p.contract_id)}
-                disabled={aFechar === p.contract_id}
-              >
-                {aFechar === p.contract_id ? '…' : 'vender'}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {erro && <div className="ob__erro">{erro}</div>}
+      <Carteira />
     </section>
   );
 }
