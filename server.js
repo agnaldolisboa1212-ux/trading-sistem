@@ -1,44 +1,52 @@
 #!/usr/bin/env node
+'use strict';
 /**
  * Servidor de produção — `npm start`, e o "Entry file" na Hostinger.
  *
- * `.js` e não `.mjs`: o `package.json` da raiz tem `"type": "module"`, por isso é
- * ESM na mesma, e há painéis de alojamento que só aceitam `.js` como ficheiro de
- * entrada.
- *
  * Um só processo que ESCUTA na porta da plataforma, e os motores como filho.
+ * Plataformas que gerem a aplicação por si esperam que o processo que ELAS
+ * arrancam atenda os pedidos; um script que só lança outros processos deixa-as
+ * sem ninguém a responder (foi o primeiro 503).
  *
- * ── PORQUE EXISTE ──────────────────────────────────────────────────────────
+ * ── PORQUE É COMMONJS, SEM `await` NO TOPO ─────────────────────────────────
  *
- * O primeiro deploy na Hostinger respondia 503 em todas as páginas. O `npm
- * start` de então corria `scripts/sistema.mjs`, que não escuta em porta
- * nenhuma: lança o `next start` e o motor como processos à parte. Plataformas
- * que gerem a aplicação por si (Hostinger, Passenger, cPanel) esperam que o
- * processo que ELAS arrancam atenda na porta `PORT`. Não vendo ninguém a
- * escutar, respondem 503.
+ * Na Hostinger a aplicação não arranca com `node server.js`. O LiteSpeed
+ * carrega-a com o `lsnode.js`, que faz `require()` deste ficheiro. Um módulo ES
+ * com `await` no topo não se carrega com `require()`
+ * (ERR_REQUIRE_ASYNC_MODULE): o processo morria antes de escutar e o site
+ * respondia 503. Por isso este ficheiro é CommonJS — a raiz do repositório não
+ * declara `"type": "module"` — e todo o trabalho assíncrono corre em funções.
  *
- * Aqui o próprio processo cria o servidor HTTP com a API programática do Next,
- * e só depois lança os motores.
+ * ── AS DUAS ESCUTAS ────────────────────────────────────────────────────────
  *
- * ── A PORTA INTERNA ────────────────────────────────────────────────────────
+ * O lsnode substitui `http.Server.prototype.listen`: a PRIMEIRA chamada liga o
+ * servidor ao socket do LiteSpeed (a porta pedida é ignorada) e as seguintes são
+ * ignoradas em silêncio, sem chamar o callback. Daí:
  *
- * O motor pede ao painel que envie notificações push. Algumas plataformas dão
- * em `PORT` um socket e não um número, e aí "127.0.0.1:PORT" não existe. Por
- * isso abre-se uma segunda escuta, só em 127.0.0.1 e numa porta livre qualquer,
- * e é essa que o motor recebe em `DASHBOARD_URL`.
+ *   - a escuta pública é a primeira, feita logo no carregamento. Os pedidos que
+ *     chegam enquanto o Next arranca esperam por ele.
+ *   - a escuta interna, para o motor, usa o `listen` original, que o lsnode
+ *     guarda em `realListen`. Atrás do LiteSpeed o painel não tem porta TCP, e o
+ *     motor precisa de uma para pedir o envio de push; recebe-a em
+ *     `DASHBOARD_URL`, só em 127.0.0.1.
+ *
+ * Com `node server.js` (computador, VPS) o lsnode não existe e tudo é o normal.
  */
 
-import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+const { spawn } = require('node:child_process');
+const { existsSync } = require('node:fs');
+const http = require('node:http');
+const net = require('node:net');
+const { join } = require('node:path');
 
-const RAIZ = dirname(fileURLToPath(import.meta.url));
+const RAIZ = __dirname;
 const PAINEL = join(RAIZ, 'apps', 'dashboard');
 const MOTOR = join(RAIZ, 'apps', 'engine', 'dist', 'index.js');
 const PORTA = process.env.PORT || '3000';
 const NODE_MAIOR = Number(process.versions.node.split('.')[0]);
+// O lsnode guarda o `listen` original antes de carregar a aplicação.
+const LISTEN_ORIGINAL = http.Server.prototype.realListen || http.Server.prototype.listen;
+const ATRAS_DO_LITESPEED = typeof http.Server.prototype.realListen === 'function';
 
 const log = (...partes) => console.log(new Date().toISOString(), '[servidor]', ...partes);
 
@@ -64,34 +72,57 @@ if (!existsSync(join(PAINEL, '.next', 'BUILD_ID'))) {
  */
 process.on('unhandledRejection', (erro) => log('rejeição não tratada:', erro));
 
-const { default: next } = await import('next');
+// --- o Next ----------------------------------------------------------------
+const next = require('next');
 const app = next({ dev: false, dir: PAINEL });
 const atender = app.getRequestHandler();
-await app.prepare();
+const pronto = app.prepare().then(
+  () => {
+    log('Next pronto');
+    return true;
+  },
+  (erro) => {
+    log('ERRO: o Next não arrancou:', erro);
+    return false;
+  },
+);
 
-const tratar = (pedido, resposta) => {
-  Promise.resolve(atender(pedido, resposta)).catch((erro) => {
-    log('erro ao responder', pedido.url, erro);
-    if (!resposta.headersSent) {
-      resposta.statusCode = 500;
-      resposta.end('erro interno');
-    }
-  });
-};
+function tratar(pedido, resposta) {
+  pronto
+    .then((ok) => {
+      if (ok) return atender(pedido, resposta);
+      resposta.statusCode = 503;
+      resposta.end('o painel não arrancou — ver os logs do servidor');
+    })
+    .catch((erro) => {
+      log('erro ao responder', pedido.url, erro);
+      if (!resposta.headersSent) {
+        resposta.statusCode = 500;
+        resposta.end('erro interno');
+      }
+    });
+}
 
-// --- escuta pública --------------------------------------------------------
-const publico = createServer(tratar);
+// --- escuta pública: a primeira, e já --------------------------------------
+const publico = http.createServer(tratar);
+publico.on('error', (erro) => {
+  log('ERRO: não foi possível escutar:', erro);
+  process.exit(1);
+});
 // Número → porta TCP em todas as interfaces; texto → socket da plataforma.
 publico.listen(/^\d+$/.test(PORTA) ? Number(PORTA) : PORTA, () => {
-  log(`painel a responder em ${PORTA} (Node ${process.versions.node})`);
+  const onde = ATRAS_DO_LITESPEED ? 'socket do LiteSpeed' : PORTA;
+  log(`painel a responder em ${onde} (Node ${process.versions.node})`);
 });
 
 // --- escuta interna, para o motor ------------------------------------------
-const interno = createServer(tratar);
-interno.listen(0, '127.0.0.1', () => {
-  const endereco = interno.address();
-  const porta = typeof endereco === 'object' && endereco ? endereco.port : null;
-  lancarMotores(porta ? `http://127.0.0.1:${porta}` : '');
+const interno = http.createServer(tratar);
+LISTEN_ORIGINAL.call(interno, 0, '127.0.0.1', () => {
+  // O lsnode também substitui `address()` do http.Server (devolve o socket
+  // dele); o original continua no net.Server.
+  const endereco = net.Server.prototype.address.call(interno);
+  const porta = endereco && typeof endereco === 'object' ? endereco.port : null;
+  void pronto.then(() => lancarMotores(porta ? `http://127.0.0.1:${porta}` : ''));
 });
 
 // --- motores ---------------------------------------------------------------
@@ -118,7 +149,7 @@ function lancarMotores(urlInterno, tentativa = 0) {
   });
   motores = filho;
   const arrancouEm = Date.now();
-  log(`motores a arrancar (pid ${filho.pid})`);
+  log(`motores a arrancar (pid ${filho.pid}, painel interno ${urlInterno || 'indisponível'})`);
 
   filho.on('exit', (codigo, sinal) => {
     motores = null;
@@ -136,7 +167,7 @@ function parar(sinal) {
   if (aParar) return;
   aParar = true;
   log(`${sinal} recebido — a parar`);
-  motores?.kill('SIGTERM');
+  if (motores) motores.kill('SIGTERM');
   publico.close();
   interno.close();
   setTimeout(() => process.exit(0), 3_000).unref();

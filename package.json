@@ -3,7 +3,6 @@
   "private": true,
   "version": "0.1.0",
   "description": "Sistema de sinais de trading baseado em MMXM (Market Maker Models), SMT Divergence e Time & Price alignment — escala macro (diario/semanal) para swing trading.",
-  "type": "module",
   "main": "server.js",
   "workspaces": [
     "packages/*",
