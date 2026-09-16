@@ -16,10 +16,9 @@
     "@trading/data": "*",
     "@trading/db": "*",
     "@trading/notify": "*",
-    "node-cron": "^3.0.3"
+    "node-cron": "^4.6.0"
   },
   "devDependencies": {
-    "@types/node-cron": "^3.0.11",
     "typescript": "^5.7.2"
   }
 }
