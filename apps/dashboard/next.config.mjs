@@ -3,7 +3,17 @@ const nextConfig = {
   reactStrictMode: true,
   // O dashboard é apenas leitura: revalida a cada minuto em vez de manter
   // ligação viva, o que o torna barato de alojar em qualquer plano gratuito.
-  experimental: { staleTimes: { dynamic: 60 } },
+  experimental: {
+    staleTimes: { dynamic: 60 },
+    /*
+     * Processos auxiliares do `next build` ("Collecting page data" e páginas
+     * estáticas). Por omissão são tantos quantos os CPUs da máquina menos um — num
+     * alojamento partilhado a máquina anuncia dezenas, a conta tem um limite de
+     * processos, e o build morria com `spawn node EAGAIN`. Com 10 páginas
+     * estáticas um só chega.
+     */
+    cpus: 1,
+  },
   /*
    * Os pacotes do monorepo sao ESM ja compilados, mas o Next precisa de saber
    * que pode transpila-los — sem isto o `import` deles a partir de um Server

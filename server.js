@@ -96,7 +96,8 @@ function diagnostico() {
   ]) {
     log(`   ${existsSync(join(RAIZ, rel)) ? 'existe  ' : 'FALTA   '} ${rel}`);
   }
-  for (const pasta of [RAIZ, PAINEL]) {
+  for (const pasta of [RAIZ, PAINEL, join(PAINEL, 'compilado')]) {
+    if (!existsSync(pasta)) continue;
     try {
       log(`   conteúdo de ${pasta}: ${readdirSync(pasta).join('  ')}`);
     } catch (erro) {
@@ -105,13 +106,22 @@ function diagnostico() {
   }
 }
 
-/** Corre um script de Node com o mesmo binário, sem depender do PATH. */
+/**
+ * Corre um script de Node com o mesmo binário, sem depender do PATH.
+ *
+ * Num grupo de processos próprio: quando o `next build` falhou na Hostinger, o
+ * servidor recebeu um SIGINT no mesmo milissegundo e desligou-se. A telemetria
+ * do Next fica desligada porque abre mais um processo à parte, e o alojamento
+ * tem um limite de processos por conta.
+ */
 function correrNode(args) {
   return new Promise((resolver, rejeitar) => {
     const filho = spawn(process.execPath, args, {
       cwd: RAIZ,
-      env: { ...process.env, NODE_ENV: 'production' },
+      env: { ...process.env, NODE_ENV: 'production', NEXT_TELEMETRY_DISABLED: '1' },
       stdio: ['ignore', 'inherit', 'inherit'],
+      // No Windows `detached` abre uma consola nova; lá não é preciso.
+      detached: process.platform !== 'win32',
     });
     filho.on('error', rejeitar);
     filho.on('exit', (codigo) =>
@@ -121,6 +131,7 @@ function correrNode(args) {
 }
 
 async function arrancar() {
+  fase = 'a arrancar';
   if (!existsSync(BUILD_ID) || !existsSync(MOTOR)) {
     log('AVISO: a compilação não está nesta pasta.');
     diagnostico();
@@ -145,16 +156,31 @@ async function arrancar() {
   log('Next pronto');
 }
 
-const pronto = arrancar().then(
-  () => true,
-  (erro) => {
-    fase = 'falhou';
-    log('ERRO: o painel não arrancou:', erro);
-    return false;
-  },
-);
+// Depois de uma falha, o pedido seguinte volta a tentar — mas não antes de um
+// minuto, para um erro persistente não pôr o servidor a compilar sem parar.
+const ESPERA_ENTRE_TENTATIVAS = 60_000;
+let falhouEm = 0;
+
+function iniciarPainel() {
+  return arrancar().then(
+    () => true,
+    (erro) => {
+      fase = 'falhou';
+      falhouEm = Date.now();
+      log('ERRO: o painel não arrancou (nova tentativa no próximo pedido, daqui a 1 minuto):', erro);
+      return false;
+    },
+  );
+}
+
+let pronto = iniciarPainel();
+const primeiraTentativa = pronto;
 
 function tratar(pedido, resposta) {
+  if (fase === 'falhou' && Date.now() - falhouEm > ESPERA_ENTRE_TENTATIVAS) {
+    log('nova tentativa de arrancar o painel');
+    pronto = iniciarPainel();
+  }
   // A compilar demora minutos: responde já, em vez de deixar o pedido pendurado
   // até o servidor web desistir.
   if (fase === 'a compilar' || fase === 'falhou') {
@@ -162,7 +188,7 @@ function tratar(pedido, resposta) {
     resposta.end(
       fase === 'a compilar'
         ? 'O painel está a ser compilado neste servidor. Volte a abrir daqui a 2 minutos.'
-        : 'O painel não arrancou. Os detalhes estão nos logs do servidor.',
+        : 'O painel não arrancou. Volta a tentar sozinho daqui a 1 minuto; os detalhes estão nos logs do servidor.',
     );
     return;
   }
@@ -200,7 +226,9 @@ LISTEN_ORIGINAL.call(interno, 0, '127.0.0.1', () => {
   // dele); o original continua no net.Server.
   const endereco = net.Server.prototype.address.call(interno);
   const porta = endereco && typeof endereco === 'object' ? endereco.port : null;
-  void pronto.then(() => lancarMotores(porta ? `http://127.0.0.1:${porta}` : ''));
+  // Os motores não dependem do painel: arrancam depois da primeira tentativa,
+  // corra ela bem ou mal.
+  void primeiraTentativa.then(() => lancarMotores(porta ? `http://127.0.0.1:${porta}` : ''));
 });
 
 // --- motores ---------------------------------------------------------------
