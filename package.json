@@ -12,7 +12,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "node scripts/limpar-next-na-raiz.mjs && tsc -b && npm run build -w @trading/dashboard",
+    "build": "node scripts/limpar-next-na-raiz.mjs && tsc -b && npm run build -w @trading/dashboard && node scripts/preparar-saida.mjs",
     "typecheck": "tsc -b",
     "test": "npm run build -w @trading/engine && node --test packages/core/test/*.test.mjs apps/engine/test/*.test.mjs apps/dashboard/test/*.test.mjs",
     "engine:scan": "npm run scan -w @trading/engine",

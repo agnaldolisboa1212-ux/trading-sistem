@@ -108,16 +108,22 @@ painel por dentro da máquina.
 | Versão do Node | **22** — o `@supabase/supabase-js` exige ≥ 22; com o 20 dá avisos no build e pode falhar a correr |
 | Root directory | `./` (raiz do repositório) — o painel depende dos pacotes em `packages/` |
 | Build command | `npm run build` |
-| Output directory | **vazio** |
-| Entry file | `server.js` |
+| Output directory | `saida` |
+| Entry file | `server.js` (lido dentro de `saida/`) |
 
 **Como a Hostinger lê estes campos** (regras de deploy dela, no repositório
 `hostinger/hostinger-templates`):
 
-- O **Entry file é procurado DENTRO da Output directory**. Com a Output directory
-  vazia, `server.js` é lido da raiz do repositório, que é onde está. Com `.next` lá
-  escrito, procura `.next/server.js`, não encontra, e o deploy falha **depois** de
-  um build verde, com a análise a dizer que `server.js` "não existe".
+- O **Entry file é procurado DENTRO da Output directory**: aqui, `saida/server.js`.
+  O build copia o `server.js` para lá. Com uma Output directory que não o tenha (por
+  exemplo `.next`), o deploy falha **depois** de um build verde, com a análise a dizer
+  que `server.js` "não existe".
+- A aplicação **não corre na pasta onde foi compilada**: corre de um checkout do
+  repositório com o `node_modules`, **sem nada do que o build gerou** (os Runtime logs
+  deram `FALTA` em `packages/*/dist`, `apps/engine/dist` e na compilação do painel). O
+  que passa do build para a aplicação é a **Output directory**. Por isso o último passo
+  do build (`scripts/preparar-saida.mjs`) junta tudo em `saida/`, com a mesma estrutura
+  do repositório.
 - **Sem Entry file** não arranca processo nenhum: serve a Output directory como site
   estático. Para esta aplicação isso dá **404 em todas as páginas**.
 - **Ligações simbólicas partem o deploy.** Por isso o build já não cria o `.next` na
@@ -139,12 +145,16 @@ três regras ao `server.js`, todas já cumpridas — não as desfaça:
 - **Só a primeira chamada a `listen()` conta**, e liga ao socket do LiteSpeed (a porta
   é ignorada); as outras são ignoradas sem aviso. A escuta interna do motor usa o
   `listen` original.
-- A aplicação **corre de uma cópia** da pasta onde foi compilada, e o
-  `apps/dashboard/.next` não chegava a essa cópia. Por isso o painel compila, em
-  produção, para **`apps/dashboard/compilado`** (em desenvolvimento continua `.next`).
-  Se mesmo assim faltar a compilação, o arranque escreve nos logs o que encontrou
-  (`existe` / `FALTA` por ficheiro) e **compila ali mesmo**, respondendo 503 "a
-  compilar" durante 1 a 3 minutos. `COMPILAR_NO_ARRANQUE=nao` desliga isto.
+- No arranque, se a compilação não estiver no sítio, o `server.js` **repõe-a a partir
+  de `saida/`** (segundos). Só se nem aí existir compila ali mesmo (1 a 3 minutos, a
+  responder 503 "a compilar"); `COMPILAR_NO_ARRANQUE=nao` desliga isso. Compilar no
+  arranque é frágil: o alojamento limita os processos por conta (`spawn node EAGAIN`),
+  por isso o Next usa `experimental.cpus: 1`.
+- O LiteSpeed **arranca vários processos** da aplicação ao mesmo tempo. Trincos em
+  ficheiro (`*.trinco` na pasta da aplicação) garantem que só um prepara a compilação e
+  **só um corre os motores**; se esse morrer, outro fica com eles no minuto seguinte.
+- O painel compila, em produção, para `apps/dashboard/compilado` (em desenvolvimento
+  continua `.next`).
 - O LiteSpeed pode **parar a aplicação quando não há visitas** e arrancá-la no pedido
   seguinte — e os motores vão com ela. Se o painel mostrar os motores parados sem
   ninguém ter mexido, é isto. Resolve-se com um pedido periódico, por exemplo uma
@@ -158,15 +168,16 @@ que o build precisa estão nas `dependencies` da raiz — não os devolva a
 `devDependencies`.
 
 **Build verde mas "Deployment build failed".** Quase sempre é a Output directory
-preenchida: apague-a e deixe o Entry file em `server.js`. As vulnerabilidades do
+errada: tem de ser `saida`, com o Entry file `server.js`. As vulnerabilidades do
 `npm audit` **não** travam deploys — a Hostinger só propõe um pull request.
 
 **Deploy verde mas o domínio responde 404 ("This Page Does Not Exist").** O Entry
 file está vazio. **Se responde 503**, a aplicação morreu ao arrancar. Nos dois casos,
 veja os **Runtime Logs** (não o log do build): deve aparecer
 `[servidor] painel a responder em socket do LiteSpeed (Node 22…)` e depois
-`[servidor] Next pronto`. Se aparecer `AVISO: a compilação não está nesta pasta`, as
-linhas seguintes dizem o que a cópia da Hostinger trouxe e o que não trouxe.
+`[servidor] Next pronto`. Se aparecer `AVISO: a compilação não está no sítio`, as
+linhas seguintes dizem, ficheiro a ficheiro, o que existe na pasta da aplicação e em
+`saida/`.
 
 **Ficheiros antigos no domínio.** Se o `public_html` do domínio tiver ficheiros de
 outro site — `sw.js`, `manifest.webmanifest` — o servidor web entrega-os ANTES de
