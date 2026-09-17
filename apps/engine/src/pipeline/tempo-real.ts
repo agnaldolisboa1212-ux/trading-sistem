@@ -102,6 +102,19 @@ const MIN_VELAS = 60;
 const ultimaFechadaVista = new Map<string, number>();
 
 /**
+ * Velas de referência do SMT em teste (GBPUSD, prata, os cinco pares do DXY),
+ * por `código|granularidade`, entre passagens.
+ *
+ * As referências não mudam até a vela seguinte fechar. Sem isto, cada
+ * instrumento com `smt-teste` pedia de novo GBPUSD, prata e os cinco pares do
+ * DXY em TODAS as passagens ao minuto — dezenas de pedidos extra por minuto à
+ * mesma ligação, que arriscam o limite da Deriv também para os OUTROS
+ * instrumentos dessa passagem (índices incluídos). Guarda-se com a mesma
+ * chave `esperada` da vela: uma entrada só é válida até o período seguinte.
+ */
+const referenciasCache = new Map<string, { esperada: number; velas: Candle[] | null }>();
+
+/**
  * O registo local já foi copiado para o Supabase neste processo?
  *
  * Enquanto a tabela `sinais_tempo_real` não existia, os sinais só ficaram no
@@ -557,15 +570,18 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     return abertos;
   };
 
-  /*
-   * Velas fechadas pedidas nesta passagem, por código e granularidade. O EURUSD
-   * que já se pediu para si serve de referência ao GBPUSD e entra no DXY: cada
-   * série pede-se no máximo uma vez por passagem.
+  /**
+   * Velas de uma referência do SMT, com `referenciasCache`. Válidas até à
+   * vela seguinte: o EURUSD já pedido para si mesmo serve de referência ao
+   * GBPUSD na mesma passagem, e nenhuma delas volta a pedir-se nas passagens
+   * seguintes enquanto o período não mudar.
    */
-  const velasDaPassagem = new Map<string, Candle[] | null>();
   const fechadasDe = async (codigo: string, gran: number): Promise<Candle[] | null> => {
+    const passo = gran * 1000;
+    const esperada = Math.floor(Date.now() / passo) * passo - passo;
     const k = `${codigo}|${gran}`;
-    if (velasDaPassagem.has(k)) return velasDaPassagem.get(k) ?? null;
+    const guardado = referenciasCache.get(k);
+    if (guardado && guardado.esperada === esperada) return guardado.velas;
     const sim = acharSimbolo(codigo);
     let velas: Candle[] | null = null;
     if (sim) {
@@ -575,7 +591,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         erros.push(`velas de ${codigo} (referência do SMT): ${msg(err)}`);
       }
     }
-    velasDaPassagem.set(k, velas);
+    referenciasCache.set(k, { esperada, velas });
     return velas;
   };
 
@@ -632,7 +648,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         const agora = Date.now();
         const brutas = await velasDeriv(s.deriv, gran, cfg.velas + 1);
         const fechadas = cortarVelaAberta(brutas, gran, agora);
-        velasDaPassagem.set(`${s.codigo}|${gran}`, fechadas);
+        // Já se pediram estas velas: servem de referência a outro par sem novo pedido.
+        referenciasCache.set(`${s.codigo}|${gran}`, { esperada, velas: fechadas });
         analise.velas = fechadas.length;
 
         const ultima = fechadas[fechadas.length - 1];
