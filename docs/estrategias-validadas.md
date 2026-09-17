@@ -111,8 +111,8 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 
 ## Forex (EURUSD, GBPUSD, USDJPY, GBPJPY) — o que se testou
 
-Com 20 anos de diário da Dukascopy (2006–2025) e 1 a 2 anos de horário (Yahoo e Deriv),
-nada passou os dois períodos com margem:
+Com 20 anos de diário da Dukascopy (2006–2025) e 14 anos de velas de 1 minuto da HistData
+(2012–2026, agregadas em 15m, 30m, 1h e 4h), nada passou os dois períodos com margem:
 
 | Família | Resultado |
 |---|---|
@@ -121,12 +121,19 @@ nada passou os dois períodos com margem:
 | Gap de segunda, dias grandes, virada do mês | sem padrão estável |
 | Posicionamento COT (contrarian ou a favor dos fundos) | negativo nos dois períodos |
 | Sazonalidade por hora | 1–3 pips, menos do que o spread |
-| Rompimento do intervalo asiático (London breakout) | +0,05R no Yahoo (2 anos), mas negativo na primeira metade do ano na Deriv — instável |
+| Rompimento do intervalo asiático (London breakout) | pequeno positivo até 2018, negativo desde 2019 |
 | Rompimento de dia estreito (NR7) | +0,04R em 20 anos, quase zero até 2015 — demasiado fraco |
+| SMT diário + quebra de estrutura (EURUSD↔GBPUSD, pares de iene) | +0,07R só com spread (t=1,8). Cada operação dura ~11 dias: com financiamento de 0,01%/dia cai para +0,015R (t=0,4) na Dukascopy e −0,02R na HistData |
+| SMT 15m e 30m (EURUSD↔GBPUSD↔DXY, ouro↔prata↔DXY) | negativo com todos os gatilhos: entrada imediata, quebra de estrutura, VWAP, RSI 50, RSI em extremo, zona de oferta/procura, zona + quebra (−0,02R a −0,29R) |
+| SMT 1h e 4h, os mesmos pares e gatilhos | ≈ 0R ou negativo; os poucos positivos não se repetem com outro tamanho de swing nem no outro período |
+| SMT ouro↔prata 1h com quebra de estrutura | +0,02 a +0,04R até 2018 (t<1) com financiamento; o ganho de 2019–2026 vem das compras durante a subida do ouro, as vendas ficam em ≈ 0R |
+
+O DXY foi reconstruído com a fórmula da ICE (EURUSD, USDJPY, GBPUSD, USDCAD, USDCHF; a
+coroa sueca fica de fora porque a corretora não a cota).
 
 Os pares principais estão entre os mercados mais eficientes que existem: as regras técnicas
 simples que funcionavam até 2015 deixaram de funcionar. Os pares continuam sem sinais até
-uma regra passar os testes. A pesquisa continua com mais histórico horário.
+uma regra passar os testes. O ouro tem a tendência de 55 dias no diário (acima).
 
 ## Quem recebe o quê
 
