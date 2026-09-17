@@ -3352,3 +3352,8 @@ body:has(.terminal--cheio) .bottomnav {
   margin-top: 4px;
   font-size: 12px;
 }
+
+/* Timeframe do universo monitorizado. */
+.agentes__tfs {
+  margin: var(--s2) 0;
+}

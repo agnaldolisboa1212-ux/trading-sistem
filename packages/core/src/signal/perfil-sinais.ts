@@ -46,3 +46,17 @@ export function timeframesDosObjetivos(objetivos: readonly string[] | null | und
 export function timeframesDoObjetivo(objetivo: string): Timeframe[] {
   return [...(POR_OBJETIVO[objetivo] ?? [])];
 }
+
+/**
+ * Os timeframes de sinal de um perfil: os que a pessoa escolheu nas Definições,
+ * ou — se ainda não escolheu nenhum — os que o objetivo do onboarding sugere.
+ * Quem opera sabe em que timeframe opera; o objetivo é só o ponto de partida.
+ */
+export function timeframesDoPerfil(
+  objetivos: readonly string[] | null | undefined,
+  escolhidos: readonly string[] | null | undefined,
+): Timeframe[] {
+  const validos = new Set((escolhidos ?? []).map((t) => t.trim().toLowerCase()));
+  const lista = TIMEFRAMES_SINAIS.filter((tf) => validos.has(tf));
+  return lista.length > 0 ? lista : timeframesDosObjetivos(objetivos);
+}

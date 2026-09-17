@@ -43,6 +43,7 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'compra-vwap-indices': 'Compra na banda −2σ do VWAP',
   'connors-rsi2-indices': 'RSI(2) de Connors',
   'tendencia-cripto': 'Tendência 55 dias',
+  'tendencia-ouro': 'Tendência 55 dias (ouro)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistência',
   'vwap-bands': 'Bandas de VWAP',
@@ -149,8 +150,8 @@ export function ListaSinais() {
         <div className="empty">
           <strong>Nenhum sinal activo nos seus {dados.portfolio.length} instrumentos.</strong>
           Um sinal nasce quando fecha uma vela {tfs ? `de ${tfs}` : ''} com um plano que passa os
-          filtros de qualidade. Os timeframes vêm do seu objetivo:{' '}
-          <Link href="/onboarding">mudar preferências</Link>.
+          filtros de qualidade. Escolha os timeframes em{' '}
+          <Link href="/definicoes">Definições</Link>.
         </div>
       ) : (
         <div className="grupo__caixa">

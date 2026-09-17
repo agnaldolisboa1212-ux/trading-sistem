@@ -3,7 +3,7 @@ import 'server-only';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import webpush from 'web-push';
-import { timeframesDosObjetivos } from '@trading/core';
+import { timeframesDoPerfil } from '@trading/core';
 
 /**
  * Notificacoes push — registo de subscritores e envio.
@@ -230,19 +230,21 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
   const sb = supabaseServidor();
   if (!sb) return null;
   try {
-    const r = await fetch(
-      `${sb.url}/rest/v1/perfis_utilizador?select=utilizador_id,instrumentos,objetivos,avisos_ativos`,
-      {
+    const pedir = (colunas: string) =>
+      fetch(`${sb.url}/rest/v1/perfis_utilizador?select=${colunas}`, {
         headers: { apikey: sb.chave, Authorization: `Bearer ${sb.chave}` },
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
-      },
-    );
+      });
+    let r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,avisos_ativos');
+    // Migração 0008 por aplicar: sem a coluna, valem os timeframes do objetivo.
+    if (!r.ok) r = await pedir('utilizador_id,instrumentos,objetivos,avisos_ativos');
     if (!r.ok) return null;
     const linhas = (await r.json()) as Array<{
       utilizador_id: string;
       instrumentos: string[] | null;
       objetivos: string[] | null;
+      timeframes_sinais?: string[] | null;
       avisos_ativos: boolean | null;
     }>;
     return new Map(
@@ -251,7 +253,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
         {
           activos: l.avisos_ativos !== false,
           instrumentos: l.instrumentos ?? [],
-          timeframes: timeframesDosObjetivos(l.objetivos),
+          timeframes: timeframesDoPerfil(l.objetivos, l.timeframes_sinais),
         },
       ]),
     );

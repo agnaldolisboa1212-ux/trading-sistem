@@ -190,7 +190,7 @@ function LinhaEvento({ e, agora, meus }: { e: EventoNoticia; agora: number; meus
         {meus.length > 0 && (
           <span className="noticia-linha__chips">
             {meus.map((m) => (
-              <Link key={m} href={`/grafico?s=${encodeURIComponent(m)}&tf=1h`} className="noticia-chip">
+              <Link key={m} href={`/grafico?s=${encodeURIComponent(m)}`} className="noticia-chip">
                 {m}
               </Link>
             ))}

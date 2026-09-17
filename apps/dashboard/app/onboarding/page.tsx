@@ -213,8 +213,9 @@ export default function Page() {
           ))}
 
           <p className="ob__ajuda">
-            Isto define os timeframes dos sinais e dos avisos que recebe — quem escolhe horas e
-            dias não recebe sinais de 15 minutos. Pode mudar depois nas definições.
+            É só o ponto de partida: os gráficos têm todos os timeframes, e em{' '}
+            <strong>Definições → Timeframes dos sinais</strong> escolhe exactamente em quais quer
+            receber sinais.
           </p>
 
           <Acoes voltar={() => setPasso(0)} avancar={() => setPasso(2)} podeAvancar={objetivos.length > 0} />

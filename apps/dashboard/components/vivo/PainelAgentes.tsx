@@ -63,6 +63,7 @@ const ESTRATEGIA_NOME: Record<string, string> = {
   'compra-vwap-indices': 'compra na banda −2σ do VWAP',
   'connors-rsi2-indices': 'RSI(2) de Connors',
   'tendencia-cripto': 'tendência de 55 dias',
+  'tendencia-ouro': 'tendência de 55 dias no ouro',
   'supply-demand': 'oferta e procura',
   'support-resistance': 'suporte/resistência',
   'vwap-bands': 'bandas de VWAP',
@@ -86,13 +87,34 @@ const PASSO_NOME: Record<number, string> = {
   9: 'alvos',
 };
 
+const TIMEFRAMES_RADAR = ['15m', '1h', '4h', '1d'] as const;
+const CHAVE_RADAR = 'radar_timeframe';
+
 export function PainelAgentes({
   simbolos,
-  timeframe = '1d',
+  timeframe: timeframeObjetivo = '1d',
 }: {
   simbolos: string[];
   timeframe?: string;
 }) {
+  // O timeframe do objetivo é só o ponto de partida: a escolha fica neste dispositivo.
+  const [timeframe, setTimeframe] = useState(timeframeObjetivo);
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(CHAVE_RADAR);
+      if (v && (TIMEFRAMES_RADAR as readonly string[]).includes(v)) setTimeframe(v);
+    } catch {
+      /* sem armazenamento */
+    }
+  }, []);
+  const escolherTimeframe = (tf: string) => {
+    setTimeframe(tf);
+    try {
+      window.localStorage.setItem(CHAVE_RADAR, tf);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
   const [resultados, setResultados] = useState<Map<string, Resultado>>(new Map());
   const [estados, setEstados] = useState<Map<string, Estado>>(new Map());
   const [aCorrer, setACorrer] = useState(false);
@@ -192,6 +214,14 @@ export function PainelAgentes({
             ↻
           </button>
         )}
+      </div>
+
+      <div className="segmentos agentes__tfs" role="radiogroup" aria-label="Timeframe da análise">
+        {TIMEFRAMES_RADAR.map((tf) => (
+          <button key={tf} type="button" aria-pressed={timeframe === tf} onClick={() => escolherTimeframe(tf)}>
+            {tf.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       <div className={`agentes__barra ${aCorrer ? 'activa' : ''}`} />

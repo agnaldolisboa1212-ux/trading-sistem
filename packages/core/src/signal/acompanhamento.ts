@@ -12,7 +12,7 @@
  *
  *   compra-vwap-indices   +1R: fecha metade, stop para a entrada; +2R: fecha o resto
  *   connors-rsi2-indices  sai no primeiro fecho acima da média de 5, ou ao fim de 10 velas
- *   tendencia-cripto      stop móvel no mínimo das últimas 20 velas
+ *   tendencia-cripto/ouro stop móvel no mínimo das últimas 20 velas
  *   (outras)              primeiro alvo ou stop
  *
  * Mudança de viés: a tendência da própria série (EMA 50 a descer e fecho abaixo
@@ -126,6 +126,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
   let protegida = false;
   let viesAvisado = false;
   const viesInicial = viesDeTendencia(velas, iSinal).vies;
+  const tendencia = plano.estrategia === 'tendencia-cripto' || plano.estrategia === 'tendencia-ouro';
 
   for (let i = iSinal + 1; i < velas.length; i++) {
     const v = velas[i]!;
@@ -158,7 +159,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
       const r = rDe(stop);
       // Na tendência, perder o stop que já subiu é a saída da regra, não um stop.
       const subiu = compra ? stop > plano.stop : stop < plano.stop;
-      ev(plano.estrategia === 'tendencia-cripto' && subiu ? 'saida' : 'stop', v.time, stop, r);
+      ev(tendencia && subiu ? 'saida' : 'stop', v.time, stop, r);
       return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
     }
 
@@ -186,7 +187,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
         ev('saida-tempo', v.time, v.close, r);
         return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
       }
-    } else if (plano.estrategia === 'tendencia-cripto') {
+    } else if (tendencia) {
       // Nível para a PRÓXIMA vela: mínimo das 20 velas até esta. O stop segue-o
       // sempre (é a regra medida); só se avisa quando sobe pelo menos 0,25 ATR.
       const nivel = minimoBaixas(velas, i - 19, i);

@@ -21,7 +21,9 @@
  */
 
 import { useEffect, useState } from 'react';
+import { estrategiasPara, TIMEFRAMES_SINAIS, timeframesDoPerfil } from '@trading/core';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { guardarPerfil, lerPerfil } from '@/lib/auth';
 import { usarAvisos, usarInstalacao } from './Pwa';
 import {
   desligarCtrader,
@@ -36,6 +38,7 @@ export function PainelDefinicoes({ pushDisponivel }: { pushDisponivel: boolean }
   return (
     <>
       <Corretora />
+      <TimeframesSinais />
       <Avisos disponivel={pushDisponivel} />
       <Aparencia />
     </>
@@ -215,6 +218,110 @@ function Corretora() {
       )}
 
       {falha && <div className="ob__erro">{falha}</div>}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** Instrumentos de referência para dizer que estratégias existem em cada timeframe. */
+const CATALOGO_VALIDADO = ['US100', 'SP500', 'US30', 'GER30', 'BTCUSD', 'ETHUSD', 'XAUUSD'];
+
+/**
+ * Em que timeframes a pessoa quer receber sinais.
+ *
+ * Quem opera sabe em que timeframe opera: a escolha daqui manda sobre o objetivo
+ * do onboarding (que fica como sugestão enquanto não houver escolha). Ao lado de
+ * cada timeframe diz-se que estratégias com vantagem medida existem nele — um
+ * timeframe sem nenhuma não dá sinais, e é melhor sabê-lo aqui do que esperar.
+ */
+function TimeframesSinais() {
+  const [escolhidos, setEscolhidos] = useState<string[] | null>(null);
+  const [sugeridos, setSugeridos] = useState<string[]>([]);
+  const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    void lerPerfil().then((p) => {
+      const sugestao = timeframesDoPerfil(p?.objetivos, []);
+      setSugeridos(sugestao);
+      setEscolhidos(p?.timeframes_sinais?.length ? p.timeframes_sinais : sugestao);
+    });
+  }, []);
+
+  const estrategiasDe = (tf: string) => {
+    const nomes = new Map<string, string[]>();
+    for (const s of CATALOGO_VALIDADO) {
+      for (const e of estrategiasPara(s, tf)) nomes.set(e.nome, [...(nomes.get(e.nome) ?? []), s]);
+    }
+    return [...nomes].map(([nome, sims]) => `${nome.replace(/ \(.*\)$/, '')} · ${sims.join(', ')}`);
+  };
+
+  const alternar = (tf: string) =>
+    setEscolhidos((l) => (l ? (l.includes(tf) ? l.filter((x) => x !== tf) : [...l, tf]) : [tf]));
+
+  const guardar = async () => {
+    if (!escolhidos) return;
+    setOcupado(true);
+    setEstado(null);
+    const r = await guardarPerfil({ timeframes_sinais: escolhidos });
+    setOcupado(false);
+    if (r.ok) setEstado({ ok: true, texto: 'Guardado. Os próximos sinais e avisos seguem esta escolha.' });
+    else
+      setEstado({
+        ok: false,
+        texto: /timeframes_sinais|column/i.test(r.erro)
+          ? 'Falta aplicar a migração 0008 no Supabase para guardar esta escolha.'
+          : r.erro,
+      });
+  };
+
+  return (
+    <section>
+      <h2>Timeframes dos sinais</h2>
+      <p className="section-cap">
+        Escolha em que timeframes quer receber sinais e avisos. Os gráficos continuam com todos os
+        timeframes — isto só decide o que chega à lista e ao telemóvel.
+      </p>
+      {escolhidos === null ? (
+        <div className="brilho" style={{ height: 120, borderRadius: 16 }} />
+      ) : (
+        <>
+          <div className="grupo__caixa">
+            {TIMEFRAMES_SINAIS.map((tf) => {
+              const on = escolhidos.includes(tf);
+              const estrategias = estrategiasDe(tf);
+              return (
+                <button key={tf} type="button" className="conta-linha" aria-pressed={on} onClick={() => alternar(tf)}>
+                  <span className={`conta-linha__selo ${on ? 'demo' : ''}`}>{tf.toUpperCase()}</span>
+                  <span className="conta-linha__id">
+                    <strong>{estrategias.length > 0 ? `${estrategias.length} estratégia${estrategias.length === 1 ? '' : 's'} validada${estrategias.length === 1 ? '' : 's'}` : 'sem estratégia validada'}</strong>
+                    <em>{estrategias.length > 0 ? estrategias.join(' · ') : 'Não gera sinais enquanto nenhuma regra passar os testes neste timeframe.'}</em>
+                  </span>
+                  <span className="conta-linha__marca" aria-hidden="true">
+                    {on ? '✓' : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <button type="button" className="btn primary" onClick={() => void guardar()} disabled={ocupado || escolhidos.length === 0}>
+              {ocupado ? 'a guardar…' : 'Guardar timeframes'}
+            </button>
+            {sugeridos.length > 0 && (
+              <button type="button" className="btn ghost" onClick={() => setEscolhidos(sugeridos)} disabled={ocupado}>
+                Voltar à sugestão do objetivo ({sugeridos.map((t) => t.toUpperCase()).join(', ')})
+              </button>
+            )}
+          </div>
+          {estado && (
+            <div className={estado.ok ? 'notice' : 'ob__erro'} style={{ marginTop: 10 }}>
+              {estado.texto}
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }

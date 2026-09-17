@@ -92,16 +92,55 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 
 - **Robustez:** positiva nas 18 variantes testadas (55/20, 20/10, 100/20…).
 
+### 4. Tendência de 55 dias — ouro, diário
+
+- **Instrumento:** XAUUSD. É a mesma regra da cripto, medida à parte.
+- **Só compras:** vender o ouro perdeu dinheiro em todas as variantes testadas, nos dois
+  períodos.
+- **Medido (Dukascopy diário, 2006–2025, com spread e financiamento):**
+
+  | Período | Operações | A ganhar | Por operação |
+  |---|---|---|---|
+  | 2006–2015 | 18 | 44% | +0,93R |
+  | 2016–2025 | 24 | 50% | +0,70R |
+
+- **Robustez:** positiva com canais de 20 a 55 dias (20/10, 55/10, 55/20) e no momentum de
+  126 e 252 dias. Os canais muito longos (100/150 dias) falham depois de 2016.
+- **Confirmação:** o ouro do Yahoo (2011–2026) dá o mesmo sentido.
+- **Limite:** a amostra é pequena, poucas operações por ano.
+
+## Forex (EURUSD, GBPUSD, USDJPY, GBPJPY) — o que se testou
+
+Com 20 anos de diário da Dukascopy (2006–2025) e 1 a 2 anos de horário (Yahoo e Deriv),
+nada passou os dois períodos com margem:
+
+| Família | Resultado |
+|---|---|
+| Tendência (Donchian, médias, momentum mensal) | positiva até 2015, **negativa desde 2016** |
+| RSI(2), IBS, sequências de fechos | ≈ 0R depois de custos |
+| Gap de segunda, dias grandes, virada do mês | sem padrão estável |
+| Posicionamento COT (contrarian ou a favor dos fundos) | negativo nos dois períodos |
+| Sazonalidade por hora | 1–3 pips, menos do que o spread |
+| Rompimento do intervalo asiático (London breakout) | +0,05R no Yahoo (2 anos), mas negativo na primeira metade do ano na Deriv — instável |
+| Rompimento de dia estreito (NR7) | +0,04R em 20 anos, quase zero até 2015 — demasiado fraco |
+
+Os pares principais estão entre os mercados mais eficientes que existem: as regras técnicas
+simples que funcionavam até 2015 deixaram de funcionar. Os pares continuam sem sinais até
+uma regra passar os testes. A pesquisa continua com mais histórico horário.
+
 ## Quem recebe o quê
 
 | Objetivo no onboarding | Timeframes | Estratégias que podem dar sinal |
 |---|---|---|
 | Day trading | 15m | nenhuma validada em 15m |
 | Intradiário | 1h | VWAP em índices |
-| Swing | 4h, 1d | VWAP em índices (4h), Connors (1d), tendência cripto (1d) |
-| Investir | 1d | Connors, tendência cripto |
+| Swing | 4h, 1d | VWAP em índices (4h), Connors (1d), tendência cripto e ouro (1d) |
+| Investir | 1d | Connors, tendência cripto e ouro |
 
-**Forex, ouro, prata e sintéticos não recebem sinais.**
+Esta é só a sugestão inicial: em **Definições → Timeframes dos sinais** cada pessoa escolhe
+exactamente em quais recebe sinais.
+
+**Forex, prata e sintéticos não recebem sinais. O ouro recebe na tendência diária.**
 - Nenhuma regra testada passou nos dois períodos.
 - Os índices sintéticos da Deriv são gerados por um gerador aleatório. Por construção,
   nenhuma leitura de gráfico tem vantagem sobre eles.

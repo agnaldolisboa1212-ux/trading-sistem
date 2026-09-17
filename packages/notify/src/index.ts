@@ -510,6 +510,7 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'compra-vwap-indices': 'Compra na banda -2σ do VWAP',
   'connors-rsi2-indices': 'RSI(2) de Connors',
   'tendencia-cripto': 'Tendencia 55 dias',
+  'tendencia-ouro': 'Tendencia 55 dias (ouro)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistencia',
   'vwap-bands': 'Bandas de VWAP',

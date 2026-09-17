@@ -37,7 +37,7 @@ import {
   fraseEvento,
   planoVivo,
   riscoDeNoticias,
-  timeframesDosObjetivos,
+  timeframesDoPerfil,
   VELAS_ATE_EXPIRAR,
   type Candle,
   type EventoOperacao,
@@ -202,14 +202,25 @@ function msg(err: unknown): string {
 async function lerPerfis(db: SupabaseClient | null, erros: string[]): Promise<PerfilVigilancia[]> {
   if (!db) return [];
   try {
-    const { data, error } = await db.from('perfis_utilizador').select('instrumentos,objetivos');
+    let resposta: { data: unknown[] | null; error: { message: string; code?: string } | null } = await db
+      .from('perfis_utilizador')
+      .select('instrumentos,objetivos,timeframes_sinais');
+    if (resposta.error && /timeframes_sinais|column/i.test(resposta.error.message)) {
+      // Migração 0008 por aplicar: valem os timeframes do objetivo.
+      resposta = await db.from('perfis_utilizador').select('instrumentos,objetivos');
+    }
+    const { data, error } = resposta;
     if (error) {
       if (!tabelaAusente(error)) erros.push(`perfis: ${error.message}`);
       return [];
     }
-    return ((data ?? []) as Array<{ instrumentos?: string[] | null; objetivos?: string[] | null }>).map(
-      (l) => ({ instrumentos: l.instrumentos ?? [], objetivos: l.objetivos ?? [] }),
-    );
+    return (
+      (data ?? []) as Array<{ instrumentos?: string[] | null; objetivos?: string[] | null; timeframes_sinais?: string[] | null }>
+    ).map((l) => ({
+      instrumentos: l.instrumentos ?? [],
+      objetivos: l.objetivos ?? [],
+      timeframes: l.timeframes_sinais ?? [],
+    }));
   } catch (err) {
     erros.push(`perfis: ${msg(err)}`);
     return [];
@@ -502,7 +513,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     perfis,
     omissao: VIGILANCIA_OMISSAO,
     conhecido: (c) => acharSimbolo(c)?.codigo ?? null,
-    timeframesDe: (o) => timeframesDosObjetivos(o),
+    timeframesDe: (p) => timeframesDoPerfil(p.objetivos, p.timeframes),
   });
   if (vigilancia.ignorados.length > 0) {
     erros.push(`sem cotação na Deriv, ignorados: ${vigilancia.ignorados.join(', ')}`);

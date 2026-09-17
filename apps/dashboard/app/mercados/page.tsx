@@ -132,7 +132,7 @@ export default function Page() {
           Experimente o código (EURUSD) ou o nome (Nasdaq).
         </div>
       ) : (
-        <ListaIndices simbolos={lista} href={(c) => `/grafico?s=${encodeURIComponent(c)}&tf=1h`} />
+        <ListaIndices simbolos={lista} href={(c) => `/grafico?s=${encodeURIComponent(c)}`} />
       )}
 
       <footer className="note">

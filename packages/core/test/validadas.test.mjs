@@ -27,7 +27,8 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
   assert.deepEqual(estrategiasPara('BTCUSD', '1d').map((e) => e.id), ['tendencia-cripto']);
   assert.equal(estrategiasPara('US100', '15m').length, 0);
   assert.equal(estrategiasPara('EURUSD', '1h').length, 0);
-  assert.equal(estrategiasPara('XAUUSD', '1d').length, 0);
+  assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);
+  assert.equal(estrategiasPara('XAUUSD', '1h').length, 0);
   assert.equal(estrategiasPara('V75', '1h').length, 0);
   assert.equal(temEstrategiaValidada('GBPUSD'), false);
   assert.equal(temEstrategiaValidada('ETHUSD'), true);
@@ -111,4 +112,15 @@ test('Tendência cripto: só o PRIMEIRO fecho acima do máximo de 55 dias', () =
   const segueAcima = [...rompe, vela(81 * D, 105, 108, 104, 107)];
   assert.equal(planTendenciaCripto(segueAcima, { symbol: 'BTCUSD', timeframe: '1d' }).length, 0);
   assert.equal(saidaDinamica('tendencia-cripto', segueAcima)?.tipo, 'stop-movel');
+});
+
+test('Tendência no ouro: a mesma regra, com a taxa medida no ouro', () => {
+  const v = [];
+  for (let i = 0; i < 80; i++) v.push(vela(i * D, 2000, 2010 + (i % 3), 1990, 2000));
+  const rompe = [...v, vela(80 * D, 2000, 2060, 2000, 2050)];
+  const s = executarEstrategiasValidadas(rompe, { symbol: 'XAUUSD', timeframe: '1d' });
+  assert.equal(s.length, 1);
+  assert.equal(s[0].strategy, 'tendencia-ouro');
+  assert.equal(s[0].conviction, 0.48);
+  assert.equal(saidaDinamica('tendencia-ouro', rompe)?.tipo, 'stop-movel');
 });

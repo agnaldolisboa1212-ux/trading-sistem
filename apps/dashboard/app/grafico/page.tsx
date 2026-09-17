@@ -47,6 +47,7 @@ import {
   type Timeframe,
 } from '@/lib/deriv/simbolos';
 import { lerPreferenciasCliente } from '@/lib/preferencias';
+import { guardarTimeframeGrafico, lerTimeframeGrafico } from '@/lib/timeframe-grafico';
 
 export default function Page() {
   return (
@@ -61,7 +62,7 @@ function Terminal() {
   const params = useSearchParams();
 
   const codigo = (params.get('s') ?? 'V75').toUpperCase();
-  const tf = (params.get('tf') ?? '5m') as Timeframe;
+  const tf = (params.get('tf') ?? '1h') as Timeframe;
   const visao = visaoValida(params.get('v'));
 
   const [selector, setSelector] = useState(false);
@@ -84,6 +85,7 @@ function Terminal() {
     (novoS: string, novoTf: Timeframe, novaVisao: VisaoId = visao) => {
       // O sinal que abriu a página acompanha trocas de timeframe e de visão, não de instrumento.
       const sinal = sinalId && novoS === codigo ? `&sinal=${encodeURIComponent(sinalId)}` : '';
+      guardarTimeframeGrafico(novoTf);
       router.replace(
         `/grafico?s=${encodeURIComponent(novoS)}&tf=${novoTf}${novaVisao === 'resumo' ? '' : `&v=${novaVisao}`}${sinal}`,
         { scroll: false },
@@ -98,10 +100,15 @@ function Terminal() {
    * sistema sobre o que lhe interessa.
    */
   useEffect(() => {
-    if (params.get('s')) return;
+    // Sem instrumento ou sem timeframe no URL: o primeiro do portfólio e o
+    // timeframe em que a pessoa estava da última vez (ou o do objetivo).
+    const semS = !params.get('s');
+    const semTf = !params.get('tf');
+    if (!semS && !semTf) return;
     const prefs = lerPreferenciasCliente();
-    const primeiro = prefs.instrumentos.find((i) => acharSimbolo(i));
-    if (primeiro && primeiro !== codigo) navegar(primeiro, tf);
+    const primeiro = semS ? prefs.instrumentos.find((i) => acharSimbolo(i)) : codigo;
+    const tfPreferido = (lerTimeframeGrafico() ?? (prefs.timeframe as Timeframe)) || tf;
+    navegar(primeiro ?? codigo, semTf ? tfPreferido : tf);
     // Só na montagem: depois disto o URL manda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

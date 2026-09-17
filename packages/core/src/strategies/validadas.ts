@@ -28,6 +28,7 @@
  *   compra-vwap-indices    US100, SP500, US30, GER30 · 1h e 4h
  *   connors-rsi2-indices   US100, SP500, US30, GER30 · 1d
  *   tendencia-cripto       BTCUSD, ETHUSD · 1d
+ *   tendencia-ouro         XAUUSD · 1d (a mesma regra, medida à parte)
  *
  * Os números de cada uma estão em `ESTRATEGIAS_VALIDADAS` e seguem no texto do
  * sinal. Forex, ouro, prata e sintéticos NÃO têm estratégia validada — não
@@ -45,7 +46,14 @@ import type { StrategySignal } from './types.js';
 import { atrSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 
-export type EstrategiaValidadaId = 'compra-vwap-indices' | 'connors-rsi2-indices' | 'tendencia-cripto';
+export type EstrategiaValidadaId =
+  | 'compra-vwap-indices'
+  | 'connors-rsi2-indices'
+  | 'tendencia-cripto'
+  | 'tendencia-ouro';
+
+/** Estratégias de tendência de 55 dias (mesma regra, instrumentos diferentes). */
+export const TENDENCIA_55D: readonly string[] = ['tendencia-cripto', 'tendencia-ouro'];
 
 export interface EstatisticaValidada {
   /** O que foi medido, em linguagem simples. */
@@ -73,6 +81,7 @@ export interface EstrategiaValidada {
 
 export const INDICES_VALIDADOS: readonly string[] = ['US100', 'SP500', 'US30', 'GER30'];
 export const CRIPTO_VALIDADA: readonly string[] = ['BTCUSD', 'ETHUSD'];
+export const OURO_VALIDADO: readonly string[] = ['XAUUSD'];
 
 export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
   {
@@ -127,6 +136,25 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
       expectativaR: 1.0,
       foraDaAmostra: { periodo: '2021–2026', operacoes: 33, acerto: 0.52, expectativaR: 1.0 },
       dados: 'Diário, BTC desde 2014 e ETH desde 2017, com spread e financiamento overnight.',
+    },
+  },
+  {
+    id: 'tendencia-ouro',
+    nome: 'Tendência (máximo de 55 dias) no ouro',
+    descricao:
+      'O ouro tem tendências longas e persistentes. Só compras: vender o ouro perdeu dinheiro em todas as variantes testadas, nos dois períodos.',
+    instrumentos: OURO_VALIDADO,
+    timeframes: ['1d'],
+    entrada: 'Fecho acima do máximo dos 55 dias anteriores. Compra ao fecho.',
+    saida: 'Stop inicial a 2 ATR; depois sai quando o preço perde o mínimo dos últimos 20 dias. Sem alvo fixo.',
+    estatistica: {
+      resumo: '48% das operações fecharam a ganhar, com +0,70R por operação em 2016–2025',
+      operacoes: 42,
+      acerto: 0.48,
+      expectativaR: 0.8,
+      foraDaAmostra: { periodo: '2016–2025', operacoes: 24, acerto: 0.5, expectativaR: 0.7 },
+      dados:
+        'Diário Dukascopy 2006–2025 com spread e financiamento; confirmado no ouro do Yahoo 2011–2026. Amostra pequena: poucas operações por ano.',
     },
   },
 ];
@@ -283,6 +311,20 @@ export function planConnorsIndices(velas: readonly Candle[], ctx: Contexto): Str
 
 /** Tendência na cripto: fecho acima do máximo de 55 dias, diário. */
 export function planTendenciaCripto(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+  return planTendencia55d(velas, ctx, 'tendencia-cripto', 0.54);
+}
+
+/** Tendência no ouro: a mesma regra, com a taxa medida no ouro. */
+export function planTendenciaOuro(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+  return planTendencia55d(velas, ctx, 'tendencia-ouro', 0.48);
+}
+
+function planTendencia55d(
+  velas: readonly Candle[],
+  ctx: Contexto,
+  id: 'tendencia-cripto' | 'tendencia-ouro',
+  conviccao: number,
+): StrategySignal[] {
   const lista = velas as Candle[];
   const i = lista.length - 1;
   const u = lista[i];
@@ -300,10 +342,10 @@ export function planTendenciaCripto(velas: readonly Candle[], ctx: Contexto): St
   const stop = entrada - 2 * atr;
   let minimo20 = Infinity;
   for (let k = i - 19; k <= i; k++) minimo20 = Math.min(minimo20, lista[k]?.low ?? Infinity);
-  const e = estrategiaValidada('tendencia-cripto')!;
+  const e = estrategiaValidada(id)!;
   return [
     {
-      strategy: 'tendencia-cripto',
+      strategy: id,
       symbol: ctx.symbol,
       timeframe: ctx.timeframe,
       direction: 'bullish',
@@ -317,7 +359,7 @@ export function planTendenciaCripto(velas: readonly Candle[], ctx: Contexto): St
       stopLoss: stop,
       targets: [],
       maxRMultiple: 0,
-      conviction: 0.54,
+      conviction: conviccao,
       rationale:
         `Fecho acima do máximo dos 55 dias anteriores (${maximo.toFixed(2)}). Sem alvo fixo: o stop sobe ` +
         `para o mínimo dos últimos 20 dias (hoje ${minimo20.toFixed(2)}) e é aí que se sai. ${texto(e)}`,
@@ -340,6 +382,7 @@ export function executarEstrategiasValidadas(
     if (e.id === 'compra-vwap-indices') out.push(...planCompraVwapIndices(velas, ctx));
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
+    if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
   }
   return out;
 }
@@ -361,7 +404,7 @@ export function saidaDinamica(
     const media = mediaSimples(lista.map((v) => v.close), i, 5);
     return Number.isFinite(media) ? { tipo: 'fecho-acima', nivel: media } : null;
   }
-  if (estrategia === 'tendencia-cripto') {
+  if (TENDENCIA_55D.includes(estrategia)) {
     let minimo = Infinity;
     // Mínimo dos 20 dias ANTERIORES à vela actual: é o nível que vale para a próxima.
     for (let k = i - 19; k <= i; k++) minimo = Math.min(minimo, lista[k]?.low ?? Infinity);

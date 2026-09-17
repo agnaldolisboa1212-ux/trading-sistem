@@ -21,10 +21,11 @@ import { GraficoVivo } from '@/components/vivo/GraficoVivo';
 import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
 import { usarVelas } from '@/components/vivo/usarPreco';
 import type { Timeframe } from '@/lib/deriv/simbolos';
+import { guardarTimeframeGrafico } from '@/lib/timeframe-grafico';
 import { DESENHO_VAZIO, type Desenho, type VisaoId } from '@/lib/visoes';
 
-/** Os timeframes em que o MMXM corre. */
-const TIMEFRAMES_INSTRUMENTO: readonly Timeframe[] = ['1h', '4h', '1d', '1w'];
+/** Os timeframes em que a análise MMXM do servidor corre nesta página. */
+const TIMEFRAMES_MMXM: readonly Timeframe[] = ['1h', '4h', '1d', '1w'];
 
 export function GraficoInstrumento({
   codigo,
@@ -47,10 +48,17 @@ export function GraficoInstrumento({
   const [cheio, setCheio] = useState(false);
   const ecra = usarEcraLargo();
 
-  const ir = (novoTf: Timeframe, novaVisao: VisaoId) =>
+  const ir = (novoTf: Timeframe, novaVisao: VisaoId) => {
+    guardarTimeframeGrafico(novoTf);
+    // Timeframes curtos abrem no terminal, que tem todos; os do MMXM ficam aqui.
+    if (!TIMEFRAMES_MMXM.includes(novoTf)) {
+      router.push(`/grafico?s=${encodeURIComponent(codigo)}&tf=${novoTf}`);
+      return;
+    }
     router.replace(`/instrumento/${encodeURIComponent(codigo)}?tf=${novoTf}&v=${novaVisao}`, {
       scroll: false,
     });
+  };
 
   useEffect(() => {
     if (!cheio) return;
@@ -70,7 +78,6 @@ export function GraficoInstrumento({
       velas={velas.velas}
       casas={casas}
       timeframe={tf}
-      timeframes={TIMEFRAMES_INSTRUMENTO}
       zonas={desenho.zonas}
       linhas={desenho.linhas}
       curvas={desenho.curvas}

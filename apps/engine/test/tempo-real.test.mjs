@@ -202,7 +202,9 @@ test('preço: sem alvo usa 2R como caminho', () => {
 // ---------------------------------------------------------------------------
 
 import { escolherPares, filtrarRepintagem } from '../dist/pipeline/tempo-real-puro.js';
-import { timeframesDosObjetivos } from '@trading/core';
+import { timeframesDoPerfil, timeframesDosObjetivos } from '@trading/core';
+
+const timeframesDe = (p) => timeframesDoPerfil(p.objetivos, p.timeframes);
 
 const conhecido = (c) => (['EURUSD', 'XAUUSD', 'V75'].includes(c) ? c : null);
 
@@ -217,7 +219,7 @@ test('pares: cada instrumento só nos timeframes de quem o segue', () => {
     ],
     omissao: ['V75'],
     conhecido,
-    timeframesDe: timeframesDosObjetivos,
+    timeframesDe,
   });
   assert.equal(r.origem, 'perfis');
   assert.deepEqual(r.pares.get('XAUUSD'), ['1h', '4h', '1d']);
@@ -232,11 +234,17 @@ test('pares: sem perfis usa a lista por omissão e os timeframes do .env', () =>
     perfis: [],
     omissao: ['V75', 'NADA'],
     conhecido,
-    timeframesDe: timeframesDosObjetivos,
+    timeframesDe,
   });
   assert.equal(r.origem, 'omissao');
   assert.deepEqual(r.pares.get('V75'), ['15m', '1h']);
   assert.deepEqual(r.ignorados, ['NADA']);
+});
+
+test('escolha explícita manda sobre o objetivo', () => {
+  assert.deepEqual(timeframesDoPerfil(['intraday'], ['15m', '4h']), ['15m', '4h']);
+  assert.deepEqual(timeframesDoPerfil(['intraday'], []), ['1h']);
+  assert.deepEqual(timeframesDoPerfil(['intraday'], ['2h']), ['1h'], 'timeframe inválido é ignorado');
 });
 
 test('objetivos: intradiário e swing dão 1h, 4h e 1d — nunca 15m', () => {

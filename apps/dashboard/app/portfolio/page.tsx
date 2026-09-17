@@ -177,7 +177,7 @@ function MeusInstrumentos() {
               className={`chip-portfolio ${temEstrategiaValidada(c) ? '' : 'chip-portfolio--sem-sinais'}`}
               title={temEstrategiaValidada(c) ? 'Com estratégia validada' : 'Sem estratégia com vantagem medida: não gera sinais'}
             >
-              <Link href={`/grafico?s=${encodeURIComponent(c)}&tf=${temEstrategiaValidada(c) ? '1h' : '4h'}`}>
+              <Link href={`/grafico?s=${encodeURIComponent(c)}`}>
                 {c}
                 {!temEstrategiaValidada(c) && <small> · sem sinais</small>}
               </Link>

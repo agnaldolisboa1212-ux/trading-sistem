@@ -18,7 +18,7 @@ import {
   acompanharOperacao,
   estrategiaValidada,
   fraseEvento,
-  timeframesDosObjetivos,
+  timeframesDoPerfil,
   type Acompanhamento,
   type Candle,
 } from '@trading/core';
@@ -112,14 +112,22 @@ export async function GET() {
   const uid = u.user?.id;
   if (!uid) return NextResponse.json({ erro: 'sem sessão', codigo: 'SemSessao' }, { status: 401 });
 
-  const { data: perfil } = await db
+  let consulta: { data: Record<string, unknown> | null; error: { message: string } | null } = await db
     .from('perfis_utilizador')
-    .select('instrumentos,objetivos')
+    .select('instrumentos,objetivos,timeframes_sinais')
     .eq('utilizador_id', uid)
     .maybeSingle();
-  const portfolio = ((perfil?.instrumentos as string[] | null) ?? []).map((c) => c.toUpperCase());
-  // Só os timeframes que o objetivo do onboarding pede (intradiário 1h, swing 4h e 1d...).
-  const timeframes = timeframesDosObjetivos(perfil?.objetivos as string[] | null);
+  if (consulta.error) {
+    // Migração 0008 por aplicar.
+    consulta = await db.from('perfis_utilizador').select('instrumentos,objetivos').eq('utilizador_id', uid).maybeSingle();
+  }
+  const perfil = consulta.data;
+  const portfolio = ((perfil?.['instrumentos'] as string[] | null) ?? []).map((c) => c.toUpperCase());
+  // Os timeframes escolhidos nas Definições; sem escolha, os do objetivo do onboarding.
+  const timeframes = timeframesDoPerfil(
+    perfil?.['objetivos'] as string[] | null,
+    perfil?.['timeframes_sinais'] as string[] | null,
+  );
 
   let ocultos = new Set<string>();
   let ocultarDisponivel = true;

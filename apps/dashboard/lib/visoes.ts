@@ -58,7 +58,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
-  { id: 'tendencia-cripto', nome: 'Tendência 55 dias (cripto)', curto: 'Tendência' },
+  { id: 'tendencia-cripto', nome: 'Tendência 55 dias (cripto e ouro)', curto: 'Tendência' },
   { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
@@ -78,6 +78,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'compra-vwap-indices': 'vwap-bands',
   'connors-rsi2-indices': 'connors-rsi2-indices',
   'tendencia-cripto': 'tendencia-cripto',
+  'tendencia-ouro': 'tendencia-cripto',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {
@@ -537,7 +538,7 @@ export function analisarVisoes(
   };
 
   // --- tendência de 55 dias ----------------------------------------------------
-  const tc = sinalDe('tendencia-cripto');
+  const tc = sinalDe('tendencia-cripto') ?? sinalDe('tendencia-ouro');
   const maximo55 = lista.map((_, i) => {
     if (i < 55) return Number.NaN;
     let m = -Infinity;
@@ -550,7 +551,9 @@ export function analisarVisoes(
     for (let k = i - 19; k <= i; k++) m = Math.min(m, lista[k]!.low);
     return m;
   });
-  const tendenciaValida = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'tendencia-cripto');
+  const tendenciaValida = estrategiasPara(simbolo, timeframe).some(
+    (e) => e.id === 'tendencia-cripto' || e.id === 'tendencia-ouro',
+  );
   const tendenciaVisao: Visao = {
     id: 'tendencia-cripto',
     nome: nomeVisao('tendencia-cripto'),
@@ -561,7 +564,7 @@ export function analisarVisoes(
         linhas: [],
         curvas: [curvaDe(maximo55, 'banda2', 'máximo 55', desde), curvaDe(minimo20, 'banda1', 'mínimo 20', desde)],
       },
-      desenhoDoSinal(tc, 'tendencia-cripto'),
+      desenhoDoSinal(tc, tc?.sinal.strategy ?? 'tendencia-cripto'),
     ),
     estruturas: [
       ...(Number.isFinite(maximo55[ultimo]) ? [{ rotulo: 'Máximo de 55 — compra no fecho acima', baixo: maximo55[ultimo]!, tipo: 'bull' as const }] : []),
@@ -569,7 +572,7 @@ export function analisarVisoes(
     ],
     nota: tendenciaValida
       ? 'Sinal: fecho acima do máximo dos 55 dias anteriores. Sem alvo fixo: sai quando perde o mínimo de 20 dias.'
-      : 'Esta regra só está validada no diário (1D) de BTCUSD e ETHUSD. Aqui é contexto.',
+      : 'Esta regra só está validada no diário (1D) de BTCUSD, ETHUSD e XAUUSD. Aqui é contexto.',
   };
 
   // --- resumo ---------------------------------------------------------------

@@ -326,6 +326,8 @@ export interface Perfil {
   instrumentos: string[];
   /** Até dois. Coluna criada pela migração 0004. */
   objetivos?: string[];
+  /** Timeframes dos sinais escolhidos pela pessoa (migração 0008). Vazio = os do objetivo. */
+  timeframes_sinais?: string[];
   avisos_ativos?: boolean;
   montante_por_operacao?: number;
   deriv_ligada: boolean;

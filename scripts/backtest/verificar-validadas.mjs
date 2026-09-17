@@ -30,7 +30,7 @@ if (!existsSync(join(RAIZ, 'data', 'backtest', 'deriv'))) {
 }
 
 const SPREAD_PONTOS = { US100: 1.8, SP500: 0.6, US30: 3.5, GER30: 2.0 };
-const SPREAD_REL = { US100: 0.0001, SP500: 0.0001, US30: 0.0001, GER30: 0.0001, BTCUSD: 0.0006, ETHUSD: 0.001 };
+const SPREAD_REL = { US100: 0.0001, SP500: 0.0001, US30: 0.0001, GER30: 0.0001, BTCUSD: 0.0006, ETHUSD: 0.001, XAUUSD: 0.0002 };
 const SWAP_DIA = 0.0002;
 const CORTE_VWAP = Date.UTC(2026, 6, 20);
 
@@ -91,6 +91,7 @@ function resumo(rs) {
 for (const [id, simbolos] of [
   ['connors-rsi2-indices', ['US100', 'SP500', 'US30', 'GER30']],
   ['tendencia-cripto', ['BTCUSD', 'ETHUSD']],
+  ['tendencia-ouro', ['XAUUSD']],
 ]) {
   const ate2020 = [];
   const desde2021 = [];

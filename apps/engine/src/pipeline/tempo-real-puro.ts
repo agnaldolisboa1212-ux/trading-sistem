@@ -263,6 +263,8 @@ export function escolherPorConfluencia<T extends Candidato>(
 export interface PerfilVigilancia {
   instrumentos: readonly string[];
   objetivos: readonly string[];
+  /** Timeframes escolhidos nas Definições; vazio = os do objetivo. */
+  timeframes?: readonly string[];
 }
 
 /**
@@ -285,7 +287,7 @@ export function escolherPares(input: {
   perfis: readonly PerfilVigilancia[];
   omissao: readonly string[];
   conhecido: (codigo: string) => string | null;
-  timeframesDe: (objetivos: readonly string[]) => readonly string[];
+  timeframesDe: (perfil: PerfilVigilancia) => readonly string[];
 }): { pares: Map<string, string[]>; origem: OrigemVigilancia; ignorados: string[] } {
   const ordem = Object.keys(GRANULARIDADE_S);
   const pares = new Map<string, Set<string>>();
@@ -320,7 +322,7 @@ export function escolherPares(input: {
 
   for (const p of input.perfis) {
     if (p.instrumentos.length === 0) continue;
-    juntar(p.instrumentos, input.timeframesDe(p.objetivos));
+    juntar(p.instrumentos, input.timeframesDe(p));
   }
   if (pares.size > 0) return resultado('perfis');
 
