@@ -38,6 +38,9 @@ export * from './signal/estado-plano.js';
 export * from './signal/perfil-sinais.js';
 export * from './signal/acompanhamento.js';
 
+// Noticias de alto impacto (regra de prudencia, nao vantagem medida)
+export * from './noticias/risco.js';
+
 // Estrategias institucionais (complementares ao MMXM/SMT, nao substitutas)
 export * from './strategies/index.js';
 

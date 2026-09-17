@@ -10,6 +10,13 @@ export * from './types.js';
 export * from './registry.js';
 export * from './symbols/mapping.js';
 export { fetchJson, fetchText, sleep } from './http.js';
+export {
+  calendarioAltoImpacto,
+  comunicadosBancosCentrais,
+  posicionamentoCot,
+  type Comunicado,
+  type PosicionamentoCot,
+} from './noticias.js';
 
 export { YahooProvider } from './providers/yahoo.js';
 export {

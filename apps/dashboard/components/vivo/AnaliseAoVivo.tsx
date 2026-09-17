@@ -28,6 +28,7 @@ import type { Candle, Timeframe as TimeframeCore } from '@trading/core';
 import type { Vela } from '@/lib/deriv/live';
 import { formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
 import type { PlanoParaOrdem } from './Negociar';
+import { quandoNoticia, usarNoticias } from './usarNoticias';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
@@ -347,6 +348,8 @@ export function AnaliseAoVivo({
         ) : null}
       </div>
 
+      <NoticiasDoInstrumento codigo={codigo} agora={agora} />
+
       {analise.pronta && visao !== 'mmxm' && (
         <div className="analise-viva__rodape">
           Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas da Deriv, às{' '}
@@ -603,5 +606,38 @@ function VisaoMmxm({
         </Link>
       </div>
     </>
+  );
+}
+
+/**
+ * Notícias de alto impacto que movem este instrumento nas próximas 48 horas.
+ * Um sinal de 1h não sai nos 30 minutos antes e depois de uma delas.
+ */
+function NoticiasDoInstrumento({ codigo, agora }: { codigo: string; agora: number }) {
+  const { dados } = usarNoticias();
+  if (!dados || agora === 0) return null;
+  const alvo = codigo.toUpperCase();
+  const proximas = dados.eventos
+    .filter((e) => e.instrumentos.includes(alvo) && e.em >= agora - 30 * 60_000 && e.em <= agora + 48 * 3_600_000)
+    .slice(0, 4);
+  if (proximas.length === 0) return null;
+  return (
+    <div className="analise-noticias">
+      <div className="visoes__subtitulo">Notícias de alto impacto · 48 h</div>
+      {proximas.map((e, i) => {
+        const falta = e.em - agora;
+        const colada = Math.abs(falta) <= 30 * 60_000;
+        return (
+          <div key={`${e.em}-${i}`} className={`analise-noticias__linha ${colada ? 'colada' : ''}`}>
+            <b>{e.moeda}</b>
+            <span className="grow">{e.titulo}</span>
+            <em>{colada ? (falta > 0 ? `em ${Math.round(falta / 60_000)} min` : 'agora') : quandoNoticia(e.em, agora)}</em>
+          </div>
+        );
+      })}
+      <a className="analise-noticias__mais" href="/noticias">
+        ver todas as notícias ›
+      </a>
+    </div>
   );
 }

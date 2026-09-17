@@ -486,6 +486,8 @@ export interface SinalTempoReal {
   distanciaR?: number;
   /** Segundos que o push pode esperar pela entrega. */
   validadeAvisoS?: number;
+  /** Notícia de alto impacto do instrumento por perto (calendário económico). */
+  noticia?: string;
 }
 
 /** Frase curta sobre o preco actual, para o aviso e para o Telegram. */
@@ -566,6 +568,7 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
         `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}` +
           (s.alvos[0] ? ` · alvo ${s.alvos[0].preco.toFixed(s.casas)}` : ''),
         s.precoActual !== undefined ? `Agora ${s.precoActual.toFixed(s.casas)} · ${frasePreco(s)}` : null,
+        s.noticia ? `⚠ ${s.noticia.slice(0, 140)}` : null,
         estrategia,
       ]
         .filter(Boolean)

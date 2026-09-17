@@ -62,6 +62,19 @@ const ITENS: Item[] = [
     ),
   },
   {
+    href: '/noticias',
+    label: 'Noticias',
+    icon: (
+      <path
+        d="M5 5h11a1 1 0 0 1 1 1v12a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2V6a1 1 0 0 1 1-1zm12 4h2a1 1 0 0 1 1 1v8a2 2 0 0 1-2 2M8 9h5M8 13h5M8 17h3"
+        strokeWidth="1.9"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    ),
+  },
+  {
     href: '/portfolio',
     label: 'Portfolio',
     match: ['/portfolio', '/financeiro', '/conta'],

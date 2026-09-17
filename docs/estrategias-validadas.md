@@ -106,6 +106,23 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 - Os índices sintéticos da Deriv são gerados por um gerador aleatório. Por construção,
   nenhuma leitura de gráfico tem vantagem sobre eles.
 
+## Notícias e posicionamento dos fundos
+
+- **Calendário de alto impacto** (decisões de juros, CPI, emprego, PIB).
+  - **Sinais de 1h:** não saem entre 30 minutos antes e 30 minutos depois de uma destas
+    notícias do próprio instrumento.
+  - **Sinais de 4h e 1D:** saem com o aviso da notícia.
+  - É uma regra de prudência, não uma vantagem medida. Não há histórico gratuito do
+    calendário para a testar.
+- **COT da CFTC** (gestores de activos e hedge funds em S&P 500, Nasdaq, Dow e Bitcoin):
+  foi testado contra as operações do Connors de 2011–2026.
+  - O acerto fica entre 70% e 74% com os fundos compradores, vendidos ou neutros.
+  - As diferenças trocam de sinal entre os dois períodos.
+  - Não melhora os sinais: aparece em Notícias como contexto e não mexe na convicção.
+- **Comunicados de política monetária** da Fed, do BCE e do Banco de Inglaterra, com
+  ligação para o texto oficial.
+- **Rumores, fóruns e "comentários de bastidores"** ficam de fora: não são verificáveis.
+
 ## Limites que continuam a existir
 
 - **Pouco histórico intradiário.** Um ano de 1h e 4h é pouco: 135 operações dão um

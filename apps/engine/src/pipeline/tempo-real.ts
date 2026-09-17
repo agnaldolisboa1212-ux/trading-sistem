@@ -36,6 +36,7 @@ import {
   executarEstrategiasValidadas,
   fraseEvento,
   planoVivo,
+  riscoDeNoticias,
   timeframesDosObjetivos,
   VELAS_ATE_EXPIRAR,
   type Candle,
@@ -43,7 +44,7 @@ import {
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
-import { acharSimbolo, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
+import { acharSimbolo, calendarioAltoImpacto, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
 import { createDbClient, isDbConfigured } from '@trading/db';
 import { difundirAvisoOperacao, difundirSinalTempoReal, type SinalTempoReal } from '@trading/notify';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -693,6 +694,17 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
                 : `o preço já fez ${Math.round(preco.progresso * 100)}% do caminho até ao alvo — não anunciado`;
             analises.push(analise);
             continue;
+          }
+          // --- 6c. notícias de alto impacto do instrumento -------------------
+          const noticias = riscoDeNoticias(s.codigo, tf, await calendarioAltoImpacto(), Date.now());
+          if (noticias.suspender) {
+            analise.nota = noticias.aviso ?? 'notícia de alto impacto — não anunciado';
+            analises.push(analise);
+            continue;
+          }
+          if (noticias.aviso) {
+            sinal.noticia = noticias.aviso;
+            sinal.avisos = [noticias.aviso, ...sinal.avisos];
           }
           sinal.precoActual = actual;
           sinal.estadoPreco = preco.estado as NonNullable<SinalTempoReal['estadoPreco']>;
