@@ -42,6 +42,8 @@ export * from './support-resistance.js';
 export * from './supply-demand.js';
 export * from './vwap.js';
 export * from './volume-profile.js';
+export * from './contexto.js';
+export * from './validadas.js';
 
 export interface RunStrategiesOptions {
   /** R mínimo exigido a qualquer sinal. Por omissão 2. */
@@ -134,8 +136,8 @@ export interface ConfluenceReport {
   agreeingStrategies: number;
   /** Quantas apontam ao contrário. */
   opposingStrategies: number;
-  bullish: StrategyId[];
-  bearish: StrategyId[];
+  bullish: StrategySignal['strategy'][];
+  bearish: StrategySignal['strategy'][];
   /**
    * Convicção máxima entre os sinais alinhados. Deliberadamente o MÁXIMO e não
    * a soma nem a média: somar convicções de sinais correlacionados inventa

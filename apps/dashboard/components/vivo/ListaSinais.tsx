@@ -36,6 +36,9 @@ interface Sinal {
 }
 
 const NOME_ESTRATEGIA: Record<string, string> = {
+  'compra-vwap-indices': 'Compra na banda −2σ do VWAP',
+  'connors-rsi2-indices': 'RSI(2) de Connors',
+  'tendencia-cripto': 'Tendência 55 dias',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistência',
   'vwap-bands': 'Bandas de VWAP',

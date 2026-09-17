@@ -3162,3 +3162,22 @@ body:has(.terminal--cheio) .bottomnav {
   border-color: color-mix(in srgb, var(--bear) 36%, transparent);
   background: color-mix(in srgb, var(--bear) 8%, var(--surface-2));
 }
+
+/* Instrumentos e visões sem estratégia validada: presentes, mas em segundo plano. */
+.chip-portfolio--sem-sinais {
+  border-style: dashed;
+}
+
+.chip-portfolio--sem-sinais a {
+  color: var(--text-dim);
+}
+
+.chip-portfolio small {
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.visoes__linha--contexto strong {
+  color: var(--text-dim);
+  font-weight: 600;
+}

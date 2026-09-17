@@ -32,6 +32,7 @@ import {
   analisarVisoes,
   DESENHO_VAZIO,
   nomeVisao,
+  NOTA_CONTEXTO,
   RECENTE_VELAS,
   ROTULO_ESTADO,
   sinalVivo,
@@ -224,7 +225,7 @@ export function AnaliseAoVivo({
                   {sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} velas`} · {ROTULO_ESTADO[sv.estado]}
                 </em>
               </span>
-              <b>{sv.sinal.maxRMultiple.toFixed(1)}R</b>
+              <b title="acerto medido no backtest">{Math.round(sv.sinal.conviction * 100)}%</b>
             </>
           ) : m ? (
             <span className="grow">
@@ -298,13 +299,20 @@ export function AnaliseAoVivo({
               {VISOES.filter((v) => v.id !== 'resumo' && v.id !== 'mmxm').map((v) => {
                 const sv = analise.visoes[v.id as keyof typeof analise.visoes].sinal;
                 return (
-                  <button key={v.id} type="button" className="visoes__linha" onClick={() => aoMudarVisao(v.id)}>
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={`visoes__linha ${v.contexto ? 'visoes__linha--contexto' : ''}`}
+                    onClick={() => aoMudarVisao(v.id)}
+                  >
                     <span className="grow">
                       <strong>{v.nome}</strong>
                       <em>
-                        {sv
-                          ? `${sv.sinal.direction === 'bullish' ? 'compra' : 'venda'} ${sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} vela${sv.velasAtras === 1 ? '' : 's'}`} · ${ROTULO_ESTADO[sv.estado]}`
-                          : 'sem sinal recente · ver estruturas'}
+                        {v.contexto
+                          ? 'só contexto · não gera sinais'
+                          : sv
+                            ? `compra ${sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} vela${sv.velasAtras === 1 ? '' : 's'}`} · ${ROTULO_ESTADO[sv.estado]}`
+                            : 'estratégia validada · sem sinal recente'}
                       </em>
                     </span>
                     <span aria-hidden="true">›</span>
@@ -319,10 +327,19 @@ export function AnaliseAoVivo({
               <CartaoSinal sv={actual.sinal} fmt={fmt} aoNegociar={aoNegociar} />
             ) : (
               <div className="empty">
-                <strong>
-                  Sem sinal de {actual.nome.toLowerCase()} nas últimas {RECENTE_VELAS} velas.
-                </strong>
-                As estruturas que esta estratégia vigia estão no gráfico e aqui em baixo.
+                {VISOES.find((v) => v.id === visao)?.contexto ? (
+                  <>
+                    <strong>Leitura de contexto — não gera sinais.</strong>
+                    {NOTA_CONTEXTO.replace('Só contexto: esta leitura não gera sinais. ', '')}
+                  </>
+                ) : (
+                  <>
+                    <strong>
+                      Sem sinal de {actual.nome.toLowerCase()} nas últimas {RECENTE_VELAS} velas.
+                    </strong>
+                    Os níveis que a regra vigia estão no gráfico e aqui em baixo.
+                  </>
+                )}
               </div>
             )}
             <Estruturas visao={actual} fmt={fmt} />
@@ -333,9 +350,9 @@ export function AnaliseAoVivo({
       {analise.pronta && visao !== 'mmxm' && (
         <div className="analise-viva__rodape">
           Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas da Deriv, às{' '}
-          {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. É o que as regras da
-          estratégia produzem — não uma recomendação, e nenhuma destas estratégias tem vantagem
-          demonstrada em backtest.
+          {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. Os planos vêm só das
+          estratégias com vantagem medida em backtest, com custos; a percentagem é o acerto medido,
+          não uma garantia.
           {analise.avisos[0] ? ` ${analise.avisos[0]}` : ''}
         </div>
       )}
@@ -363,7 +380,9 @@ function CartaoSinal({
         <span className={`lado-pill ${compra ? 'compra' : 'venda'}`}>{compra ? 'COMPRA' : 'VENDA'}</span>
         <strong>{nomeVisao(s.strategy)}</strong>
         <span className="grow" />
-        <span className="analise-viva__r">{s.maxRMultiple.toFixed(1)}R</span>
+        <span className="analise-viva__r" title="acerto medido no backtest">
+          {Math.round(s.conviction * 100)}% acerto
+        </span>
       </div>
 
       <div className={`analise-viva__estado ${vivo ? 'vivo' : ''}`}>
@@ -392,7 +411,7 @@ function CartaoSinal({
 
       <p className="analise-viva__razao">{s.rationale}</p>
       <div className="analise-viva__meta">
-        convicção {Math.round(s.conviction * 100)}% ·{' '}
+        {s.targets.length === 0 ? 'sem alvo fixo · saída pela regra' : `até ${s.maxRMultiple.toFixed(1)}R`} ·{' '}
         {s.regime === 'mean-reversion' ? 'reversão à média' : 'continuação'}
       </div>
 

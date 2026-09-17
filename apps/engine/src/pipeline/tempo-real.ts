@@ -1,10 +1,13 @@
 /**
- * Motor SECUNDÁRIO — análise em tempo real, intradiária.
+ * Motor SECUNDÁRIO — análise em tempo real.
  *
  * O motor principal (MMXM + SMT, `scan.ts`) corre uma vez por dia sobre velas
- * diárias fechadas. É deliberadamente lento: o modelo foi desenhado para swing.
- * Este corre de poucos em poucos minutos sobre velas de 15m e 1h, com as quatro
- * estratégias institucionais, sobre os instrumentos que as pessoas escolheram.
+ * diárias fechadas. Este corre a cada minuto sobre os instrumentos e timeframes
+ * que as pessoas escolheram, e só com as ESTRATÉGIAS VALIDADAS
+ * (`@trading/core`, `strategies/validadas.ts`): as que mostraram vantagem
+ * medida, dentro e fora da amostra, com custos. As quatro institucionais
+ * antigas continuam no gráfico como contexto, mas deixaram de gerar sinais —
+ * no backtest perdiam dinheiro depois do spread.
  *
  * ── CICLO ──────────────────────────────────────────────────────────────────
  *
@@ -27,11 +30,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   estadoDoPlano,
+  estrategiasPara,
+  executarEstrategiasValidadas,
   planoVivo,
-  runInstitutionalStrategies,
   timeframesDosObjetivos,
   VELAS_ATE_EXPIRAR,
-  type CandleSeries,
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
@@ -414,6 +417,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     for (const tf of timeframes) {
       const gran = GRANULARIDADE_S[tf];
       if (!gran) continue;
+      // Sem estratégia validada para este par, não há nada que anunciar: nem se pedem velas.
+      if (estrategiasPara(s.codigo, tf).length === 0) continue;
 
       // Abertura da vela que DEVIA ser a última fechada, pelo relógio. As velas
       // da Deriv alinham a múltiplos exactos da granularidade.
@@ -475,20 +480,13 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           continue;
         }
 
-        // --- 4. análise ---------------------------------------------------
-        const serie: CandleSeries = {
+        // --- 4. análise: só as estratégias validadas ------------------------
+        // A convicção é a taxa medida no backtest; não há limite de R nem de
+        // convicção a aplicar por cima — a regra da estratégia já é o filtro.
+        const frescos = executarEstrategiasValidadas(fechadas, {
           symbol: s.codigo,
           timeframe: tf as Timeframe,
-          source: 'deriv',
-          fidelity: 'true-ohlc',
-          candles: fechadas,
-        };
-        const r = runInstitutionalStrategies(serie, { minRMultiple: cfg.minR });
-
-        // Só o que nasceu na ÚLTIMA vela fechada é notícia. O resto é passado.
-        const frescos = r.signals.filter(
-          (x) => x.generatedAt === ultima.time && x.conviction >= cfg.minConviccao,
-        );
+        }).filter((x) => x.generatedAt === ultima.time);
         analise.sinaisFrescos = frescos.length;
 
         // --- 4b. anti-repintagem ------------------------------------------
@@ -522,7 +520,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           continue;
         }
 
-        const sinal = paraSinal(escolha.escolhido.sinal, s, tf, escolha.concordam, r.dataWarnings);
+        const sinal = paraSinal(escolha.escolhido.sinal, s, tf, escolha.concordam, []);
         analise.escolhido = sinal;
 
         // --- 6. deduplicação ----------------------------------------------

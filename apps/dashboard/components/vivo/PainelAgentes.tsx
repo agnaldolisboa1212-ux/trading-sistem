@@ -60,6 +60,9 @@ export interface Resultado {
 }
 
 const ESTRATEGIA_NOME: Record<string, string> = {
+  'compra-vwap-indices': 'compra na banda −2σ do VWAP',
+  'connors-rsi2-indices': 'RSI(2) de Connors',
+  'tendencia-cripto': 'tendência de 55 dias',
   'supply-demand': 'oferta e procura',
   'support-resistance': 'suporte/resistência',
   'vwap-bands': 'bandas de VWAP',

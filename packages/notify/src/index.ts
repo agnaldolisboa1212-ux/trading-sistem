@@ -465,7 +465,10 @@ export interface SinalTempoReal {
   stop: number;
   alvos: Array<{ preco: number; r: number }>;
   rMaximo: number;
-  /** 0..1 — ordenacao relativa dentro da estrategia, NAO uma probabilidade. */
+  /**
+   * 0..1 — nas estrategias validadas e a taxa de acerto MEDIDA no backtest
+   * (chegar ao primeiro alvo, ou fechar a ganhar, antes do stop).
+   */
   conviccao: number;
   /** Quantas estrategias distintas apontam no mesmo sentido nesta vela. */
   concordam?: number;
@@ -501,6 +504,9 @@ export function frasePreco(s: SinalTempoReal): string | null {
 }
 
 const NOME_ESTRATEGIA: Record<string, string> = {
+  'compra-vwap-indices': 'Compra na banda -2σ do VWAP',
+  'connors-rsi2-indices': 'RSI(2) de Connors',
+  'tendencia-cripto': 'Tendencia 55 dias',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistencia',
   'vwap-bands': 'Bandas de VWAP',
@@ -519,7 +525,7 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
     .map((a, i) => `  TP${i + 1} \`${n(a.preco)}\`  ${escapeMarkdown(a.r.toFixed(1))}R`)
     .join(nl);
 
-  const razao = s.razao.length > 200 ? `${s.razao.slice(0, 197)}...` : s.razao;
+  const razao = s.razao.length > 320 ? `${s.razao.slice(0, 317)}...` : s.razao;
   const acordo = s.concordam && s.concordam > 1 ? ` · ${s.concordam} estrategias de acordo` : '';
 
   const agora = frasePreco(s);
@@ -533,7 +539,7 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
       ? ['', `agora   \`${n(s.precoActual)}\` · ${escapeMarkdown(agora)}`]
       : []),
     '',
-    `*${escapeMarkdown(s.rMaximo.toFixed(1))}R* · conviccao ${Math.round(s.conviccao * 100)}% · ${escapeMarkdown((NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia) + acordo)}`,
+    `*${Math.round(s.conviccao * 100)}% de acerto medido* · ${escapeMarkdown((NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia) + acordo)}`,
     '',
     `_${escapeMarkdown(razao)}_`,
   ];
@@ -554,9 +560,10 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       geradoEm: new Date(s.geradoEm).toISOString(),
     }),
     sendPush({
-      titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${s.rMaximo.toFixed(1)}R`,
+      titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${Math.round(s.conviccao * 100)}% de acerto medido`,
       corpo: [
-        `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}`,
+        `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}` +
+          (s.alvos[0] ? ` · alvo ${s.alvos[0].preco.toFixed(s.casas)}` : ''),
         s.precoActual !== undefined ? `Agora ${s.precoActual.toFixed(s.casas)} · ${frasePreco(s)}` : null,
         estrategia,
       ]

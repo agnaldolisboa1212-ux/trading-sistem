@@ -19,6 +19,14 @@
  *   sinal       o mais recente dessa estratégia, com o que lhe aconteceu
  *               desde então: à espera da entrada, em curso, alvo, stop
  *
+ * ── SINAIS SÓ DAS ESTRATÉGIAS VALIDADAS ───────────────────────────────────
+ *
+ * Os planos (entrada, stop, alvos) vêm das três estratégias com vantagem
+ * medida (`strategies/validadas.ts`): compra na banda −2σ do VWAP e RSI(2) nos
+ * índices, tendência de 55 dias na cripto. Oferta/procura, suporte/resistência
+ * e perfil de volume continuam desenhados como CONTEXTO, mas não geram planos:
+ * no backtest perdiam dinheiro depois do spread.
+ *
  * Tudo sai das mesmas funções que o motor usa (`@trading/core`), sobre as
  * mesmas velas da Deriv. Função pura: sem rede nem relógio, calculada uma vez
  * por vela fechada.
@@ -31,7 +39,11 @@ import {
   computeAnchoredVwap,
   detectSupplyDemandZones,
   detectSupportResistanceLevels,
-  runInstitutionalStrategies,
+  estrategiasPara,
+  estrategiaValidada,
+  executarEstrategiasValidadas,
+  rsiSerie,
+  temEstrategiaValidada,
   type Candle,
   type ConfluenceReport,
   type StrategyId,
@@ -39,24 +51,38 @@ import {
   type Timeframe,
 } from '@trading/core';
 
-export type VisaoInstitucional = StrategyId;
+export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto';
 export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
 
-export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string }> = [
+export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
-  { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura' },
-  { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R' },
-  { id: 'vwap-bands', nome: 'Bandas de VWAP', curto: 'VWAP' },
-  { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil' },
-  { id: 'mmxm', nome: 'MMXM + SMT', curto: 'MMXM' },
+  { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
+  { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
+  { id: 'tendencia-cripto', nome: 'Tendência 55 dias (cripto)', curto: 'Tendência' },
+  { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
+  { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
+  { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
+  { id: 'mmxm', nome: 'MMXM + SMT', curto: 'MMXM', contexto: true },
 ];
 
+/** Aviso das visões que só mostram contexto. */
+export const NOTA_CONTEXTO =
+  'Só contexto: esta leitura não gera sinais. No backtest com spread perdia dinheiro, por isso saiu dos sinais.';
+
 export function nomeVisao(id: string): string {
-  return VISOES.find((v) => v.id === id)?.nome ?? id;
+  return estrategiaValidada(id)?.nome ?? VISOES.find((v) => v.id === id)?.nome ?? id;
 }
 
+/** Visão de cada estratégia validada (a do VWAP vive na visão das bandas). */
+const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
+  'compra-vwap-indices': 'vwap-bands',
+  'connors-rsi2-indices': 'connors-rsi2-indices',
+  'tendencia-cripto': 'tendencia-cripto',
+};
+
 export function visaoValida(bruto: string | null | undefined): VisaoId {
-  return (VISOES.find((v) => v.id === bruto)?.id ?? 'resumo') as VisaoId;
+  const id = bruto ? (VISAO_DA_ESTRATEGIA[bruto] ?? bruto) : null;
+  return (VISOES.find((v) => v.id === id)?.id ?? 'resumo') as VisaoId;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,11 +216,11 @@ function sinaisPorVela(
     const tempo = lista[i]!.time;
     let r = porTempo.get(tempo);
     if (!r) {
-      const corrida = runInstitutionalStrategies(
-        { symbol: simbolo, timeframe, source: 'deriv', fidelity: 'true-ohlc', candles: lista.slice(0, i + 1) },
-        { minRMultiple: 2 },
-      );
-      r = { sinais: corrida.signals, avisos: corrida.dataWarnings };
+      // As mesmas regras que o motor usa para anunciar — só as validadas.
+      r = {
+        sinais: executarEstrategiasValidadas(lista.slice(0, i + 1), { symbol: simbolo, timeframe }),
+        avisos: [],
+      };
       porTempo.set(tempo, r);
     }
     for (const s of r.sinais) sinais.push({ ...s, index: i });
@@ -272,6 +298,8 @@ export interface AnaliseVisoes {
   velas: number;
   /** Visões institucionais; a do MMXM vem do servidor. */
   visoes: Record<'resumo' | VisaoInstitucional, Visao>;
+  /** Este instrumento e timeframe têm estratégia validada (logo, podem dar sinal)? */
+  comSinais: boolean;
   /** Sinais nascidos na última vela, por estratégia. */
   confluencia: ConfluenceReport;
   avisos: string[];
@@ -292,17 +320,32 @@ export function analisarVisoes(
     Math.abs((a.baixo + (a.alto ?? a.baixo)) / 2 - preco);
 
   const historico = sinaisPorVela(lista, simbolo, timeframe);
-  const sinalDe = (id: StrategyId) =>
+  const sinalDe = (id: string) =>
     maisRecente(historico.sinais.filter((s) => s.strategy === id), lista);
-  const desenhoDoSinal = (sv: SinalVisao | null, id: StrategyId) =>
+  const desenhoDoSinal = (sv: SinalVisao | null, id: string) =>
     sv && sinalVivo(sv.estado) ? linhasDoSinal(sv, nomeVisao(id)) : DESENHO_VAZIO;
+  const fechos = lista.map((c) => c.close);
+  const media = (periodo: number) =>
+    fechos.map((_, i) => {
+      if (i + 1 < periodo) return Number.NaN;
+      let soma = 0;
+      for (let k = i - periodo + 1; k <= i; k++) soma += fechos[k]!;
+      return soma / periodo;
+    });
+  const curvaDe = (valores: number[], tipo: string, rotulo: string, desde = 0): CurvaDesenho => ({
+    tipo,
+    rotulo,
+    pontos: valores
+      .map((p, i) => ({ t: lista[i]!.time, p }))
+      .filter((x, i) => i >= desde && Number.isFinite(x.p)),
+  });
 
   // --- oferta e procura ---------------------------------------------------
   const zonas = activeZonesAt(detectSupplyDemandZones(lista), ultimo)
     .map((z) => ({ z, baixo: z.zoneLow, alto: z.zoneHigh }))
     .sort((a, b) => perto(a) - perto(b))
     .slice(0, PROXIMAS);
-  const sd = sinalDe('supply-demand');
+  const sd = null;
   const ofertaProcura: Visao = {
     id: 'supply-demand',
     nome: nomeVisao('supply-demand'),
@@ -328,7 +371,7 @@ export function analisarVisoes(
       alto: z.zoneHigh,
       tipo: z.direction === 'bullish' ? 'bull' : 'bear',
     })),
-    nota: zonas.length === 0 ? 'Sem zonas activas: todas as detectadas já foram atravessadas.' : undefined,
+    nota: `${NOTA_CONTEXTO}${zonas.length === 0 ? ' Sem zonas activas: todas as detectadas já foram atravessadas.' : ''}`,
   };
 
   // --- suporte e resistência ----------------------------------------------
@@ -337,7 +380,7 @@ export function analisarVisoes(
     .map((l) => ({ l, baixo: l.zoneLow, alto: l.zoneHigh }))
     .sort((a, b) => perto(a) - perto(b))
     .slice(0, PROXIMAS);
-  const sr = sinalDe('support-resistance');
+  const sr = null;
   const tipoNivel = (preco_: number, kind: string): Estrutura['tipo'] =>
     kind === 'flip' ? 'neutro' : preco_ < preco ? 'bull' : 'bear';
   const suporteResistencia: Visao = {
@@ -365,7 +408,7 @@ export function analisarVisoes(
       alto: l.zoneHigh,
       tipo: tipoNivel(l.price, l.kind),
     })),
-    nota: niveis.length === 0 ? 'Sem níveis por quebrar nesta janela.' : undefined,
+    nota: `${NOTA_CONTEXTO}${niveis.length === 0 ? ' Sem níveis por quebrar nesta janela.' : ''}`,
   };
 
   // --- VWAP -----------------------------------------------------------------
@@ -378,7 +421,8 @@ export function analisarVisoes(
     pontos: pontos.map((p) => ({ t: p.time, p: f(p) })),
   });
   const ultimoVwap = vwap.points[vwap.points.length - 1];
-  const vw = sinalDe('vwap-bands');
+  const vw = sinalDe('compra-vwap-indices');
+  const vwapValida = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'compra-vwap-indices');
   const vwapVisao: Visao = {
     id: 'vwap-bands',
     nome: nomeVisao('vwap-bands'),
@@ -395,7 +439,7 @@ export function analisarVisoes(
           curva('banda2', (p) => p.lower2, '−2σ'),
         ],
       },
-      desenhoDoSinal(vw, 'vwap-bands'),
+      desenhoDoSinal(vw, 'compra-vwap-indices'),
     ),
     estruturas: ultimoVwap
       ? [
@@ -406,14 +450,19 @@ export function analisarVisoes(
           { rotulo: 'Banda −2σ', baixo: ultimoVwap.lower2, tipo: 'bull' },
         ]
       : [],
-    nota: vwap.usedVolume
-      ? undefined
-      : 'A Deriv não entrega volume: é a média ponderada pelo tempo (TWAP), não pelo volume.',
+    nota: [
+      vwapValida
+        ? 'Sinal: fecho abaixo de −2σ com RSI(14) < 30 ou σ do mês > 2 ATR. Só compras — as vendas não têm vantagem medida.'
+        : 'A compra na banda −2σ só está validada em US100, SP500, US30 e GER30, em 1h e 4h. Aqui as bandas são contexto.',
+      vwap.usedVolume ? null : 'A Deriv não entrega volume: é a média ponderada pelo tempo (TWAP).',
+    ]
+      .filter(Boolean)
+      .join(' '),
   };
 
   // --- perfil de volume -----------------------------------------------------
   const perfil = buildVolumeProfile(lista);
-  const vp = sinalDe('volume-profile');
+  const vp = null;
   const temPerfil = perfil.bins.length > 0 && Number.isFinite(perfil.poc);
   const perfilVisao: Visao = {
     id: 'volume-profile',
@@ -450,6 +499,7 @@ export function analisarVisoes(
         ]
       : [],
     nota: [
+      NOTA_CONTEXTO,
       perfil.shape === 'bimodal' ? 'Perfil com dois modos: houve dois leilões distintos na janela.' : null,
       perfil.usedVolume ? null : 'Sem volume da Deriv: perfil por tempo (TPO).',
     ]
@@ -457,10 +507,76 @@ export function analisarVisoes(
       .join(' ') || undefined,
   };
 
+  // --- RSI(2) de Connors -----------------------------------------------------
+  const cn = sinalDe('connors-rsi2-indices');
+  const sma200 = media(200);
+  const sma5 = media(5);
+  const rsi2 = rsiSerie(lista, 2);
+  const connorsValida = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'connors-rsi2-indices');
+  const desde = Math.max(0, ultimo - 150);
+  const connorsVisao: Visao = {
+    id: 'connors-rsi2-indices',
+    nome: nomeVisao('connors-rsi2-indices'),
+    sinal: cn,
+    desenho: juntar(
+      {
+        zonas: [],
+        linhas: [],
+        curvas: [curvaDe(sma200, 'vwap', 'média 200', desde), curvaDe(sma5, 'banda1', 'média 5', desde)],
+      },
+      desenhoDoSinal(cn, 'connors-rsi2-indices'),
+    ),
+    estruturas: [
+      ...(Number.isFinite(sma200[ultimo]) ? [{ rotulo: 'Média de 200 (tendência de fundo)', baixo: sma200[ultimo]!, tipo: 'neutro' as const }] : []),
+      ...(Number.isFinite(sma5[ultimo]) ? [{ rotulo: 'Média de 5 (saída)', baixo: sma5[ultimo]!, tipo: 'bear' as const }] : []),
+      ...(Number.isFinite(rsi2[ultimo]) ? [{ rotulo: 'RSI(2) agora — compra abaixo de 10', baixo: Math.round(rsi2[ultimo]! * 10) / 10, tipo: (rsi2[ultimo]! < 10 ? 'bull' : 'neutro') as Estrutura['tipo'] }] : []),
+    ],
+    nota: connorsValida
+      ? 'Sinal: fecho acima da média de 200 com RSI(2) < 10. Sai no primeiro fecho acima da média de 5.'
+      : 'Esta regra só está validada no diário (1D) de US100, SP500, US30 e GER30. Aqui é contexto.',
+  };
+
+  // --- tendência de 55 dias ----------------------------------------------------
+  const tc = sinalDe('tendencia-cripto');
+  const maximo55 = lista.map((_, i) => {
+    if (i < 55) return Number.NaN;
+    let m = -Infinity;
+    for (let k = i - 55; k < i; k++) m = Math.max(m, lista[k]!.high);
+    return m;
+  });
+  const minimo20 = lista.map((_, i) => {
+    if (i < 19) return Number.NaN;
+    let m = Infinity;
+    for (let k = i - 19; k <= i; k++) m = Math.min(m, lista[k]!.low);
+    return m;
+  });
+  const tendenciaValida = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'tendencia-cripto');
+  const tendenciaVisao: Visao = {
+    id: 'tendencia-cripto',
+    nome: nomeVisao('tendencia-cripto'),
+    sinal: tc,
+    desenho: juntar(
+      {
+        zonas: [],
+        linhas: [],
+        curvas: [curvaDe(maximo55, 'banda2', 'máximo 55', desde), curvaDe(minimo20, 'banda1', 'mínimo 20', desde)],
+      },
+      desenhoDoSinal(tc, 'tendencia-cripto'),
+    ),
+    estruturas: [
+      ...(Number.isFinite(maximo55[ultimo]) ? [{ rotulo: 'Máximo de 55 — compra no fecho acima', baixo: maximo55[ultimo]!, tipo: 'bull' as const }] : []),
+      ...(Number.isFinite(minimo20[ultimo]) ? [{ rotulo: 'Mínimo de 20 — saída / stop móvel', baixo: minimo20[ultimo]!, tipo: 'bear' as const }] : []),
+    ],
+    nota: tendenciaValida
+      ? 'Sinal: fecho acima do máximo dos 55 dias anteriores. Sem alvo fixo: sai quando perde o mínimo de 20 dias.'
+      : 'Esta regra só está validada no diário (1D) de BTCUSD e ETHUSD. Aqui é contexto.',
+  };
+
   // --- resumo ---------------------------------------------------------------
   const activos = historico.sinais.filter((s) => s.index === ultimo);
   const confluencia = assessConfluence(activos);
-  const candidatos = [sd, sr, vw, vp].filter((x): x is SinalVisao => x !== null && sinalVivo(x.estado));
+  const comSinais = estrategiasPara(simbolo, timeframe).length > 0;
+  const candidatos = [vw, cn, tc].filter((x): x is SinalVisao => x !== null && sinalVivo(x.estado));
   // Primeiro os da última vela (salvo conflito), depois os mais recentes ainda vivos.
   const melhor =
     candidatos
@@ -474,8 +590,11 @@ export function analisarVisoes(
     sinal: melhor,
     desenho: melhor ? linhasDoSinal(melhor, nomeVisao(melhor.sinal.strategy)) : DESENHO_VAZIO,
     estruturas: [],
-    nota:
-      confluencia.direction === 'conflicted'
+    nota: !comSinais
+      ? temEstrategiaValidada(simbolo)
+        ? `Neste timeframe não há estratégia validada para ${simbolo}. Veja ${estrategiasDoSimbolo(simbolo)}.`
+        : `${simbolo} não tem nenhuma estratégia com vantagem medida — o sistema não gera sinais aqui. As visões mostram só contexto.`
+      : confluencia.direction === 'conflicted'
         ? 'Na última vela as estratégias apontaram em sentidos opostos — nenhuma prevalece.'
         : undefined,
   };
@@ -488,8 +607,18 @@ export function analisarVisoes(
       'support-resistance': suporteResistencia,
       'vwap-bands': vwapVisao,
       'volume-profile': perfilVisao,
+      'connors-rsi2-indices': connorsVisao,
+      'tendencia-cripto': tendenciaVisao,
     },
+    comSinais,
     confluencia,
     avisos: historico.avisosUltima,
   };
+}
+
+/** "1H e 4H" — os timeframes validados de um instrumento, para as notas. */
+function estrategiasDoSimbolo(simbolo: string): string {
+  const tfs = new Set<string>();
+  for (const tf of ['15m', '1h', '4h', '1d']) if (estrategiasPara(simbolo, tf).length > 0) tfs.add(tf.toUpperCase());
+  return [...tfs].join(' e ');
 }

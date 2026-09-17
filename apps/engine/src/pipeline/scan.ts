@@ -160,7 +160,14 @@ export async function runScan(config: EngineConfig): Promise<ScanReport> {
   // --- Notificacao ---------------------------------------------------------
   // So notifica sinais que ainda nao tinham sido gravados: sem isto, o mesmo
   // setup seria anunciado a cada varrimento enquanto continuasse valido.
+  //
+  // DESLIGADO por omissao: o MMXM nao tem vantagem medida (17 operacoes em 6
+  // anos, 81% do lucro num unico negocio). Os sinais so saem para o telemovel
+  // das estrategias validadas; o MMXM continua a ser analisado e gravado, e
+  // `MMXM_AVISOS=true` volta a liga-lo para quem o quiser acompanhar.
+  const avisosMmxm = process.env['MMXM_AVISOS'] === 'true';
   for (const signal of newSignals) {
+    if (!avisosMmxm) break;
     if (persisted.alreadyKnown.has(signal.id)) continue;
     try {
       const outcomes = await broadcastEntry(signal);

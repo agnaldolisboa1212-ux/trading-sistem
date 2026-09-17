@@ -14,7 +14,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { timeframesDosObjetivos } from '@trading/core';
+import { estrategiaValidada, timeframesDosObjetivos } from '@trading/core';
 import { velasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { estadoDoPlano, type EstadoPlano, type VelaMinima } from '@/lib/estado-sinal';
@@ -122,7 +122,8 @@ export async function GET() {
   }
 
   const sinais: SinalDaConta[] = (linhas ?? [])
-    .filter((l) => !ocultos.has(l.id))
+    // Só as estratégias com vantagem medida: os sinais antigos das que saíram não voltam a aparecer.
+    .filter((l) => !ocultos.has(l.id) && estrategiaValidada(l.estrategia as string) !== undefined)
     .map((l) => ({
       id: l.id,
       simbolo: l.simbolo,

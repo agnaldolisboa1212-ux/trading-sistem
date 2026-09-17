@@ -25,6 +25,7 @@
  */
 
 import Link from 'next/link';
+import { temEstrategiaValidada } from '@trading/core';
 import { useState } from 'react';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
@@ -156,7 +157,9 @@ function MeusInstrumentos() {
         </button>
       </div>
       <p className="section-cap">
-        Só recebe sinais — no telemóvel e no início — dos instrumentos desta lista.
+        Só recebe sinais — no telemóvel e no início — dos instrumentos desta lista, e só dos que têm
+        uma estratégia com vantagem medida: índices (US100, SP500, US30, GER30) e cripto (BTC, ETH).
+        Os marcados <em>sem sinais</em> ficam para acompanhar o gráfico.
       </p>
 
       {p.instrumentos === null ? (
@@ -169,8 +172,15 @@ function MeusInstrumentos() {
       ) : (
         <div className="chips-portfolio">
           {p.instrumentos.map((c) => (
-            <span key={c} className="chip-portfolio">
-              <Link href={`/grafico?s=${encodeURIComponent(c)}&tf=15m`}>{c}</Link>
+            <span
+              key={c}
+              className={`chip-portfolio ${temEstrategiaValidada(c) ? '' : 'chip-portfolio--sem-sinais'}`}
+              title={temEstrategiaValidada(c) ? 'Com estratégia validada' : 'Sem estratégia com vantagem medida: não gera sinais'}
+            >
+              <Link href={`/grafico?s=${encodeURIComponent(c)}&tf=${temEstrategiaValidada(c) ? '1h' : '4h'}`}>
+                {c}
+                {!temEstrategiaValidada(c) && <small> · sem sinais</small>}
+              </Link>
               <button type="button" aria-label={`Remover ${c} do portfólio`} onClick={() => void correr(p.remover(c))}>
                 ×
               </button>
