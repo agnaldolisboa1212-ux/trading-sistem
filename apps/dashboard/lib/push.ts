@@ -3,6 +3,7 @@ import 'server-only';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import webpush from 'web-push';
+import { timeframesDosObjetivos } from '@trading/core';
 
 /**
  * Notificacoes push — registo de subscritores e envio.
@@ -205,6 +206,8 @@ export interface Aviso {
   readonly topico?: string;
   /** Instrumento: so chega a quem o tem nas preferencias. */
   readonly simbolo?: string;
+  /** Timeframe do sinal: so chega a quem o tem nos objetivos. */
+  readonly timeframe?: string;
 }
 
 export interface ResultadoEnvio {
@@ -218,6 +221,8 @@ export interface ResultadoEnvio {
 interface PreferenciaAvisos {
   readonly activos: boolean;
   readonly instrumentos: readonly string[];
+  /** Timeframes de sinal que os objetivos do onboarding pedem. */
+  readonly timeframes: readonly string[];
 }
 
 /** Preferencias de avisos de todas as contas — lidas com a chave do servidor. */
@@ -226,7 +231,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
   if (!sb) return null;
   try {
     const r = await fetch(
-      `${sb.url}/rest/v1/perfis_utilizador?select=utilizador_id,instrumentos,avisos_ativos`,
+      `${sb.url}/rest/v1/perfis_utilizador?select=utilizador_id,instrumentos,objetivos,avisos_ativos`,
       {
         headers: { apikey: sb.chave, Authorization: `Bearer ${sb.chave}` },
         cache: 'no-store',
@@ -237,12 +242,17 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
     const linhas = (await r.json()) as Array<{
       utilizador_id: string;
       instrumentos: string[] | null;
+      objetivos: string[] | null;
       avisos_ativos: boolean | null;
     }>;
     return new Map(
       linhas.map((l) => [
         l.utilizador_id,
-        { activos: l.avisos_ativos !== false, instrumentos: l.instrumentos ?? [] },
+        {
+          activos: l.avisos_ativos !== false,
+          instrumentos: l.instrumentos ?? [],
+          timeframes: timeframesDosObjetivos(l.objetivos),
+        },
       ]),
     );
   } catch {
@@ -262,12 +272,15 @@ export function querAviso(
   s: Pick<Subscritor, 'utilizador'>,
   prefs: ReadonlyMap<string, PreferenciaAvisos> | null,
   simbolo: string | undefined,
+  timeframe?: string,
 ): boolean {
   if (!simbolo) return true;
   if (!s.utilizador || !prefs) return false;
   const p = prefs.get(s.utilizador);
   if (!p || !p.activos) return false;
-  return p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase());
+  if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return false;
+  // Quem escolheu horas e dias não recebe sinais de 15 minutos.
+  return !timeframe || p.timeframes.includes(timeframe);
 }
 
 /** O servico de push so aceita ate 32 caracteres de base64 URL-safe. */
@@ -296,7 +309,7 @@ export async function enviarAviso(
   const prefs = destino.utilizador ? null : await preferenciasAvisos();
   const lista = destino.utilizador
     ? todas.filter((s) => s.utilizador === destino.utilizador)
-    : todas.filter((s) => querAviso(s, prefs, aviso.simbolo));
+    : todas.filter((s) => querAviso(s, prefs, aviso.simbolo, aviso.timeframe));
 
   const carga = JSON.stringify({
     titulo: aviso.titulo,

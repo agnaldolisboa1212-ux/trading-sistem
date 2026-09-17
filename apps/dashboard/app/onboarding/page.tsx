@@ -32,6 +32,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ESTRATEGIAS, guardarPerfil, lerPerfil, marcarOnboarding, utilizadorAtual } from '@/lib/auth';
+import { timeframesDoObjetivo } from '@trading/core';
 import { OBJETIVOS, guardarPreferenciasCliente } from '@/lib/preferencias';
 import { CRIPTO, FOREX, INDICES, METAIS, SINTETICOS } from '@/lib/deriv/simbolos';
 import { usarCtrader } from '@/components/vivo/usarCtrader';
@@ -204,15 +205,16 @@ export default function Page() {
                 <span className="escolha__nome">{o.rotulo}</span>
                 <span className="escolha__desc">{o.descricao}</span>
                 <span className="escolha__meta">
-                  gráficos {o.timeframe} · horizonte de {o.horizonte}
+                  sinais em {timeframesDoObjetivo(o.id).map((t) => t.toUpperCase()).join(' e ')} · horizonte de{' '}
+                  {o.horizonte}
                 </span>
               </span>
             </button>
           ))}
 
           <p className="ob__ajuda">
-            Isto define o timeframe por omissão dos gráficos e o ritmo dos avisos. Pode mudar
-            depois nas definições.
+            Isto define os timeframes dos sinais e dos avisos que recebe — quem escolhe horas e
+            dias não recebe sinais de 15 minutos. Pode mudar depois nas definições.
           </p>
 
           <Acoes voltar={() => setPasso(0)} avancar={() => setPasso(2)} podeAvancar={objetivos.length > 0} />

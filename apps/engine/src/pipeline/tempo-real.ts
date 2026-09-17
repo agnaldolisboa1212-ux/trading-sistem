@@ -26,7 +26,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  estadoDoPlano,
+  planoVivo,
   runInstitutionalStrategies,
+  timeframesDosObjetivos,
+  VELAS_ATE_EXPIRAR,
   type CandleSeries,
   type StrategySignal,
   type Timeframe,
@@ -41,13 +45,16 @@ import {
   GRANULARIDADE_S,
   avaliarPrecoActual,
   cortarVelaAberta,
+  escolherPares,
   escolherPorConfluencia,
-  escolherVigilancia,
+  filtrarRepintagem,
   idSinal,
   mercadoParado,
   sinalFresco,
   validadeAvisoS,
   type OrigemVigilancia,
+  type PerfilVigilancia,
+  type PlanoAnterior,
 } from './tempo-real-puro.js';
 
 /** Vigilância por omissão: um de cada classe, mais dois que negoceiam 24/7. */
@@ -94,6 +101,8 @@ export interface AnaliseTempoReal {
   timeframe: string;
   velas: number;
   sinaisFrescos: number;
+  /** Candidatos travados porque já há plano vivo neste instrumento e timeframe. */
+  repetidos?: number;
   conflito: boolean;
   escolhido: SinalTempoReal | null;
   novo: boolean;
@@ -156,21 +165,89 @@ function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-async function lerPerfis(db: SupabaseClient | null, erros: string[]): Promise<string[][]> {
+async function lerPerfis(db: SupabaseClient | null, erros: string[]): Promise<PerfilVigilancia[]> {
   if (!db) return [];
   try {
-    const { data, error } = await db.from('perfis_utilizador').select('instrumentos');
+    const { data, error } = await db.from('perfis_utilizador').select('instrumentos,objetivos');
     if (error) {
       if (!tabelaAusente(error)) erros.push(`perfis: ${error.message}`);
       return [];
     }
-    return ((data ?? []) as Array<{ instrumentos?: string[] | null }>).map(
-      (l) => l.instrumentos ?? [],
+    return ((data ?? []) as Array<{ instrumentos?: string[] | null; objetivos?: string[] | null }>).map(
+      (l) => ({ instrumentos: l.instrumentos ?? [], objetivos: l.objetivos ?? [] }),
     );
   } catch (err) {
     erros.push(`perfis: ${msg(err)}`);
     return [];
   }
+}
+
+/**
+ * Planos anunciados recentemente, por `símbolo|timeframe`, para a
+ * anti-repintagem. Do Supabase quando há; sempre também do registo local.
+ */
+async function lerPlanosRecentes(
+  db: SupabaseClient | null,
+  locais: readonly SinalTempoReal[],
+  erros: string[],
+): Promise<Map<string, PlanoAnterior[]>> {
+  const mapa = new Map<string, PlanoAnterior[]>();
+  const juntar = (simbolo: string, timeframe: string, p: PlanoAnterior) => {
+    const k = `${simbolo}|${timeframe}`;
+    const lista = mapa.get(k) ?? [];
+    if (!lista.some((x) => x.id === p.id)) lista.push(p);
+    mapa.set(k, lista);
+  };
+  for (const s of locais) {
+    juntar(s.simbolo, s.timeframe, {
+      id: s.id,
+      estrategia: s.estrategia,
+      direccao: s.direccao,
+      entrada: s.entrada,
+      stop: s.stop,
+      alvo: s.alvos[0]?.preco ?? null,
+      geradoEm: s.geradoEm,
+    });
+  }
+  if (!db) return mapa;
+  try {
+    // Um plano diário expira ao fim de 20 velas diárias: a janela tem de as cobrir.
+    const desde = new Date(Date.now() - (VELAS_ATE_EXPIRAR + 2) * 86_400_000).toISOString();
+    const { data, error } = await db
+      .from('sinais_tempo_real')
+      .select('id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,gerado_em')
+      .gte('gerado_em', desde)
+      .order('gerado_em', { ascending: false })
+      .limit(2000);
+    if (error) {
+      if (!tabelaAusente(error)) erros.push(`planos recentes: ${error.message}`);
+      return mapa;
+    }
+    for (const l of (data ?? []) as Array<Record<string, unknown>>) {
+      const alvos = Array.isArray(l['alvos']) ? (l['alvos'] as Array<{ preco?: number }>) : [];
+      const alvo = Number(alvos[0]?.preco);
+      juntar(String(l['simbolo']), String(l['timeframe']), {
+        id: String(l['id']),
+        estrategia: String(l['estrategia']),
+        direccao: l['direccao'] === 'bearish' ? 'bearish' : 'bullish',
+        entrada: Number(l['entrada']),
+        stop: Number(l['stop']),
+        alvo: Number.isFinite(alvo) ? alvo : null,
+        geradoEm: Date.parse(String(l['gerado_em'])),
+      });
+    }
+  } catch (err) {
+    erros.push(`planos recentes: ${msg(err)}`);
+  }
+  return mapa;
+}
+
+/** Planos que continuam vivos (à espera da entrada ou em curso) nestas velas. */
+function planosVivos(
+  planos: readonly PlanoAnterior[],
+  velas: ReadonlyArray<{ time: number; high: number; low: number }>,
+): PlanoAnterior[] {
+  return planos.filter((p) => planoVivo(estadoDoPlano(p, velas.filter((v) => v.time > p.geradoEm))));
 }
 
 type ResultadoInsercao = 'novo' | 'repetido' | 'sem-tabela';
@@ -285,13 +362,15 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
   const db = isDbConfigured() ? createDbClient() : null;
   let persistencia: RelatorioTempoReal['persistencia'] = db ? 'supabase' : 'ficheiro';
 
-  // --- 1. vigilância -------------------------------------------------------
+  // --- 1. vigilância: cada instrumento nos timeframes de quem o segue -------
   const perfis = cfg.simbolos.length > 0 ? [] : await lerPerfis(db, erros);
-  const vigilancia = escolherVigilancia({
-    env: cfg.simbolos,
+  const vigilancia = escolherPares({
+    envSimbolos: cfg.simbolos,
+    envTimeframes: cfg.timeframes,
     perfis,
     omissao: VIGILANCIA_OMISSAO,
     conhecido: (c) => acharSimbolo(c)?.codigo ?? null,
+    timeframesDe: (o) => timeframesDosObjetivos(o),
   });
   if (vigilancia.ignorados.length > 0) {
     erros.push(`sem cotação na Deriv, ignorados: ${vigilancia.ignorados.join(', ')}`);
@@ -304,6 +383,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     sincronizado = await sincronizarRecentes(db, registo.recentes, erros);
     if (!sincronizado) persistencia = 'ficheiro';
   }
+  const recentes = await lerPlanosRecentes(db, registo.recentes, erros);
   const analises: AnaliseTempoReal[] = [];
   const novos: SinalTempoReal[] = [];
   let saltados = 0;
@@ -327,11 +407,11 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
 
   // Sequencial de propósito: dezenas de pedidos em paralelo à mesma ligação
   // arriscam o limite por minuto da Deriv, e o ciclo tem minutos de folga.
-  for (const codigo of vigilancia.simbolos) {
+  for (const [codigo, timeframes] of vigilancia.pares) {
     const s = acharSimbolo(codigo);
     if (!s) continue;
 
-    for (const tf of cfg.timeframes) {
+    for (const tf of timeframes) {
       const gran = GRANULARIDADE_S[tf];
       if (!gran) continue;
 
@@ -411,15 +491,23 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         );
         analise.sinaisFrescos = frescos.length;
 
-        // --- 5. confluência -----------------------------------------------
-        const escolha = escolherPorConfluencia(
+        // --- 4b. anti-repintagem ------------------------------------------
+        // Enquanto há um plano vivo neste instrumento e timeframe, a mesma
+        // estratégia não volta a anunciar e o sentido oposto não sai como sinal.
+        const vivos = planosVivos(recentes.get(chave) ?? [], fechadas);
+        const filtro = filtrarRepintagem(
           frescos.map((x) => ({
             sinal: x,
             estrategia: x.strategy,
             direccao: x.direction,
             conviccao: x.conviction,
           })),
+          vivos,
         );
+        analise.repetidos = filtro.repetidos.length + filtro.contraVies.length;
+
+        // --- 5. confluência -----------------------------------------------
+        const escolha = escolherPorConfluencia(filtro.permitidos);
         if (escolha.conflito) {
           analise.conflito = true;
           analise.nota = 'estratégias em sentidos opostos — nada anunciado';
@@ -427,6 +515,9 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           continue;
         }
         if (!escolha.escolhido) {
+          if (analise.repetidos) {
+            analise.nota = `plano ainda vivo neste timeframe — ${analise.repetidos} repetição(ões) não anunciada(s)`;
+          }
           analises.push(analise);
           continue;
         }
@@ -479,6 +570,18 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           vistos.add(sinal.id);
           registo.ids.push(sinal.id);
           registo.recentes.push(sinal);
+          recentes.set(chave, [
+            ...(recentes.get(chave) ?? []),
+            {
+              id: sinal.id,
+              estrategia: sinal.estrategia,
+              direccao: sinal.direccao,
+              entrada: sinal.entrada,
+              stop: sinal.stop,
+              alvo: sinal.alvos[0]?.preco ?? null,
+              geradoEm: sinal.geradoEm,
+            },
+          ]);
           novos.push(sinal);
           analise.novo = true;
 
@@ -509,8 +612,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     iniciadoEm,
     terminadoEm: Date.now(),
     origem: vigilancia.origem,
-    simbolos: vigilancia.simbolos,
-    timeframes: cfg.timeframes,
+    simbolos: [...vigilancia.pares.keys()],
+    timeframes: [...new Set([...vigilancia.pares.values()].flat())],
     analises,
     novos,
     persistencia,

@@ -14,6 +14,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { timeframesDosObjetivos } from '@trading/core';
 import { velasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { estadoDoPlano, type EstadoPlano, type VelaMinima } from '@/lib/estado-sinal';
@@ -85,10 +86,12 @@ export async function GET() {
 
   const { data: perfil } = await db
     .from('perfis_utilizador')
-    .select('instrumentos')
+    .select('instrumentos,objetivos')
     .eq('utilizador_id', uid)
     .maybeSingle();
   const portfolio = ((perfil?.instrumentos as string[] | null) ?? []).map((c) => c.toUpperCase());
+  // Só os timeframes que o objetivo do onboarding pede (intradiário 1h, swing 4h e 1d...).
+  const timeframes = timeframesDosObjetivos(perfil?.objetivos as string[] | null);
 
   let ocultos = new Set<string>();
   let ocultarDisponivel = true;
@@ -100,7 +103,7 @@ export async function GET() {
 
   if (portfolio.length === 0) {
     return NextResponse.json(
-      { portfolio, sinais: [], ocultarDisponivel },
+      { portfolio, timeframes, sinais: [], ocultarDisponivel },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   }
@@ -110,6 +113,7 @@ export async function GET() {
     .from('sinais_tempo_real')
     .select('id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,r_maximo,conviccao,razao,gerado_em,criado_em')
     .in('simbolo', portfolio)
+    .in('timeframe', timeframes)
     .gte('criado_em', desde)
     .order('criado_em', { ascending: false })
     .limit(80);
@@ -160,7 +164,7 @@ export async function GET() {
   );
 
   return NextResponse.json(
-    { portfolio, sinais, ocultarDisponivel },
+    { portfolio, timeframes, sinais, ocultarDisponivel },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }

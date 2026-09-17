@@ -185,3 +185,71 @@ test('preço: sem alvo usa 2R como caminho', () => {
   // 2R = 4 pontos; 2 pontos percorridos = metade → passou
   assert.equal(r.estado, 'passou');
 });
+
+// ---------------------------------------------------------------------------
+// Pares por perfil e anti-repintagem
+// ---------------------------------------------------------------------------
+
+import { escolherPares, filtrarRepintagem } from '../dist/pipeline/tempo-real-puro.js';
+import { timeframesDosObjetivos } from '@trading/core';
+
+const conhecido = (c) => (['EURUSD', 'XAUUSD', 'V75'].includes(c) ? c : null);
+
+test('pares: cada instrumento só nos timeframes de quem o segue', () => {
+  const r = escolherPares({
+    envSimbolos: [],
+    envTimeframes: ['15m', '1h'],
+    perfis: [
+      { instrumentos: ['XAUUSD', 'EURUSD'], objetivos: ['swing', 'intraday'] },
+      { instrumentos: ['EURUSD'], objetivos: ['day'] },
+      { instrumentos: [], objetivos: ['day'] },
+    ],
+    omissao: ['V75'],
+    conhecido,
+    timeframesDe: timeframesDosObjetivos,
+  });
+  assert.equal(r.origem, 'perfis');
+  assert.deepEqual(r.pares.get('XAUUSD'), ['1h', '4h', '1d']);
+  assert.deepEqual(r.pares.get('EURUSD'), ['15m', '1h', '4h', '1d']);
+  assert.equal(r.pares.has('V75'), false);
+});
+
+test('pares: sem perfis usa a lista por omissão e os timeframes do .env', () => {
+  const r = escolherPares({
+    envSimbolos: [],
+    envTimeframes: ['15m', '1h'],
+    perfis: [],
+    omissao: ['V75', 'NADA'],
+    conhecido,
+    timeframesDe: timeframesDosObjetivos,
+  });
+  assert.equal(r.origem, 'omissao');
+  assert.deepEqual(r.pares.get('V75'), ['15m', '1h']);
+  assert.deepEqual(r.ignorados, ['NADA']);
+});
+
+test('objetivos: intradiário e swing dão 1h, 4h e 1d — nunca 15m', () => {
+  assert.deepEqual(timeframesDosObjetivos(['swing', 'intraday']), ['1h', '4h', '1d']);
+  assert.deepEqual(timeframesDosObjetivos(['day']), ['15m']);
+  assert.deepEqual(timeframesDosObjetivos([]), ['1h', '4h']);
+});
+
+test('repintagem: a mesma estratégia não repete enquanto o plano está vivo', () => {
+  const vivo = { id: 'a', estrategia: 'vwap-bands', direccao: 'bullish', entrada: 1, stop: 0.9, alvo: 1.2, geradoEm: 0 };
+  const r = filtrarRepintagem(
+    [
+      { estrategia: 'vwap-bands', direccao: 'bullish', conviccao: 0.7 },
+      { estrategia: 'support-resistance', direccao: 'bullish', conviccao: 0.6 },
+      { estrategia: 'volume-profile', direccao: 'bearish', conviccao: 0.8 },
+    ],
+    [vivo],
+  );
+  assert.deepEqual(r.repetidos.map((c) => c.estrategia), ['vwap-bands']);
+  assert.deepEqual(r.permitidos.map((c) => c.estrategia), ['support-resistance']);
+  assert.deepEqual(r.contraVies.map((c) => c.candidato.estrategia), ['volume-profile']);
+});
+
+test('repintagem: sem planos vivos passa tudo', () => {
+  const r = filtrarRepintagem([{ estrategia: 'vwap-bands', direccao: 'bearish', conviccao: 0.5 }], []);
+  assert.equal(r.permitidos.length, 1);
+});

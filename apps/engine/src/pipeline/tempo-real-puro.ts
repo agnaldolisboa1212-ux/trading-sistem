@@ -254,3 +254,113 @@ export function escolherPorConfluencia<T extends Candidato>(
   const escolhido = [...lado].sort((a, b) => b.conviccao - a.conviccao)[0] ?? null;
   return { escolhido, concordam: new Set(lado.map((s) => s.estrategia)).size, conflito: false };
 }
+
+export interface PerfilVigilancia {
+  instrumentos: readonly string[];
+  objetivos: readonly string[];
+}
+
+/**
+ * Que pares instrumento × timeframe analisar.
+ *
+ * Por ordem de preferência:
+ *
+ *   1. `INTRADAY_SYMBOLS` no .env — todos esses instrumentos nos timeframes do .env
+ *   2. os perfis — cada instrumento de cada pessoa nos timeframes do SEU objetivo
+ *   3. a lista por omissão nos timeframes do .env
+ *
+ * Com perfis, `INTRADAY_TIMEFRAMES` deixa de mandar: quem escolheu intradiário e
+ * swing quer 1h, 4h e 1d, não os 15m que o servidor tinha fixos. E só se analisa
+ * o par que alguém quer: o EURUSD em 15m de uma pessoa não faz analisar o
+ * EURUSD diário de ninguém.
+ */
+export function escolherPares(input: {
+  envSimbolos: readonly string[];
+  envTimeframes: readonly string[];
+  perfis: readonly PerfilVigilancia[];
+  omissao: readonly string[];
+  conhecido: (codigo: string) => string | null;
+  timeframesDe: (objetivos: readonly string[]) => readonly string[];
+}): { pares: Map<string, string[]>; origem: OrigemVigilancia; ignorados: string[] } {
+  const ordem = Object.keys(GRANULARIDADE_S);
+  const pares = new Map<string, Set<string>>();
+  const ignorados = new Set<string>();
+
+  const juntar = (codigos: readonly string[], tfs: readonly string[]) => {
+    for (const bruto of codigos) {
+      const c = bruto.trim().toUpperCase();
+      if (!c) continue;
+      const r = input.conhecido(c);
+      if (!r) {
+        ignorados.add(c);
+        continue;
+      }
+      const conjunto = pares.get(r) ?? new Set<string>();
+      for (const tf of tfs) if (tf in GRANULARIDADE_S) conjunto.add(tf);
+      if (conjunto.size > 0) pares.set(r, conjunto);
+    }
+  };
+  const resultado = (origem: OrigemVigilancia) => ({
+    pares: new Map(
+      [...pares].map(([c, tfs]) => [c, [...tfs].sort((a, b) => ordem.indexOf(a) - ordem.indexOf(b))]),
+    ),
+    origem,
+    ignorados: [...ignorados],
+  });
+
+  if (input.envSimbolos.length > 0) {
+    juntar(input.envSimbolos, input.envTimeframes);
+    if (pares.size > 0) return resultado('env');
+  }
+
+  for (const p of input.perfis) {
+    if (p.instrumentos.length === 0) continue;
+    juntar(p.instrumentos, input.timeframesDe(p.objetivos));
+  }
+  if (pares.size > 0) return resultado('perfis');
+
+  juntar(input.omissao, input.envTimeframes);
+  return resultado('omissao');
+}
+
+export interface PlanoAnterior {
+  id: string;
+  estrategia: string;
+  direccao: 'bullish' | 'bearish';
+  entrada: number;
+  stop: number;
+  alvo: number | null;
+  /** Abertura da vela que gerou o plano (ms). */
+  geradoEm: number;
+}
+
+/**
+ * Anti-repintagem: que candidatos novos podem ser anunciados enquanto há planos
+ * vivos (à espera da entrada ou em curso) no mesmo instrumento e timeframe.
+ *
+ *   mesma estratégia, qualquer sentido  → bloqueado (é o mesmo sinal a repetir-se)
+ *   outra estratégia, mesmo sentido     → permitido (outra leitura a confirmar)
+ *   outra estratégia, sentido oposto    → bloqueado, e devolvido como mudança de
+ *                                         viés sobre o plano vivo
+ */
+export function filtrarRepintagem<T extends Candidato>(
+  candidatos: readonly T[],
+  vivos: readonly PlanoAnterior[],
+): { permitidos: T[]; repetidos: T[]; contraVies: Array<{ candidato: T; plano: PlanoAnterior }> } {
+  const permitidos: T[] = [];
+  const repetidos: T[] = [];
+  const contraVies: Array<{ candidato: T; plano: PlanoAnterior }> = [];
+  for (const c of candidatos) {
+    if (vivos.some((p) => p.estrategia === c.estrategia)) {
+      repetidos.push(c);
+      continue;
+    }
+    const oposto = vivos.find((p) => p.direccao !== c.direccao);
+    if (oposto) {
+      contraVies.push({ candidato: c, plano: oposto });
+      continue;
+    }
+    permitidos.push(c);
+  }
+  return { permitidos, repetidos, contraVies };
+}

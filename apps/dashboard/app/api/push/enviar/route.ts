@@ -73,6 +73,7 @@ export async function POST(pedido: Request) {
     urgencia: corpo['urgencia'] === 'normal' ? 'normal' : 'high',
     topico: texto(corpo['topico'], 64) || undefined,
     simbolo: texto(corpo['simbolo'], 20) || undefined,
+    timeframe: texto(corpo['timeframe'], 8) || undefined,
   });
   return NextResponse.json({ ok: true, ...r });
 }

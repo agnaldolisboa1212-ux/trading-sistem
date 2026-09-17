@@ -324,6 +324,11 @@ export interface AvisoPush {
   topico?: string;
   /** Instrumento do aviso: so chega a quem o escolheu nas preferencias. */
   simbolo?: string;
+  /**
+   * Timeframe do sinal: so chega a quem o tem no objetivo do onboarding
+   * (intradiario 1h, swing 4h e 1d...). Sem ele, conta so o instrumento.
+   */
+  timeframe?: string;
 }
 
 function pushConfig(): { url: string; segredo: string } | null {
@@ -564,6 +569,7 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       urgencia: 'high',
       topico: `${s.simbolo}-${s.timeframe}`,
       simbolo: s.simbolo,
+      timeframe: s.timeframe,
     }),
   ]);
 }

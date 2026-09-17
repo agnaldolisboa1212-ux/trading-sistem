@@ -53,6 +53,8 @@ function ha(iso: string, agora: number): string {
 export function ListaSinais() {
   const [dados, setDados] = useState<{
     portfolio: string[];
+    /** Timeframes que os objetivos do onboarding pedem. */
+    timeframes?: string[];
     sinais: Sinal[];
     ocultarDisponivel: boolean;
   } | null>(null);
@@ -117,12 +119,17 @@ export function ListaSinais() {
   const activos = dados.sinais.filter((s) => s.estado === null || planoVivo(s.estado));
   const terminados = dados.sinais.filter((s) => s.estado !== null && !planoVivo(s.estado));
 
+  const tfs = (dados.timeframes ?? []).map((t) => t.toUpperCase()).join(' · ');
+
   return (
     <section>
       <div className="section-head">
         <h2>Sinais</h2>
         <span className="grow" />
-        <span className="section-note">{activos.length} activo{activos.length === 1 ? '' : 's'}</span>
+        <span className="section-note">
+          {tfs ? `${tfs} · ` : ''}
+          {activos.length} activo{activos.length === 1 ? '' : 's'}
+        </span>
       </div>
 
       {dados.portfolio.length === 0 ? (
@@ -134,8 +141,9 @@ export function ListaSinais() {
       ) : activos.length === 0 ? (
         <div className="empty">
           <strong>Nenhum sinal activo nos seus {dados.portfolio.length} instrumentos.</strong>
-          Um sinal nasce quando fecha uma vela de 15m ou 1h com um plano de R≥2 e as estratégias não se
-          contradizem.
+          Um sinal nasce quando fecha uma vela {tfs ? `de ${tfs}` : ''} com um plano que passa os
+          filtros de qualidade. Os timeframes vêm do seu objetivo:{' '}
+          <Link href="/onboarding">mudar preferências</Link>.
         </div>
       ) : (
         <div className="grupo__caixa">

@@ -4,16 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import ts from 'typescript';
-
-const fonte = readFileSync(new URL('../lib/estado-sinal.ts', import.meta.url), 'utf8');
-const js = ts.transpileModule(fonte, {
-  compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-const { estadoDoPlano, planoInvalidado, planoVivo } = await import(
-  `data:text/javascript;base64,${Buffer.from(js).toString('base64')}`
-);
+import { estadoDoPlano, planoInvalidado, planoVivo } from '../dist/index.js';
 
 const compra = { direccao: 'bullish', entrada: 100, stop: 98, alvo: 106 };
 const venda = { direccao: 'bearish', entrada: 100, stop: 102, alvo: 94 };

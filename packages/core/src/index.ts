@@ -34,6 +34,8 @@ export * from './signal/entries.js';
 export * from './signal/checklist.js';
 export * from './signal/analyze.js';
 export * from './signal/exits.js';
+export * from './signal/estado-plano.js';
+export * from './signal/perfil-sinais.js';
 
 // Estrategias institucionais (complementares ao MMXM/SMT, nao substitutas)
 export * from './strategies/index.js';
