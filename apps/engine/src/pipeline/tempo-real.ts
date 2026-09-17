@@ -5,9 +5,13 @@
  * diárias fechadas. Este corre a cada minuto sobre os instrumentos e timeframes
  * que as pessoas escolheram, e só com as ESTRATÉGIAS VALIDADAS
  * (`@trading/core`, `strategies/validadas.ts`): as que mostraram vantagem
- * medida, dentro e fora da amostra, com custos. As quatro institucionais
- * antigas continuam no gráfico como contexto, mas deixaram de gerar sinais —
- * no backtest perdiam dinheiro depois do spread.
+ * medida, dentro e fora da amostra, com custos — mais as EM TESTE
+ * (`strategies/em-teste.ts`), que correm ao vivo marcadas como tal. O SMT em
+ * teste precisa das velas das referências (GBPUSD, prata, os cinco pares do
+ * DXY) e de 4h do próprio instrumento; pedem-se só quando fecha uma vela.
+ *
+ * As quatro institucionais antigas continuam no gráfico como contexto, mas
+ * deixaram de gerar sinais — no backtest perdiam dinheiro depois do spread.
  *
  * ── CICLO ──────────────────────────────────────────────────────────────────
  *
@@ -31,15 +35,18 @@ import { join } from 'node:path';
 import {
   acompanharOperacao,
   estadoDoPlano,
-  estrategiaValidada,
+  estrategiaActiva,
+  estrategiaEmTeste,
   estrategiasPara,
   executarEstrategiasValidadas,
   fraseEvento,
   planoVivo,
   riscoDeNoticias,
   timeframesDoPerfil,
+  velasNecessariasSmt,
   VELAS_ATE_EXPIRAR,
   type Candle,
+  type DadosExtra,
   type EventoOperacao,
   type StrategySignal,
   type Timeframe,
@@ -312,7 +319,7 @@ async function lerPlanosRecentes(
 function planosVivos(planos: readonly PlanoAnterior[], velas: readonly Candle[]): PlanoAnterior[] {
   return planos.filter((p) => {
     if (p.terminado) return false;
-    if (estrategiaValidada(p.estrategia) && velas.some((v) => v.time === p.geradoEm)) {
+    if (estrategiaActiva(p.estrategia) && velas.some((v) => v.time === p.geradoEm)) {
       const e = acompanharOperacao({ ...p, alvos: p.alvos ?? [] }, velas).estado;
       return e === 'a-aguardar-entrada' || e === 'em-curso' || e === 'protegida';
     }
@@ -344,7 +351,7 @@ async function acompanharPlanos(p: {
   const ultima = p.velas[p.velas.length - 1];
   if (!ultima) return enviados;
   for (const plano of p.planos) {
-    if (plano.terminado || !estrategiaValidada(plano.estrategia)) continue;
+    if (plano.terminado || !estrategiaActiva(plano.estrategia)) continue;
     if (!p.velas.some((v) => v.time === plano.geradoEm)) continue;
     const a = acompanharOperacao({ ...plano, alvos: plano.alvos ?? [] }, p.velas);
     const ja = new Set([...(plano.avisados ?? []), ...(p.avisados[plano.id] ?? [])]);
@@ -492,6 +499,7 @@ function paraSinal(
     casas: simbolo.casas,
     geradoEm: sig.generatedAt,
     avisos: [...avisosDados, ...sig.warnings],
+    emTeste: estrategiaEmTeste(sig.strategy) !== undefined,
   };
 }
 
@@ -549,6 +557,28 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     return abertos;
   };
 
+  /*
+   * Velas fechadas pedidas nesta passagem, por código e granularidade. O EURUSD
+   * que já se pediu para si serve de referência ao GBPUSD e entra no DXY: cada
+   * série pede-se no máximo uma vez por passagem.
+   */
+  const velasDaPassagem = new Map<string, Candle[] | null>();
+  const fechadasDe = async (codigo: string, gran: number): Promise<Candle[] | null> => {
+    const k = `${codigo}|${gran}`;
+    if (velasDaPassagem.has(k)) return velasDaPassagem.get(k) ?? null;
+    const sim = acharSimbolo(codigo);
+    let velas: Candle[] | null = null;
+    if (sim) {
+      try {
+        velas = cortarVelaAberta(await velasDeriv(sim.deriv, gran, cfg.velas + 1), gran, Date.now());
+      } catch (err) {
+        erros.push(`velas de ${codigo} (referência do SMT): ${msg(err)}`);
+      }
+    }
+    velasDaPassagem.set(k, velas);
+    return velas;
+  };
+
   // Sequencial de propósito: dezenas de pedidos em paralelo à mesma ligação
   // arriscam o limite por minuto da Deriv, e o ciclo tem minutos de folga.
   for (const [codigo, timeframes] of vigilancia.pares) {
@@ -602,6 +632,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         const agora = Date.now();
         const brutas = await velasDeriv(s.deriv, gran, cfg.velas + 1);
         const fechadas = cortarVelaAberta(brutas, gran, agora);
+        velasDaPassagem.set(`${s.codigo}|${gran}`, fechadas);
         analise.velas = fechadas.length;
 
         const ultima = fechadas[fechadas.length - 1];
@@ -637,10 +668,21 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // --- 4. análise: só as estratégias validadas ------------------------
         // A convicção é a taxa medida no backtest; não há limite de R nem de
         // convicção a aplicar por cima — a regra da estratégia já é o filtro.
-        const frescos = executarEstrategiasValidadas(fechadas, {
-          symbol: s.codigo,
-          timeframe: tf as Timeframe,
-        }).filter((x) => x.generatedAt === ultima.time);
+        let extra: DadosExtra = {};
+        if (estrategiasPara(s.codigo, tf).some((e) => e.id === 'smt-teste')) {
+          const referencias: Record<string, Candle[]> = {};
+          for (const c of velasNecessariasSmt(s.codigo)) {
+            const v = await fechadasDe(c, gran);
+            if (v) referencias[c] = v;
+          }
+          const velas4h = tf === '4h' ? fechadas : await fechadasDe(s.codigo, GRANULARIDADE_S['4h']!);
+          extra = { referencias, velas4h: velas4h ?? undefined };
+        }
+        const frescos = executarEstrategiasValidadas(
+          fechadas,
+          { symbol: s.codigo, timeframe: tf as Timeframe },
+          extra,
+        ).filter((x) => x.generatedAt === ultima.time);
         analise.sinaisFrescos = frescos.length;
 
         // --- 4b. anti-repintagem ------------------------------------------

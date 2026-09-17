@@ -25,7 +25,7 @@
  */
 
 import Link from 'next/link';
-import { temEstrategiaValidada } from '@trading/core';
+import { temEstrategiaEmTeste, temEstrategiaValidada } from '@trading/core';
 import { useState } from 'react';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
@@ -171,21 +171,32 @@ function MeusInstrumentos() {
         </div>
       ) : (
         <div className="chips-portfolio">
-          {p.instrumentos.map((c) => (
-            <span
-              key={c}
-              className={`chip-portfolio ${temEstrategiaValidada(c) ? '' : 'chip-portfolio--sem-sinais'}`}
-              title={temEstrategiaValidada(c) ? 'Com estratégia validada' : 'Sem estratégia com vantagem medida: não gera sinais'}
-            >
-              <Link href={`/grafico?s=${encodeURIComponent(c)}`}>
-                {c}
-                {!temEstrategiaValidada(c) && <small> · sem sinais</small>}
-              </Link>
-              <button type="button" aria-label={`Remover ${c} do portfólio`} onClick={() => void correr(p.remover(c))}>
-                ×
-              </button>
-            </span>
-          ))}
+          {p.instrumentos.map((c) => {
+            const validada = temEstrategiaValidada(c);
+            const emTeste = !validada && temEstrategiaEmTeste(c);
+            return (
+              <span
+                key={c}
+                className={`chip-portfolio ${validada || emTeste ? '' : 'chip-portfolio--sem-sinais'}`}
+                title={
+                  validada
+                    ? 'Com estratégia validada'
+                    : emTeste
+                      ? 'Em teste ao vivo: sinais sem taxa de acerto medida ainda'
+                      : 'Sem estratégia com vantagem medida: não gera sinais'
+                }
+              >
+                <Link href={`/grafico?s=${encodeURIComponent(c)}`}>
+                  {c}
+                  {emTeste && <small> · em teste</small>}
+                  {!validada && !emTeste && <small> · sem sinais</small>}
+                </Link>
+                <button type="button" aria-label={`Remover ${c} do portfólio`} onClick={() => void correr(p.remover(c))}>
+                  ×
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
       {erro && <div className="ob__erro">{erro}</div>}

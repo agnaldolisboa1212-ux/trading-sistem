@@ -2135,6 +2135,19 @@ body:has(.terminal--cheio) .bottomnav {
   border-radius: var(--radius-pill);
 }
 
+/* Estratégia em teste ao vivo: sem taxa de acerto medida ainda. */
+.selo-em-teste {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  padding: 3px 7px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+  white-space: nowrap;
+}
+
 .lado-pill.compra {
   background: color-mix(in srgb, var(--bull) 18%, transparent);
   color: var(--bull);

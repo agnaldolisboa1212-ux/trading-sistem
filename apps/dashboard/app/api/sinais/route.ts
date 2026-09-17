@@ -16,7 +16,8 @@
 import { NextResponse } from 'next/server';
 import {
   acompanharOperacao,
-  estrategiaValidada,
+  estrategiaActiva,
+  estrategiaEmTeste,
   fraseEvento,
   timeframesDoPerfil,
   type Acompanhamento,
@@ -63,6 +64,8 @@ export interface SinalDaConta {
   ultimoEvento: string | null;
   /** Stop em vigor (sobe com a protecção ou o stop móvel). */
   stopActual: number | null;
+  /** Estratégia em teste ao vivo: sem taxa de acerto medida. */
+  emTeste: boolean;
 }
 
 /** O estado do acompanhamento na linguagem da lista. */
@@ -158,8 +161,8 @@ export async function GET() {
   }
 
   const sinais: SinalDaConta[] = (linhas ?? [])
-    // Só as estratégias com vantagem medida: os sinais antigos das que saíram não voltam a aparecer.
-    .filter((l) => !ocultos.has(l.id) && estrategiaValidada(l.estrategia as string) !== undefined)
+    // Só estratégias activas (validadas ou em teste): as que saíram não voltam a aparecer.
+    .filter((l) => !ocultos.has(l.id) && estrategiaActiva(l.estrategia as string) !== undefined)
     .map((l) => ({
       id: l.id,
       simbolo: l.simbolo,
@@ -178,6 +181,7 @@ export async function GET() {
       resultadoR: null,
       ultimoEvento: null,
       stopActual: null,
+      emTeste: estrategiaEmTeste(l.estrategia as string) !== undefined,
     }));
 
   // Estado: um pedido de velas por instrumento/timeframe, desde o sinal mais antigo.

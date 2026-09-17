@@ -37,6 +37,7 @@ interface Sinal {
   ultimoEvento?: string | null;
   stopActual?: number | null;
   conviccao?: number;
+  emTeste?: boolean;
 }
 
 const NOME_ESTRATEGIA: Record<string, string> = {
@@ -44,6 +45,8 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'connors-rsi2-indices': 'RSI(2) de Connors',
   'tendencia-cripto': 'Tendência 55 dias',
   'tendencia-ouro': 'Tendência 55 dias (ouro)',
+  'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
+  'smt-teste': 'SMT sem MMXM (em teste)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistência',
   'vwap-bands': 'Bandas de VWAP',
@@ -256,6 +259,8 @@ function LinhaSinal({
               {s.resultadoR > 0 ? '+' : ''}
               {s.resultadoR.toFixed(1)}R
             </b>
+          ) : s.emTeste ? (
+            <span className="selo-em-teste">EM TESTE</span>
           ) : s.conviccao !== undefined ? (
             <>{Math.round(s.conviccao * 100)}%</>
           ) : (

@@ -488,6 +488,8 @@ export interface SinalTempoReal {
   validadeAvisoS?: number;
   /** Notícia de alto impacto do instrumento por perto (calendário económico). */
   noticia?: string;
+  /** Estratégia em teste ao vivo: sem taxa de acerto medida (a convicção é 0). */
+  emTeste?: boolean;
 }
 
 /** Frase curta sobre o preco actual, para o aviso e para o Telegram. */
@@ -511,6 +513,8 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'connors-rsi2-indices': 'RSI(2) de Connors',
   'tendencia-cripto': 'Tendencia 55 dias',
   'tendencia-ouro': 'Tendencia 55 dias (ouro)',
+  'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
+  'smt-teste': 'SMT sem MMXM (em teste)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistencia',
   'vwap-bands': 'Bandas de VWAP',
@@ -543,7 +547,7 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
       ? ['', `agora   \`${n(s.precoActual)}\` · ${escapeMarkdown(agora)}`]
       : []),
     '',
-    `*${Math.round(s.conviccao * 100)}% de acerto medido* · ${escapeMarkdown((NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia) + acordo)}`,
+    `*${s.emTeste ? 'EM TESTE, sem acerto medido' : `${Math.round(s.conviccao * 100)}% de acerto medido`}* · ${escapeMarkdown((NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia) + acordo)}`,
     '',
     `_${escapeMarkdown(razao)}_`,
   ];
@@ -564,7 +568,7 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       geradoEm: new Date(s.geradoEm).toISOString(),
     }),
     sendPush({
-      titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${Math.round(s.conviccao * 100)}% de acerto medido`,
+      titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${s.emTeste ? 'EM TESTE' : `${Math.round(s.conviccao * 100)}% de acerto medido`}`,
       corpo: [
         `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}` +
           (s.alvos[0] ? ` · alvo ${s.alvos[0].preco.toFixed(s.casas)}` : ''),

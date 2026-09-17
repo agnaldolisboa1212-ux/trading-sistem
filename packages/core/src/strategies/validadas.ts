@@ -31,8 +31,9 @@
  *   tendencia-ouro         XAUUSD · 1d (a mesma regra, medida à parte)
  *
  * Os números de cada uma estão em `ESTRATEGIAS_VALIDADAS` e seguem no texto do
- * sinal. Forex, ouro, prata e sintéticos NÃO têm estratégia validada — não
- * recebem sinais. Os sintéticos da Deriv são gerados por um gerador aleatório:
+ * sinal. Forex, prata e o ouro intradiário NÃO têm estratégia validada; recebem
+ * sinais só das estratégias EM TESTE (`em-teste.ts`), marcadas como tal e sem
+ * taxa de acerto. Os sintéticos da Deriv são gerados por um gerador aleatório:
  * nenhuma análise de gráfico tem vantagem sobre eles por construção.
  *
  * Nada disto garante o futuro. É o melhor que os dados disponíveis mostram, e a
@@ -45,6 +46,13 @@ import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
 import { atrSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
+import {
+  ESTRATEGIAS_EM_TESTE,
+  planSmtTeste,
+  planVwapForexTeste,
+  type DadosExtra,
+  type EstrategiaEmTeste,
+} from './em-teste.js';
 
 export type EstrategiaValidadaId =
   | 'compra-vwap-indices'
@@ -163,10 +171,20 @@ export function estrategiaValidada(id: string): EstrategiaValidada | undefined {
   return ESTRATEGIAS_VALIDADAS.find((e) => e.id === id);
 }
 
-/** Estratégias que se aplicam a este instrumento neste timeframe. */
-export function estrategiasPara(simbolo: string, timeframe: string): EstrategiaValidada[] {
+/** Uma estratégia que gera sinais: validada, ou em teste ao vivo (tem `emTeste`). */
+export type EstrategiaActiva = EstrategiaValidada | EstrategiaEmTeste;
+
+export const ESTRATEGIAS_ACTIVAS: readonly EstrategiaActiva[] = [...ESTRATEGIAS_VALIDADAS, ...ESTRATEGIAS_EM_TESTE];
+
+/** Validada ou em teste: as estratégias cujos sinais se anunciam e acompanham. */
+export function estrategiaActiva(id: string): EstrategiaActiva | undefined {
+  return ESTRATEGIAS_ACTIVAS.find((e) => e.id === id);
+}
+
+/** Estratégias que geram sinais neste instrumento e timeframe (validadas e em teste). */
+export function estrategiasPara(simbolo: string, timeframe: string): EstrategiaActiva[] {
   const s = simbolo.toUpperCase();
-  return ESTRATEGIAS_VALIDADAS.filter(
+  return ESTRATEGIAS_ACTIVAS.filter(
     (e) => e.instrumentos.includes(s) && (e.timeframes as readonly string[]).includes(timeframe),
   );
 }
@@ -370,12 +388,14 @@ function planTendencia55d(
 }
 
 /**
- * Corre as estratégias validadas que se aplicam a este instrumento e timeframe
- * sobre velas FECHADAS. Devolve só sinais nascidos na última vela.
+ * Corre as estratégias validadas e em teste que se aplicam a este instrumento e
+ * timeframe sobre velas FECHADAS. Devolve só sinais nascidos na última vela.
+ * O SMT precisa de `extra` (velas das referências e de 4h); sem elas não corre.
  */
 export function executarEstrategiasValidadas(
   velas: readonly Candle[],
   ctx: Contexto,
+  extra: DadosExtra = {},
 ): StrategySignal[] {
   const out: StrategySignal[] = [];
   for (const e of estrategiasPara(ctx.symbol, ctx.timeframe)) {
@@ -383,6 +403,8 @@ export function executarEstrategiasValidadas(
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
+    if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
+    if (e.id === 'smt-teste') out.push(...planSmtTeste(velas, ctx, extra));
   }
   return out;
 }

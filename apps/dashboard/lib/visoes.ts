@@ -40,9 +40,10 @@ import {
   detectSupplyDemandZones,
   detectSupportResistanceLevels,
   estrategiasPara,
-  estrategiaValidada,
+  estrategiaActiva,
   executarEstrategiasValidadas,
   rsiSerie,
+  temEstrategiaEmTeste,
   temEstrategiaValidada,
   type Candle,
   type ConfluenceReport,
@@ -70,7 +71,7 @@ export const NOTA_CONTEXTO =
   'Só contexto: esta leitura não gera sinais. No backtest com spread perdia dinheiro, por isso saiu dos sinais.';
 
 export function nomeVisao(id: string): string {
-  return estrategiaValidada(id)?.nome ?? VISOES.find((v) => v.id === id)?.nome ?? id;
+  return estrategiaActiva(id)?.nome ?? VISOES.find((v) => v.id === id)?.nome ?? id;
 }
 
 /** Visão de cada estratégia validada (a do VWAP vive na visão das bandas). */
@@ -79,6 +80,10 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'connors-rsi2-indices': 'connors-rsi2-indices',
   'tendencia-cripto': 'tendencia-cripto',
   'tendencia-ouro': 'tendencia-cripto',
+  // O VWAP no forex/ouro partilha a mesma visão (bandas); o SMT ainda não tem
+  // desenho próprio no gráfico — precisa das velas de outros instrumentos, que
+  // esta página não pede. Os avisos de push abrem o Resumo nesse caso.
+  'vwap-forex-teste': 'vwap-bands',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {
@@ -422,8 +427,9 @@ export function analisarVisoes(
     pontos: pontos.map((p) => ({ t: p.time, p: f(p) })),
   });
   const ultimoVwap = vwap.points[vwap.points.length - 1];
-  const vw = sinalDe('compra-vwap-indices');
-  const vwapValida = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'compra-vwap-indices');
+  const indicesValidos = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'compra-vwap-indices');
+  const forexEmTeste = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'vwap-forex-teste');
+  const vw = sinalDe('compra-vwap-indices') ?? sinalDe('vwap-forex-teste');
   const vwapVisao: Visao = {
     id: 'vwap-bands',
     nome: nomeVisao('vwap-bands'),
@@ -440,7 +446,7 @@ export function analisarVisoes(
           curva('banda2', (p) => p.lower2, '−2σ'),
         ],
       },
-      desenhoDoSinal(vw, 'compra-vwap-indices'),
+      desenhoDoSinal(vw, vw?.sinal.strategy ?? 'compra-vwap-indices'),
     ),
     estruturas: ultimoVwap
       ? [
@@ -452,9 +458,11 @@ export function analisarVisoes(
         ]
       : [],
     nota: [
-      vwapValida
+      indicesValidos
         ? 'Sinal: fecho abaixo de −2σ com RSI(14) < 30 ou σ do mês > 2 ATR. Só compras — as vendas não têm vantagem medida.'
-        : 'A compra na banda −2σ só está validada em US100, SP500, US30 e GER30, em 1h e 4h. Aqui as bandas são contexto.',
+        : forexEmTeste
+          ? 'EM TESTE ao vivo (revisão em 1 semana): fecho a ±2σ do VWAP do mês com RSI(14) em extremo, nos dois sentidos. Sem taxa de acerto medida ainda.'
+          : 'A compra na banda −2σ só está validada em US100, SP500, US30 e GER30, em 1h e 4h. Aqui as bandas são contexto.',
       vwap.usedVolume ? null : 'A Deriv não entrega volume: é a média ponderada pelo tempo (TWAP).',
     ]
       .filter(Boolean)
@@ -594,9 +602,9 @@ export function analisarVisoes(
     desenho: melhor ? linhasDoSinal(melhor, nomeVisao(melhor.sinal.strategy)) : DESENHO_VAZIO,
     estruturas: [],
     nota: !comSinais
-      ? temEstrategiaValidada(simbolo)
-        ? `Neste timeframe não há estratégia validada para ${simbolo}. Veja ${estrategiasDoSimbolo(simbolo)}.`
-        : `${simbolo} não tem nenhuma estratégia com vantagem medida — o sistema não gera sinais aqui. As visões mostram só contexto.`
+      ? temEstrategiaValidada(simbolo) || temEstrategiaEmTeste(simbolo)
+        ? `Neste timeframe não há estratégia activa para ${simbolo}. Veja ${estrategiasDoSimbolo(simbolo)}.`
+        : `${simbolo} não tem nenhuma estratégia com vantagem medida, nem em teste — o sistema não gera sinais aqui. As visões mostram só contexto.`
       : confluencia.direction === 'conflicted'
         ? 'Na última vela as estratégias apontaram em sentidos opostos — nenhuma prevalece.'
         : undefined,

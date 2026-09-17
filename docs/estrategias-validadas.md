@@ -132,23 +132,43 @@ O DXY foi reconstruído com a fórmula da ICE (EURUSD, USDJPY, GBPUSD, USDCAD, U
 coroa sueca fica de fora porque a corretora não a cota).
 
 Os pares principais estão entre os mercados mais eficientes que existem: as regras técnicas
-simples que funcionavam até 2015 deixaram de funcionar. Os pares continuam sem sinais até
-uma regra passar os testes. O ouro tem a tendência de 55 dias no diário (acima).
+simples que funcionavam até 2015 deixaram de funcionar. O ouro tem a tendência de 55 dias
+no diário (acima).
+
+## Em teste ao vivo (sem vantagem medida ainda)
+
+O utilizador continua a achar que o SMT funciona nestes pares e quer ver dados reais, não só
+o backtest. Duas regras (`packages/core/src/strategies/em-teste.ts`) correm ao vivo desde
+**17/09/2026**, marcadas em todo o lado como "EM TESTE" — badge amarela em vez de percentagem,
+convicção 0, aviso no texto do sinal — e com revisão marcada para **24/09/2026** (uma semana).
+Se ao fim da semana as operações reais forem positivas, sobem a validadas; senão, saem.
+
+- **VWAP ±2σ no forex** (`vwap-forex-teste`) — EURUSD, GBPUSD, GBPJPY, USDJPY · 1h e 4h.
+  A mesma regra dos índices, mas nos dois sentidos (o forex não tem a deriva de subida dos
+  índices). Compra 2σ abaixo do VWAP do mês, vende 2σ acima, com RSI(14) em extremo ou o mês
+  deslocado mais de 2 ATR. Nunca foi medida nesta forma.
+- **SMT sem MMXM** (`smt-teste`) — EURUSD, GBPUSD, XAUUSD, XAGUSD · 15m, 1h e 4h. Divergência
+  entre pares correlacionados (EURUSD↔GBPUSD, prata↔ouro) ou contra o DXY sintético, só a
+  favor da tendência de 4h (EMA 50 a subir ou a descer). Alvo a +2R; em 15m/1h sai às 20:00
+  UTC do dia do sinal (day trade), em 4h ao fim de 12 velas. No backtest 2022–2026: ouro
+  contra o DXY em 1h deu **+0,15R por operação, positivo nos dois períodos** — a variante
+  escolhida aqui; EURUSD e GBPUSD ficaram em ≈0R ou negativos em todos os tamanhos de swing.
 
 ## Quem recebe o quê
 
 | Objetivo no onboarding | Timeframes | Estratégias que podem dar sinal |
 |---|---|---|
-| Day trading | 15m | nenhuma validada em 15m |
-| Intradiário | 1h | VWAP em índices |
-| Swing | 4h, 1d | VWAP em índices (4h), Connors (1d), tendência cripto e ouro (1d) |
+| Day trading | 15m | SMT no forex/ouro (em teste) |
+| Intradiário | 1h | VWAP em índices; VWAP e SMT no forex/ouro (em teste) |
+| Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto e ouro (1d) |
 | Investir | 1d | Connors, tendência cripto e ouro |
 
 Esta é só a sugestão inicial: em **Definições → Timeframes dos sinais** cada pessoa escolhe
 exactamente em quais recebe sinais.
 
-**Forex, prata e sintéticos não recebem sinais. O ouro recebe na tendência diária.**
-- Nenhuma regra testada passou nos dois períodos.
+**Prata e sintéticos não recebem sinais fora do teste acima. O ouro recebe na tendência
+diária, e no teste em 15m/1h/4h. O forex só recebe sinais em teste.**
+- Nenhuma regra validada passou nos dois períodos em nenhum destes.
 - Os índices sintéticos da Deriv são gerados por um gerador aleatório. Por construção,
   nenhuma leitura de gráfico tem vantagem sobre eles.
 

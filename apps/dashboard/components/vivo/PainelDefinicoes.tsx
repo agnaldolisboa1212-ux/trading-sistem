@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { estrategiasPara, TIMEFRAMES_SINAIS, timeframesDoPerfil } from '@trading/core';
+import { estrategiaEmTeste, estrategiasPara, TIMEFRAMES_SINAIS, timeframesDoPerfil } from '@trading/core';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { guardarPerfil, lerPerfil } from '@/lib/auth';
 import { usarAvisos, usarInstalacao } from './Pwa';
@@ -225,7 +225,21 @@ function Corretora() {
 // ---------------------------------------------------------------------------
 
 /** Instrumentos de referência para dizer que estratégias existem em cada timeframe. */
-const CATALOGO_VALIDADO = ['US100', 'SP500', 'US30', 'GER30', 'BTCUSD', 'ETHUSD', 'XAUUSD'];
+const CATALOGO_VALIDADO = [
+  'US100',
+  'SP500',
+  'US30',
+  'GER30',
+  'BTCUSD',
+  'ETHUSD',
+  'XAUUSD',
+  // Em teste ao vivo (sem vantagem medida ainda): forex e a prata.
+  'EURUSD',
+  'GBPUSD',
+  'GBPJPY',
+  'USDJPY',
+  'XAGUSD',
+];
 
 /**
  * Em que timeframes a pessoa quer receber sinais.
@@ -250,11 +264,18 @@ function TimeframesSinais() {
   }, []);
 
   const estrategiasDe = (tf: string) => {
-    const nomes = new Map<string, string[]>();
+    const nomes = new Map<string, { sims: string[]; emTeste: boolean }>();
     for (const s of CATALOGO_VALIDADO) {
-      for (const e of estrategiasPara(s, tf)) nomes.set(e.nome, [...(nomes.get(e.nome) ?? []), s]);
+      for (const e of estrategiasPara(s, tf)) {
+        const grupo = nomes.get(e.nome) ?? { sims: [], emTeste: estrategiaEmTeste(e.id) !== undefined };
+        grupo.sims.push(s);
+        nomes.set(e.nome, grupo);
+      }
     }
-    return [...nomes].map(([nome, sims]) => `${nome.replace(/ \(.*\)$/, '')} · ${sims.join(', ')}`);
+    // "(ouro)" some do nome; "(em teste)" fica, para não parecer validada.
+    return [...nomes].map(
+      ([nome, { sims, emTeste }]) => `${emTeste ? nome : nome.replace(/ \(.*\)$/, '')} · ${sims.join(', ')}`,
+    );
   };
 
   const alternar = (tf: string) =>

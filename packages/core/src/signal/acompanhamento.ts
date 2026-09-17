@@ -13,6 +13,8 @@
  *   compra-vwap-indices   +1R: fecha metade, stop para a entrada; +2R: fecha o resto
  *   connors-rsi2-indices  sai no primeiro fecho acima da média de 5, ou ao fim de 10 velas
  *   tendencia-cripto/ouro stop móvel no mínimo das últimas 20 velas
+ *   vwap-forex-teste      como a compra do VWAP, nos dois sentidos
+ *   smt-teste             alvo a +2R; sai às 20:00 UTC (15m/1h) ou ao fim de 12 velas (4h)
  *   (outras)              primeiro alvo ou stop
  *
  * Mudança de viés: a tendência da própria série (EMA 50 a descer e fecho abaixo
@@ -79,6 +81,22 @@ export interface Acompanhamento {
 
 /** Velas sem tocar na entrada até o plano deixar de valer. */
 const EXPIRA_VELAS = 20;
+
+/** Metade a +1R com o stop na entrada, o resto a +2R. */
+const GESTAO_PARCIAL = new Set(['compra-vwap-indices', 'vwap-forex-teste']);
+
+const HORA = 3_600_000;
+const DIA = 86_400_000;
+
+/** Duração de uma vela: a menor distância entre velas seguidas perto do sinal. */
+function passoDasVelas(velas: readonly Candle[], perto: number): number {
+  let passo = Infinity;
+  for (let k = Math.max(1, perto - 10); k <= Math.min(velas.length - 1, perto + 10); k++) {
+    const d = velas[k]!.time - velas[k - 1]!.time;
+    if (d > 0 && d < passo) passo = d;
+  }
+  return Number.isFinite(passo) ? passo : 0;
+}
 
 function mediaFechos(velas: readonly Candle[], fim: number, periodo: number): number {
   if (fim + 1 < periodo) return Number.NaN;
@@ -152,7 +170,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
     // --- stop (primeiro, conservador) ------------------------------------------
     if (tocaAbaixo(v, stop)) {
       if (protegida) {
-        const r = plano.estrategia === 'compra-vwap-indices' ? 0.5 : rDe(stop);
+        const r = GESTAO_PARCIAL.has(plano.estrategia) ? 0.5 : rDe(stop);
         ev('stop-na-entrada', v.time, stop, r);
         return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
       }
@@ -164,7 +182,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
     }
 
     // --- regras de saída por estratégia --------------------------------------------
-    if (plano.estrategia === 'compra-vwap-indices') {
+    if (GESTAO_PARCIAL.has(plano.estrategia)) {
       if (!protegida && alvo1 !== null && tocaAcima(v, alvo1)) {
         protegida = true;
         stop = plano.entrada;
@@ -203,6 +221,19 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
       const r = rDe(alvo1);
       ev('alvo1', v.time, alvo1, r);
       return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
+    } else if (plano.estrategia === 'smt-teste') {
+      // Day trade: em 15m e 1h fecha na vela que acaba às 20:00 UTC do dia do sinal; em 4h, 12 velas.
+      const passo = passoDasVelas(velas, iSinal);
+      const fechoSinal = velas[iSinal]!.time + passo;
+      const fim =
+        passo >= 4 * HORA
+          ? i - iEntrada >= 12
+          : v.time + passo >= Math.floor(fechoSinal / DIA) * DIA + 20 * HORA;
+      if (fim) {
+        const r = rDe(v.close);
+        ev('saida-tempo', v.time, v.close, r);
+        return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
+      }
     }
 
     // --- mudança de viés ------------------------------------------------------------
@@ -232,7 +263,7 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
     case 'entrada':
       return { titulo: 'entrada tocada', corpo: `O preço chegou à entrada (${p}). A operação está em curso.` };
     case 'alvo1':
-      return estrategia === 'compra-vwap-indices'
+      return GESTAO_PARCIAL.has(estrategia)
         ? { titulo: '+1R atingido', corpo: `Chegou a ${p}. Feche metade e passe o stop para a entrada.` }
         : { titulo: `alvo atingido ${r}`, corpo: `Chegou ao alvo (${p}).` };
     case 'alvo2':
@@ -246,7 +277,9 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
         ? { titulo: `sair agora ${r}`, corpo: `Fechou acima da média de 5 (${p}): é a saída da regra.` }
         : { titulo: `saída ${r}`, corpo: `Perdeu o stop móvel (${p}): a tendência terminou para esta operação.` };
     case 'saida-tempo':
-      return { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
+      return estrategia === 'smt-teste'
+        ? { titulo: `sair: fim do day trade ${r}`, corpo: `Não chegou ao alvo nem ao stop no tempo da regra. Fecho a ${p}.` }
+        : { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
     case 'stop-movel':
       return { titulo: 'stop móvel subiu', corpo: `Novo stop: ${p} (mínimo das últimas 20 velas).` };
     case 'vies':

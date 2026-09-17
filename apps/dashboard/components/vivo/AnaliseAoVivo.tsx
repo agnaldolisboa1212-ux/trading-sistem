@@ -29,6 +29,7 @@ import type { Vela } from '@/lib/deriv/live';
 import { formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
 import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
+import { estrategiaEmTeste } from '@trading/core';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
@@ -226,7 +227,11 @@ export function AnaliseAoVivo({
                   {sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} velas`} · {ROTULO_ESTADO[sv.estado]}
                 </em>
               </span>
-              <b title="acerto medido no backtest">{Math.round(sv.sinal.conviction * 100)}%</b>
+              {estrategiaEmTeste(sv.sinal.strategy) ? (
+                <span className="selo-em-teste">EM TESTE</span>
+              ) : (
+                <b title="acerto medido no backtest">{Math.round(sv.sinal.conviction * 100)}%</b>
+              )}
             </>
           ) : m ? (
             <span className="grow">
@@ -383,9 +388,13 @@ function CartaoSinal({
         <span className={`lado-pill ${compra ? 'compra' : 'venda'}`}>{compra ? 'COMPRA' : 'VENDA'}</span>
         <strong>{nomeVisao(s.strategy)}</strong>
         <span className="grow" />
-        <span className="analise-viva__r" title="acerto medido no backtest">
-          {Math.round(s.conviction * 100)}% acerto
-        </span>
+        {estrategiaEmTeste(s.strategy) ? (
+          <span className="selo-em-teste">EM TESTE</span>
+        ) : (
+          <span className="analise-viva__r" title="acerto medido no backtest">
+            {Math.round(s.conviction * 100)}% acerto
+          </span>
+        )}
       </div>
 
       <div className={`analise-viva__estado ${vivo ? 'vivo' : ''}`}>

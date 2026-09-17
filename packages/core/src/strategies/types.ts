@@ -48,7 +48,7 @@ export type StrategyRegime = 'mean-reversion' | 'continuation';
 
 export interface StrategySignal {
   /** Estratégias institucionais (contexto) ou validadas (as que geram sinais). */
-  strategy: StrategyId | import('./validadas.js').EstrategiaValidadaId;
+  strategy: StrategyId | import('./validadas.js').EstrategiaValidadaId | import('./em-teste.js').EstrategiaEmTesteId;
   symbol: string;
   timeframe: Timeframe;
   direction: Direction;

@@ -9,6 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   estrategiasPara,
+  estrategiaValidada,
   executarEstrategiasValidadas,
   planCompraVwapIndices,
   planConnorsIndices,
@@ -26,9 +27,10 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
   assert.deepEqual(estrategiasPara('SP500', '1d').map((e) => e.id), ['connors-rsi2-indices']);
   assert.deepEqual(estrategiasPara('BTCUSD', '1d').map((e) => e.id), ['tendencia-cripto']);
   assert.equal(estrategiasPara('US100', '15m').length, 0);
-  assert.equal(estrategiasPara('EURUSD', '1h').length, 0);
+  // Forex e ouro intradiário só têm estratégias EM TESTE (em-teste.test.mjs).
+  assert.ok(estrategiasPara('EURUSD', '1h').every((e) => 'emTeste' in e));
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);
-  assert.equal(estrategiasPara('XAUUSD', '1h').length, 0);
+  assert.ok(estrategiasPara('XAUUSD', '1h').every((e) => 'emTeste' in e));
   assert.equal(estrategiasPara('V75', '1h').length, 0);
   assert.equal(temEstrategiaValidada('GBPUSD'), false);
   assert.equal(temEstrategiaValidada('ETHUSD'), true);
@@ -70,8 +72,9 @@ test('VWAP: compra quando fecha 2σ abaixo, sobrevendido; nada numa oscilação 
   assert.equal(planCompraVwapIndices(calmo, { symbol: 'US30', timeframe: '1h' }).length, 0);
 });
 
-test('VWAP: o mesmo gráfico no EURUSD não dá sinal (sem estratégia validada)', () => {
-  assert.equal(executarEstrategiasValidadas(mesComQueda(6), { symbol: 'EURUSD', timeframe: '1h' }).length, 0);
+test('VWAP: o mesmo gráfico no EURUSD não dá sinal validado (só o de teste)', () => {
+  const eurusd = executarEstrategiasValidadas(mesComQueda(6), { symbol: 'EURUSD', timeframe: '1h' });
+  assert.equal(eurusd.filter((s) => estrategiaValidada(s.strategy)).length, 0);
   assert.equal(executarEstrategiasValidadas(mesComQueda(6), { symbol: 'US30', timeframe: '15m' }).length, 0);
 });
 
