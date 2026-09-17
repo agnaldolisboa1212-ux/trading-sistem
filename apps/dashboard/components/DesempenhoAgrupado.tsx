@@ -6,16 +6,9 @@
  */
 
 import { useState } from 'react';
+import type { Grupo } from '@/lib/desempenho';
 
-export interface Grupo {
-  chave: string;
-  n: number;
-  vitorias: number;
-  totalR: number;
-  mediaR: number;
-  /** Todas as operações deste grupo vêm de uma estratégia em teste. */
-  emTeste?: boolean;
-}
+export type { Grupo };
 
 const ABAS = [
   { id: 'par', rotulo: 'Por par', coluna: 'Símbolo' },

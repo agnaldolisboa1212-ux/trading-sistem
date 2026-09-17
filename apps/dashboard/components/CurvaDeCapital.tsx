@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * Curva de capital — o saldo REAL, introduzido à mão.
+ * Curva de capital de UMA conta — o saldo REAL, introduzido à mão.
  *
  * As ordens só saem com um toque manual no terminal: não há execução
  * automática de que se possa derivar um saldo. Em vez de simular uma conta a
  * partir dos sinais (a página antiga fazia isso, com uma conta que nunca
  * existiu), cada pessoa regista aqui o saldo real quando quiser — a curva liga
- * os pontos. `app/api/saldo/route.ts` guarda-os por conta (RLS, migração 0009).
+ * os pontos. `app/api/saldo/route.ts` guarda-os por conta (RLS, migrações
+ * 0009 e 0010). A conta em si é escolhida pelo componente-pai (`FinanceiroContas`).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -21,9 +22,8 @@ interface Ponto {
   registado_em: string;
 }
 
-export function CurvaDeCapital() {
+export function CurvaDeCapital({ contaId }: { contaId: number }) {
   const [pontos, setPontos] = useState<Ponto[] | null>(null);
-  const [semSessao, setSemSessao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [saldo, setSaldo] = useState('');
   const [nota, setNota] = useState('');
@@ -31,18 +31,18 @@ export function CurvaDeCapital() {
 
   const buscar = useCallback(async () => {
     try {
-      const r = await fetch('/api/saldo', { cache: 'no-store' });
-      const j = (await r.json()) as { pontos?: Ponto[]; semSessao?: boolean; erro?: string };
+      const r = await fetch(`/api/saldo?contaId=${contaId}`, { cache: 'no-store' });
+      const j = (await r.json()) as { pontos?: Ponto[]; erro?: string };
       if (!r.ok) throw new Error(j.erro ?? `HTTP ${r.status}`);
       setPontos(j.pontos ?? []);
-      setSemSessao(Boolean(j.semSessao));
       setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [contaId]);
 
   useEffect(() => {
+    setPontos(null);
     void buscar();
   }, [buscar]);
 
@@ -54,7 +54,7 @@ export function CurvaDeCapital() {
       const r = await fetch('/api/saldo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ saldo: valor, nota: nota.trim() || undefined }),
+        body: JSON.stringify({ contaId, saldo: valor, nota: nota.trim() || undefined }),
       });
       const j = (await r.json()) as { erro?: string };
       if (!r.ok) throw new Error(j.erro ?? `HTTP ${r.status}`);
@@ -82,15 +82,6 @@ export function CurvaDeCapital() {
       setErro(e instanceof Error ? e.message : String(e));
     }
   };
-
-  if (semSessao) {
-    return (
-      <div className="empty">
-        <strong>Entre na conta para registar o saldo.</strong>
-        A curva de capital é por conta: cada pessoa vê e regista só o seu.
-      </div>
-    );
-  }
 
   const equityPoints: EquityPoint[] = (pontos ?? []).map((p) => ({
     t: Date.parse(p.registado_em),
