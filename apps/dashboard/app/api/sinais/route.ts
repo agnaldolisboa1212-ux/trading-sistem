@@ -14,10 +14,17 @@
  */
 
 import { NextResponse } from 'next/server';
-import { estrategiaValidada, timeframesDosObjetivos } from '@trading/core';
+import {
+  acompanharOperacao,
+  estrategiaValidada,
+  fraseEvento,
+  timeframesDosObjetivos,
+  type Acompanhamento,
+  type Candle,
+} from '@trading/core';
 import { velasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
-import { estadoDoPlano, type EstadoPlano, type VelaMinima } from '@/lib/estado-sinal';
+import type { EstadoPlano } from '@/lib/estado-sinal';
 import { clienteServidor } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
@@ -50,24 +57,45 @@ export interface SinalDaConta {
   geradoEm: string;
   anunciadoEm: string;
   estado: EstadoPlano | null;
+  /** Resultado em R quando a operação já fechou (gestão da estratégia). */
+  resultadoR: number | null;
+  /** Último acontecimento, em texto: "+1R atingido", "stop móvel subiu"... */
+  ultimoEvento: string | null;
+  /** Stop em vigor (sobe com a protecção ou o stop móvel). */
+  stopActual: number | null;
 }
 
-const memoriaVelas = new Map<string, { ate: number; velas: VelaMinima[] }>();
+/** O estado do acompanhamento na linguagem da lista. */
+function estadoDaLista(a: Acompanhamento): EstadoPlano {
+  switch (a.estado) {
+    case 'a-aguardar-entrada':
+      return 'a-aguardar-entrada';
+    case 'em-curso':
+    case 'protegida':
+      return 'em-curso';
+    case 'fechada':
+      return (a.resultadoR ?? 0) > 0 ? 'alvo-atingido' : 'stop-atingido';
+    case 'expirado':
+      return 'expirado';
+    case 'perdido':
+      return 'perdido';
+  }
+}
 
-async function velasDesde(simbolo: string, timeframe: string, desdeMs: number): Promise<VelaMinima[] | null> {
+const memoriaVelas = new Map<string, { ate: number; velas: Candle[] }>();
+
+/** Velas desde o sinal mais antigo, com 60 de história antes (médias, mínimos, viés). */
+async function velasDesde(simbolo: string, timeframe: string, desdeMs: number): Promise<Candle[] | null> {
   const s = acharSimbolo(simbolo);
   const gran = GRANULARIDADE_S[timeframe];
   if (!s || !gran) return null;
   const chave = `${s.deriv}|${gran}`;
   const guardado = memoriaVelas.get(chave);
-  const precisa = Math.min(1000, Math.ceil((Date.now() - desdeMs) / (gran * 1000)) + 3);
+  const precisa = Math.min(1000, Math.ceil((Date.now() - desdeMs) / (gran * 1000)) + 63);
   if (guardado && guardado.ate > Date.now() && guardado.velas.length >= precisa) return guardado.velas;
   try {
-    const velas = (await velasDeriv(s.deriv, gran, precisa)).map((c) => ({
-      time: c.time,
-      high: c.high,
-      low: c.low,
-    }));
+    // Só velas FECHADAS: a que está em formação ainda pode mudar o estado.
+    const velas = (await velasDeriv(s.deriv, gran, precisa)).filter((c) => c.time + gran * 1000 <= Date.now());
     if (memoriaVelas.size > 200) memoriaVelas.clear();
     memoriaVelas.set(chave, { ate: Date.now() + 60_000, velas });
     return velas;
@@ -139,6 +167,9 @@ export async function GET() {
       geradoEm: l.gerado_em,
       anunciadoEm: l.criado_em,
       estado: null,
+      resultadoR: null,
+      ultimoEvento: null,
+      stopActual: null,
     }));
 
   // Estado: um pedido de velas por instrumento/timeframe, desde o sinal mais antigo.
@@ -150,16 +181,28 @@ export async function GET() {
   await Promise.all(
     [...grupos.values()].map(async (lista) => {
       const primeiro = lista[0]!;
-      const gran = (GRANULARIDADE_S[primeiro.timeframe] ?? 900) * 1000;
       const maisAntigo = Math.min(...lista.map((s) => Date.parse(s.geradoEm)));
       const velas = await velasDesde(primeiro.simbolo, primeiro.timeframe, maisAntigo);
       if (!velas) return;
+      const casas = acharSimbolo(primeiro.simbolo)?.casas ?? 2;
       for (const s of lista) {
-        const fecho = Date.parse(s.geradoEm) + gran;
-        s.estado = estadoDoPlano(
-          { direccao: s.direccao, entrada: s.entrada, stop: s.stop, alvo: s.alvos[0]?.preco ?? null },
-          velas.filter((v) => v.time >= fecho),
+        // A mesma leitura que o motor usa para avisar o andamento.
+        const a = acompanharOperacao(
+          {
+            estrategia: s.estrategia,
+            direccao: s.direccao,
+            entrada: s.entrada,
+            stop: s.stop,
+            alvos: s.alvos,
+            geradoEm: Date.parse(s.geradoEm),
+          },
+          velas,
         );
+        s.estado = estadoDaLista(a);
+        s.resultadoR = a.resultadoR;
+        s.stopActual = a.stopActual;
+        const ultimo = a.eventos[a.eventos.length - 1];
+        s.ultimoEvento = ultimo ? fraseEvento(ultimo, casas, s.estrategia).titulo : null;
       }
     }),
   );

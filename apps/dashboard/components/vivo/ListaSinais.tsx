@@ -33,6 +33,10 @@ interface Sinal {
   geradoEm: string;
   anunciadoEm: string;
   estado: EstadoPlano | null;
+  resultadoR?: number | null;
+  ultimoEvento?: string | null;
+  stopActual?: number | null;
+  conviccao?: number;
 }
 
 const NOME_ESTRATEGIA: Record<string, string> = {
@@ -238,12 +242,24 @@ function LinhaSinal({
             {estado && <span className={`etiqueta-estado ${classeEstado}`}>{ROTULO_PLANO[estado]}</span>}
           </strong>
           <em>
-            entrada {formatarPreco(s.entrada, casas)} · stop {formatarPreco(s.stop, casas)} ·{' '}
+            entrada {formatarPreco(s.entrada, casas)} · stop{' '}
+            {formatarPreco(s.stopActual ?? s.stop, casas)}
+            {s.stopActual !== null && s.stopActual !== undefined && s.stopActual !== s.stop ? ' (subiu)' : ''} ·{' '}
             {NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia}
+            {s.ultimoEvento ? ` · ${s.ultimoEvento}` : ''}
           </em>
         </span>
         <span className="sinal-tr__r">
-          {s.rMaximo.toFixed(1)}R
+          {s.resultadoR !== null && s.resultadoR !== undefined ? (
+            <b className={s.resultadoR > 0 ? 'bull-t' : 'bear-t'}>
+              {s.resultadoR > 0 ? '+' : ''}
+              {s.resultadoR.toFixed(1)}R
+            </b>
+          ) : s.conviccao !== undefined ? (
+            <>{Math.round(s.conviccao * 100)}%</>
+          ) : (
+            <>{s.rMaximo.toFixed(1)}R</>
+          )}
           <em>{agora ? ha(s.anunciadoEm, agora) : ''}</em>
         </span>
       </Link>

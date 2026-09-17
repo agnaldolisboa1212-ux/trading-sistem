@@ -330,8 +330,14 @@ export interface PlanoAnterior {
   entrada: number;
   stop: number;
   alvo: number | null;
+  /** Todos os alvos, para o acompanhamento. */
+  alvos?: ReadonlyArray<{ preco: number }>;
   /** Abertura da vela que gerou o plano (ms). */
   geradoEm: number;
+  /** Chaves dos eventos já avisados (Supabase). `null` sem a migração 0007. */
+  avisados?: string[] | null;
+  /** O acompanhamento já o deu por terminado. */
+  terminado?: boolean;
 }
 
 /**

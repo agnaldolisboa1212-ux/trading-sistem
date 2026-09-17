@@ -221,6 +221,7 @@ export async function sendToN8n(
     | 'signal.entry'
     | 'signal.exit'
     | 'signal.realtime'
+    | 'signal.progress'
     | 'account.transaction'
     | 'scan.completed'
     | 'system.error',
@@ -643,5 +644,54 @@ export async function difundirTransaccao(t: TransaccaoConta): Promise<NotifyResu
   return Promise.all([
     sendTelegram(formatarTransaccao(t)),
     sendToN8n('account.transaction', { ...t, em: new Date(t.em).toISOString() }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Andamento das operacoes (entrada, +1R, alvo, stop, saida, stop movel, vies)
+// ---------------------------------------------------------------------------
+
+export interface AvisoOperacao {
+  sinalId: string;
+  simbolo: string;
+  timeframe: string;
+  estrategia: string;
+  /** Ex.: "+1R atingido", ja com o resultado quando o ha. */
+  titulo: string;
+  corpo: string;
+  /** Stop, saida e mudanca de vies pedem accao ja; o resto pode esperar. */
+  urgente: boolean;
+}
+
+/**
+ * Difunde um evento do andamento de uma operacao.
+ *
+ * Usa a `tag` do sinal: no telemovel, o aviso de andamento substitui o anterior
+ * do mesmo sinal em vez de empilhar. Chega a quem segue o instrumento no
+ * timeframe do sinal, como o proprio sinal.
+ */
+export async function difundirAvisoOperacao(a: AvisoOperacao): Promise<NotifyResult[]> {
+  const nome = NOME_ESTRATEGIA[a.estrategia] ?? a.estrategia;
+  const nl = String.fromCharCode(10);
+  return Promise.all([
+    sendTelegram(
+      [
+        `${a.urgente ? '⚠️' : 'ℹ️'} *${escapeMarkdown(a.simbolo)}* · ${escapeMarkdown(a.timeframe)} · ${escapeMarkdown(a.titulo)}`,
+        '',
+        escapeMarkdown(a.corpo),
+        `_${escapeMarkdown(nome)}_`,
+      ].join(nl),
+    ),
+    sendToN8n('signal.progress', { ...a, estrategiaNome: nome }),
+    sendPush({
+      titulo: `${a.simbolo} ${a.timeframe} · ${a.titulo}`,
+      corpo: `${a.corpo}${nl}${nome}`,
+      url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=${a.timeframe}&v=${a.estrategia}&sinal=${encodeURIComponent(a.sinalId)}`,
+      tag: a.sinalId,
+      validadeS: a.urgente ? 1800 : 7200,
+      urgencia: a.urgente ? 'high' : 'normal',
+      simbolo: a.simbolo,
+      timeframe: a.timeframe,
+    }),
   ]);
 }

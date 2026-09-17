@@ -29,18 +29,23 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  acompanharOperacao,
   estadoDoPlano,
+  estrategiaValidada,
   estrategiasPara,
   executarEstrategiasValidadas,
+  fraseEvento,
   planoVivo,
   timeframesDosObjetivos,
   VELAS_ATE_EXPIRAR,
+  type Candle,
+  type EventoOperacao,
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
 import { acharSimbolo, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
 import { createDbClient, isDbConfigured } from '@trading/db';
-import { difundirSinalTempoReal, type SinalTempoReal } from '@trading/notify';
+import { difundirAvisoOperacao, difundirSinalTempoReal, type SinalTempoReal } from '@trading/notify';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EngineConfig } from '../config.js';
 import { dirDados, tabelaAusente } from './estado.js';
@@ -100,6 +105,8 @@ const ultimaFechadaVista = new Map<string, number>();
 let sincronizado = false;
 
 export interface AnaliseTempoReal {
+  /** Avisos de andamento enviados nesta passagem (entrada, +1R, stop, saída, viés...). */
+  andamento?: string[];
   simbolo: string;
   timeframe: string;
   velas: number;
@@ -149,6 +156,29 @@ function lerRegisto(): Registo {
   } catch {
     return { ids: [], recentes: [] };
   }
+}
+
+/**
+ * Eventos de andamento já avisados, por id de sinal — a rede de segurança local
+ * quando a migração 0007 ainda não está aplicada no Supabase.
+ */
+function caminhoAvisados(): string {
+  return join(dirDados(), 'eventos-avisados.json');
+}
+
+function lerAvisados(): Record<string, string[]> {
+  try {
+    return JSON.parse(readFileSync(caminhoAvisados(), 'utf8')) as Record<string, string[]>;
+  } catch {
+    return {};
+  }
+}
+
+function gravarAvisados(a: Record<string, string[]>): void {
+  // Só os 500 sinais mais recentes: os antigos já não produzem eventos.
+  const entradas = Object.entries(a).slice(-500);
+  mkdirSync(dirDados(), { recursive: true });
+  writeFileSync(caminhoAvisados(), JSON.stringify(Object.fromEntries(entradas)), 'utf8');
 }
 
 function gravarRegisto(r: Registo): void {
@@ -209,34 +239,55 @@ async function lerPlanosRecentes(
       entrada: s.entrada,
       stop: s.stop,
       alvo: s.alvos[0]?.preco ?? null,
+      alvos: s.alvos,
       geradoEm: s.geradoEm,
     });
   }
   if (!db) return mapa;
   try {
-    // Um plano diário expira ao fim de 20 velas diárias: a janela tem de as cobrir.
-    const desde = new Date(Date.now() - (VELAS_ATE_EXPIRAR + 2) * 86_400_000).toISOString();
-    const { data, error } = await db
+    // Um plano diário expira ao fim de 20 velas diárias, e a tendência pode durar
+    // meses: a janela tem de cobrir ambos.
+    const desde = new Date(Date.now() - 120 * 86_400_000).toISOString();
+    const base = 'id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,gerado_em';
+    let resposta: { data: unknown[] | null; error: { message: string; code?: string } | null } = await db
       .from('sinais_tempo_real')
-      .select('id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,gerado_em')
+      .select(`${base},estado,eventos`)
       .gte('gerado_em', desde)
       .order('gerado_em', { ascending: false })
       .limit(2000);
+    const semColunas = Boolean(resposta.error && /estado|eventos|column/i.test(resposta.error.message));
+    if (semColunas) {
+      // Migração 0007 por aplicar: sem estado guardado, vale o ficheiro local.
+      resposta = await db
+        .from('sinais_tempo_real')
+        .select(base)
+        .gte('gerado_em', desde)
+        .order('gerado_em', { ascending: false })
+        .limit(2000);
+    }
+    const { data, error } = resposta;
     if (error) {
       if (!tabelaAusente(error)) erros.push(`planos recentes: ${error.message}`);
       return mapa;
     }
-    for (const l of (data ?? []) as Array<Record<string, unknown>>) {
-      const alvos = Array.isArray(l['alvos']) ? (l['alvos'] as Array<{ preco?: number }>) : [];
-      const alvo = Number(alvos[0]?.preco);
+    for (const l of (data ?? []) as unknown as Array<Record<string, unknown>>) {
+      const alvosBrutos = Array.isArray(l['alvos']) ? (l['alvos'] as Array<{ preco?: number }>) : [];
+      const alvos = alvosBrutos
+        .map((a) => ({ preco: Number(a.preco) }))
+        .filter((a) => Number.isFinite(a.preco));
+      const eventos = Array.isArray(l['eventos']) ? (l['eventos'] as Array<{ chave?: string }>) : null;
+      const estado = typeof l['estado'] === 'string' ? l['estado'] : null;
       juntar(String(l['simbolo']), String(l['timeframe']), {
         id: String(l['id']),
         estrategia: String(l['estrategia']),
         direccao: l['direccao'] === 'bearish' ? 'bearish' : 'bullish',
         entrada: Number(l['entrada']),
         stop: Number(l['stop']),
-        alvo: Number.isFinite(alvo) ? alvo : null,
+        alvo: alvos[0]?.preco ?? null,
+        alvos,
         geradoEm: Date.parse(String(l['gerado_em'])),
+        avisados: semColunas ? null : (eventos ?? []).map((e) => String(e.chave)),
+        terminado: estado === 'fechada' || estado === 'expirado' || estado === 'perdido',
       });
     }
   } catch (err) {
@@ -245,12 +296,89 @@ async function lerPlanosRecentes(
   return mapa;
 }
 
-/** Planos que continuam vivos (à espera da entrada ou em curso) nestas velas. */
-function planosVivos(
-  planos: readonly PlanoAnterior[],
-  velas: ReadonlyArray<{ time: number; high: number; low: number }>,
-): PlanoAnterior[] {
-  return planos.filter((p) => planoVivo(estadoDoPlano(p, velas.filter((v) => v.time > p.geradoEm))));
+/** Planos que continuam vivos (à espera da entrada, em curso ou protegidos) nestas velas. */
+function planosVivos(planos: readonly PlanoAnterior[], velas: readonly Candle[]): PlanoAnterior[] {
+  return planos.filter((p) => {
+    if (p.terminado) return false;
+    if (estrategiaValidada(p.estrategia) && velas.some((v) => v.time === p.geradoEm)) {
+      const e = acompanharOperacao({ ...p, alvos: p.alvos ?? [] }, velas).estado;
+      return e === 'a-aguardar-entrada' || e === 'em-curso' || e === 'protegida';
+    }
+    return planoVivo(estadoDoPlano(p, velas.filter((v) => v.time > p.geradoEm)));
+  });
+}
+
+/** Eventos que pedem acção imediata. */
+const URGENTES = new Set(['stop', 'saida', 'saida-tempo', 'vies', 'alvo1', 'alvo2', 'stop-na-entrada']);
+/** Eventos que não se avisam (planos que nunca chegaram a abrir). */
+const SILENCIOSOS = new Set(['expirado', 'perdido']);
+
+/**
+ * Acompanha os planos de um instrumento e timeframe nas velas acabadas de pedir,
+ * avisa os eventos novos e guarda-os. Um evento de há mais de duas velas (o motor
+ * esteve parado) grava-se sem avisar: chegaria tarde demais para servir.
+ */
+async function acompanharPlanos(p: {
+  db: SupabaseClient | null;
+  planos: readonly PlanoAnterior[];
+  velas: readonly Candle[];
+  simbolo: { codigo: string; casas: number };
+  timeframe: string;
+  granularidadeS: number;
+  avisados: Record<string, string[]>;
+  erros: string[];
+}): Promise<string[]> {
+  const enviados: string[] = [];
+  const ultima = p.velas[p.velas.length - 1];
+  if (!ultima) return enviados;
+  for (const plano of p.planos) {
+    if (plano.terminado || !estrategiaValidada(plano.estrategia)) continue;
+    if (!p.velas.some((v) => v.time === plano.geradoEm)) continue;
+    const a = acompanharOperacao({ ...plano, alvos: plano.alvos ?? [] }, p.velas);
+    const ja = new Set([...(plano.avisados ?? []), ...(p.avisados[plano.id] ?? [])]);
+    const novos = a.eventos.filter((e) => !ja.has(e.chave));
+    if (novos.length === 0) continue;
+
+    for (const e of novos) {
+      const recente = e.em >= ultima.time - 2 * p.granularidadeS * 1000;
+      if (recente && !SILENCIOSOS.has(e.tipo)) {
+        const f = fraseEvento(e, p.simbolo.casas, plano.estrategia);
+        const saidas = await difundirAvisoOperacao({
+          sinalId: plano.id,
+          simbolo: p.simbolo.codigo,
+          timeframe: p.timeframe,
+          estrategia: plano.estrategia,
+          titulo: f.titulo,
+          corpo: f.corpo,
+          urgente: URGENTES.has(e.tipo),
+        });
+        for (const o of saidas) {
+          if (!o.ok && !o.skipped) p.erros.push(`andamento ${o.channel} (${p.simbolo.codigo} ${p.timeframe}): ${o.error}`);
+        }
+        enviados.push(`${f.titulo}`);
+      }
+      ja.add(e.chave);
+    }
+    p.avisados[plano.id] = [...ja];
+
+    if (p.db && plano.avisados !== null) {
+      const eventos: EventoOperacao[] = a.eventos.filter((e) => ja.has(e.chave));
+      const { error } = await p.db
+        .from('sinais_tempo_real')
+        .update({
+          estado: a.estado,
+          stop_actual: a.stopActual,
+          resultado_r: a.resultadoR,
+          eventos,
+          acompanhado_em: new Date().toISOString(),
+        })
+        .eq('id', plano.id);
+      if (error && !/estado|eventos|column/i.test(error.message)) {
+        p.erros.push(`acompanhamento ${plano.id}: ${error.message}`);
+      }
+    }
+  }
+  return enviados;
 }
 
 type ResultadoInsercao = 'novo' | 'repetido' | 'sem-tabela';
@@ -387,6 +515,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     if (!sincronizado) persistencia = 'ficheiro';
   }
   const recentes = await lerPlanosRecentes(db, registo.recentes, erros);
+  const avisados = lerAvisados();
   const analises: AnaliseTempoReal[] = [];
   const novos: SinalTempoReal[] = [];
   let saltados = 0;
@@ -472,6 +601,19 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           analises.push(analise);
           continue;
         }
+        // --- 3b. andamento das operações abertas neste par ------------------
+        const andamento = await acompanharPlanos({
+          db,
+          planos: recentes.get(chave) ?? [],
+          velas: fechadas,
+          simbolo: s,
+          timeframe: tf,
+          granularidadeS: gran,
+          avisados,
+          erros,
+        });
+        if (andamento.length > 0) analise.andamento = andamento;
+
         if (mercadoParado(ultima.time, gran, agora, s.continuo)) {
           // Não voltar a pedir até mudar de período.
           ultimaFechadaVista.set(chave, esperada);
@@ -602,6 +744,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
 
   try {
     gravarRegisto(registo);
+    gravarAvisados(avisados);
   } catch (err) {
     erros.push(`registo local: ${msg(err)}`);
   }
@@ -639,6 +782,7 @@ export function formatarRelatorioTempoReal(r: RelatorioTempoReal): string {
         (a.novo ? ' (novo, anunciado)' : a.nota ? ` (${a.nota})` : ' (já anunciado)')
       : (a.nota ?? `sem sinal (${a.velas} velas)`);
     linhas.push(`${marca} ${a.simbolo.padEnd(8)} ${a.timeframe.padEnd(4)} ${corpo}`);
+    for (const t of a.andamento ?? []) linhas.push(`  ↳ ${a.simbolo} ${a.timeframe} andamento: ${t}`);
   }
   if (r.erros.length > 0) {
     linhas.push(`AVISOS (${r.erros.length}):`);
