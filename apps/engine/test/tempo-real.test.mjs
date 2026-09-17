@@ -132,6 +132,17 @@ test('frescura: ao acordar 40 min depois do fecho de uma vela de 1h já não é'
   assert.equal(sinalFresco(abertura, 3600, fecho + 9 * 60_000), true);
 });
 
+test('frescura: sinais de 4h e diários valem horas, não minutos', () => {
+  const dia = Date.UTC(2026, 8, 16);
+  const fechoDia = dia + 86_400 * 1000;
+  assert.equal(sinalFresco(dia, 86_400, fechoDia + 3 * 3_600_000), true);
+  assert.equal(sinalFresco(dia, 86_400, fechoDia + 7 * 3_600_000), false);
+  const q = Date.UTC(2026, 8, 16, 8);
+  const fecho4h = q + 14_400 * 1000;
+  assert.equal(sinalFresco(q, 14_400, fecho4h + 50 * 60_000), true);
+  assert.equal(sinalFresco(q, 14_400, fecho4h + 70 * 60_000), false);
+});
+
 test('validade do push: meia vela, entre 5 e 30 minutos', () => {
   assert.equal(validadeAvisoS(60), 300);
   assert.equal(validadeAvisoS(900), 450);

@@ -65,10 +65,15 @@ export function mercadoParado(
  * hora, com o preço já longe da entrada.
  *
  * Limite: meia vela, e nunca mais de 10 minutos (15m → 7,5 min; 1h → 10 min).
+ * Em 4h e 1D o plano vale horas — uma operação diária que se perde porque o
+ * alojamento reiniciou a app às 00:15 é um sinal inteiro deitado fora. Aí o
+ * limite é um quarto da vela, até 6 horas (4h → 1 h; 1D → 6 h); o preço actual
+ * continua a ser verificado antes do anúncio (`avaliarPrecoActual`).
  */
 export function sinalFresco(aberturaVela: number, granularidadeS: number, agora: number): boolean {
   const fecho = aberturaVela + granularidadeS * 1000;
-  const limite = Math.min(10 * 60_000, (granularidadeS * 1000) / 2);
+  const vela = granularidadeS * 1000;
+  const limite = granularidadeS >= 14_400 ? Math.min(6 * 3_600_000, vela / 4) : Math.min(10 * 60_000, vela / 2);
   return agora - fecho <= limite;
 }
 
