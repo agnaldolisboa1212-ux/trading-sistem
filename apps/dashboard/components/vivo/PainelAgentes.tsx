@@ -10,8 +10,10 @@
  * progresso falsa e umas linhas que acendem em sequência com `setTimeout`.
  *
  * Isto não faz isso. Cada linha é um instrumento a ser REALMENTE analisado:
- * pede-se `/api/radar/<símbolo>`, que carrega as velas das fontes públicas e
- * corre o mesmo `analyzeInstrument` do motor. A linha fica a pulsar enquanto o
+ * pede-se `/api/radar/<símbolo>`, que carrega as velas da Deriv e corre as
+ * MESMAS estratégias ACTIVAS (validadas e em teste) que o motor de tempo real
+ * usa para decidir o que anuncia — não a análise institucional antiga, que já
+ * não gera sinal nenhum no sistema real. A linha fica a pulsar enquanto o
  * pedido está no ar e assenta no resultado quando chega.
  *
  * A diferença importa: uma animação falsa ensina a pessoa a ignorar o ecrã. Se
@@ -31,64 +33,41 @@ import Link from 'next/link';
 export interface Resultado {
   simbolo: string;
   nome?: string;
-  /**
-   * Qual das duas análises correu.
-   *
-   * `mmxm` só existe para os 17 instrumentos com pares SMT definidos. Tudo o
-   * resto — sintéticos, DAX, Nikkei — vai pelas estratégias institucionais.
-   * As duas pontuações NÃO medem a mesma coisa, por isso a linha diz qual é.
-   */
-  metodo?: 'mmxm' | 'institucional';
-  /** Instrumento realmente analisado, quando difere do pedido (US100 -> NQ). */
-  analisado?: string;
-  pontuacao?: number;
-  modelo?: string | null;
-  fase?: string | null;
-  passoFalhado?: number | null;
-  resumo?: string;
-  smt?: number;
-  /** Só na via institucional: quantas estratégias concordam. */
-  concordam?: number;
-  direccao?: string;
+  /** Há alguma estratégia activa (validada ou em teste) para este instrumento e timeframe? */
+  temEstrategia?: boolean;
+  /** Nomes das estratégias activas aqui, mesmo sem sinal na última vela. */
+  estrategias?: string[];
+  /** As estratégias activas discordaram na última vela — nenhuma prevalece. */
+  conflito?: boolean;
   sinal?: {
     direccao: string;
+    entrada: number;
+    stop: number;
     rMaximo: number;
-    confianca: number;
-    estrategia?: string;
+    /** Taxa de acerto medida no backtest; 0 quando `emTeste`. */
+    conviccao: number;
+    estrategia: string;
+    /** Em teste ao vivo: sem taxa de acerto medida ainda. */
+    emTeste: boolean;
   } | null;
+  resumo?: string;
   erro?: string;
 }
-
-const ESTRATEGIA_NOME: Record<string, string> = {
-  'compra-vwap-indices': 'compra na banda −2σ do VWAP',
-  'connors-rsi2-indices': 'RSI(2) de Connors',
-  'tendencia-cripto': 'tendência de 55 dias',
-  'tendencia-ouro': 'tendência de 55 dias no ouro',
-  'supply-demand': 'oferta e procura',
-  'support-resistance': 'suporte/resistência',
-  'vwap-bands': 'bandas de VWAP',
-  'volume-profile': 'perfil de volume',
-};
 
 type Estado = 'espera' | 'corre' | 'passou' | 'falhou';
 
 /** Em intradiário a vela fecha a cada poucos minutos: repetir mais depressa. */
 const INTRADIARIO = new Set(['1m', '5m', '15m', '30m']);
 
-const PASSO_NOME: Record<number, string> = {
-  1: 'draw on liquidity',
-  2: 'fluxo HTF',
-  3: 'point of interest',
-  4: 'Time & Price',
-  5: 'SMT divergence',
-  6: 'CISD / MSS',
-  7: 'modelo de entrada',
-  8: 'invalidação',
-  9: 'alvos',
-};
-
 const TIMEFRAMES_RADAR = ['15m', '1h', '4h', '1d'] as const;
 const CHAVE_RADAR = 'radar_timeframe';
+
+/** Ordena com sinal primeiro (por convicção), depois sem sinal, depois falhas. */
+function pontuacaoOrdem(r: Resultado | undefined): number {
+  if (!r || r.erro) return -1;
+  if (r.sinal) return 1 + r.sinal.conviccao;
+  return 0;
+}
 
 export function PainelAgentes({
   simbolos,
@@ -188,9 +167,7 @@ export function PainelAgentes({
   // linhas saltar debaixo do dedo de quem está a ler.
   const ordem = aCorrer
     ? simbolos
-    : [...simbolos].sort(
-        (a, b) => (resultados.get(b)?.pontuacao ?? -1) - (resultados.get(a)?.pontuacao ?? -1),
-      );
+    : [...simbolos].sort((a, b) => pontuacaoOrdem(resultados.get(b)) - pontuacaoOrdem(resultados.get(a)));
 
   return (
     <div className="agentes">
@@ -243,8 +220,8 @@ export function PainelAgentes({
             hour: '2-digit',
             minute: '2-digit',
           })}
-          . Velas {timeframe} fechadas — repete a cada{' '}
-          {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
+          . Velas {timeframe} fechadas — as mesmas estratégias que o motor de tempo real usa,
+          repetidas a cada {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
         </div>
       )}
     </div>
@@ -262,8 +239,7 @@ function LinhaAgente({
   resultado: Resultado | undefined;
   timeframe: string;
 }) {
-  const pontos = resultado?.pontuacao;
-  const temSinal = Boolean(resultado?.sinal);
+  const sinal = resultado?.sinal;
 
   const marca =
     estado === 'corre' ? '◍' : estado === 'falhou' ? '!' : estado === 'passou' ? '✓' : '·';
@@ -272,46 +248,23 @@ function LinhaAgente({
     if (estado === 'corre') return 'a analisar…';
     if (estado === 'espera') return 'em fila';
     if (resultado?.erro) return resultado.erro.slice(0, 44);
-
-    if (resultado?.sinal) {
-      const s = resultado.sinal;
-      const lado = s.direccao === 'bullish' ? 'COMPRA' : 'VENDA';
-      const via = s.estrategia ? ` · ${ESTRATEGIA_NOME[s.estrategia] ?? s.estrategia}` : '';
-      return `${lado} · ${s.rMaximo.toFixed(1)}R${via}`;
+    if (sinal) {
+      const lado = sinal.direccao === 'bullish' ? 'COMPRA' : 'VENDA';
+      return `${lado} · ${sinal.rMaximo.toFixed(1)}R`;
     }
-
-    // Via institucional: não há checklist, há concordância entre estratégias.
-    if (resultado?.metodo === 'institucional') {
-      if (resultado.concordam && resultado.concordam > 0) {
-        return `${resultado.concordam} estratégia(s) de acordo · sem plano R≥2`;
-      }
-      return 'sem zona ativa neste momento';
-    }
-
-    if (resultado?.passoFalhado != null) {
-      return `passo ${resultado.passoFalhado} · ${PASSO_NOME[resultado.passoFalhado] ?? ''}`;
-    }
-    // 9/9 passos sem sinal: o resumo do motor diz porquê — quase sempre o R.
-    if (resultado?.resumo && /abaixo do minimo|rejeitado/i.test(resultado.resumo)) {
-      return '9/9 passos · R abaixo do mínimo';
-    }
-    return resultado?.fase ?? '—';
+    if (resultado?.conflito) return 'estratégias em sentidos opostos';
+    if (resultado?.temEstrategia === false) return 'sem estratégia activa';
+    return resultado?.estrategias?.length ? `${resultado.estrategias.join(', ')} · sem sinal` : '—';
   };
 
-  /*
-   * Sem MMXM (sintéticos, índices sem par SMT) o destino é o terminal, já nas
-   * estratégias institucionais. Com MMXM, a página do instrumento — pelo código
-   * da Deriv (US100 e não NQ), para o gráfico ao vivo ser o do mercado escolhido.
-   */
-  const destino =
-    resultado?.metodo === 'institucional'
-      ? `/grafico?s=${encodeURIComponent(simbolo)}&tf=${timeframe}`
-      : `/instrumento/${encodeURIComponent(simbolo)}?tf=${timeframe}&v=mmxm`;
+  const destino = sinal
+    ? `/grafico?s=${encodeURIComponent(simbolo)}&tf=${timeframe}&v=${encodeURIComponent(sinal.estrategia)}`
+    : `/grafico?s=${encodeURIComponent(simbolo)}&tf=${timeframe}`;
 
   return (
     <Link href={destino} className="agente">
       <span
-        className={`agente__estado ${temSinal && estado === 'passou' ? 'passou' : estado}`}
+        className={`agente__estado ${sinal && estado === 'passou' ? 'passou' : estado}`}
         aria-hidden="true"
       >
         {marca}
@@ -321,7 +274,13 @@ function LinhaAgente({
         <em className="agente__detalhe">{detalhe()}</em>
       </span>
       <span className="agente__valor">
-        {pontos != null ? `${Math.round(pontos * 100)}%` : ''}
+        {sinal?.emTeste ? (
+          <span className="selo-em-teste">EM TESTE</span>
+        ) : sinal ? (
+          `${Math.round(sinal.conviccao * 100)}%`
+        ) : (
+          ''
+        )}
       </span>
     </Link>
   );

@@ -243,6 +243,100 @@ section {
   padding: var(--s3) var(--s2) var(--s2);
 }
 
+/* --- Saldo manual (curva de capital) --------------------------------------- */
+
+.saldo-form {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  margin: var(--s3) 0;
+}
+
+.saldo-form input {
+  flex: 1;
+  min-width: 120px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.saldo-lista {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.saldo-linha {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.saldo-linha:last-child {
+  border-bottom: none;
+}
+
+.saldo-linha__data {
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.saldo-linha strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.saldo-linha em {
+  flex: 1;
+  font-style: normal;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saldo-linha__eliminar {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 18px;
+  padding: 0 4px;
+}
+
+.saldo-linha__eliminar:hover {
+  color: var(--bear);
+}
+
+/* --- Desempenho por par / timeframe / estratégia --------------------------- */
+
+.desempenho-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: var(--s2);
+}
+
+.desempenho-tabs button {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.desempenho-tabs button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border-color: var(--accent);
+}
+
 .hero {
   background: var(--surface-invert);
   color: var(--on-invert);

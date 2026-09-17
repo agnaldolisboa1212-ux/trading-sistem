@@ -22,7 +22,8 @@ const SERIES = '#3987e5';
 export interface EquityPoint {
   t: number;
   balance: number;
-  openRisk: number;
+  /** Só faz sentido quando a curva vem de posições simuladas; o saldo manual não tem. */
+  openRisk?: number;
 }
 
 const W = 1000;
@@ -66,7 +67,7 @@ export function EquityChart({ points, height = 220 }: { points: EquityPoint[]; h
   if (points.length < 2) {
     return (
       <div className="empty">
-        Ainda não há snapshots suficientes para desenhar a curva. Cada varrimento grava um ponto.
+        Ainda não há pontos suficientes para desenhar a curva. Registe o saldo pelo menos duas vezes.
       </div>
     );
   }
@@ -152,7 +153,7 @@ export function EquityChart({ points, height = 220 }: { points: EquityPoint[]; h
         <div className="chart-tip" role="status">
           <strong>{new Date(active.t).toISOString().slice(0, 10)}</strong>
           <span>saldo {active.balance.toFixed(2)}</span>
-          <span>risco aberto {active.openRisk.toFixed(2)}</span>
+          {active.openRisk !== undefined && <span>risco aberto {active.openRisk.toFixed(2)}</span>}
         </div>
       )}
     </div>

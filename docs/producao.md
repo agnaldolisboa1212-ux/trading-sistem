@@ -40,8 +40,9 @@ Cria, por esta ordem (e pode correr-se de novo sem estragar nada):
 | 0006 | `sinais_ocultos` | Sinais que cada pessoa eliminou da sua lista |
 | 0007 | colunas `estado`, `stop_actual`, `resultado_r`, `eventos` em `sinais_tempo_real` | Avisos de andamento sem repetir depois de um deploy |
 | 0008 | coluna `timeframes_sinais` em `perfis_utilizador` | Timeframes dos sinais escolhidos nas Definições |
+| 0009 | `saldo_manual` | Pontos de saldo introduzidos à mão, para a curva de capital do Financeiro |
 
-As migrações 0006, 0007 e 0008 estão em `supabase/migrations/` — colar cada ficheiro
+As migrações 0006 a 0009 estão em `supabase/migrations/` — colar cada ficheiro
 no SQL Editor e carregar em **Run**.
 
 Sem isto os motores funcionam na mesma — gravam em `data/*.json` —, mas o
