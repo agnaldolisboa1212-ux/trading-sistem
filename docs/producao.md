@@ -41,8 +41,10 @@ Cria, por esta ordem (e pode correr-se de novo sem estragar nada):
 | 0007 | colunas `estado`, `stop_actual`, `resultado_r`, `eventos` em `sinais_tempo_real` | Avisos de andamento sem repetir depois de um deploy |
 | 0008 | coluna `timeframes_sinais` em `perfis_utilizador` | Timeframes dos sinais escolhidos nas Definições |
 | 0009 | `saldo_manual` | Pontos de saldo introduzidos à mão, para a curva de capital do Financeiro |
+| 0010 | `contas`, `entradas_pessoais`, coluna `conta_id` em `saldo_manual` | Várias contas por pessoa, e marcar que sinais foram mesmo negociados |
+| 0011 | coluna `sessoes_sinais` em `perfis_utilizador` | Sessão (Sydney/Tóquio/Londres/Nova Iorque) em que os avisos push chegam |
 
-As migrações 0006 a 0009 estão em `supabase/migrations/` — colar cada ficheiro
+As migrações 0006 a 0011 estão em `supabase/migrations/` — colar cada ficheiro
 no SQL Editor e carregar em **Run**.
 
 Sem isto os motores funcionam na mesma — gravam em `data/*.json` —, mas o

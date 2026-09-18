@@ -36,6 +36,7 @@ export * from './signal/analyze.js';
 export * from './signal/exits.js';
 export * from './signal/estado-plano.js';
 export * from './signal/perfil-sinais.js';
+export * from './signal/sessao.js';
 export * from './signal/acompanhamento.js';
 
 // Noticias de alto impacto (regra de prudencia, nao vantagem medida)

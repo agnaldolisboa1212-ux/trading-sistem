@@ -328,8 +328,11 @@ export function analisarVisoes(
   const historico = sinaisPorVela(lista, simbolo, timeframe);
   const sinalDe = (id: string) =>
     maisRecente(historico.sinais.filter((s) => s.strategy === id), lista);
-  const desenhoDoSinal = (sv: SinalVisao | null, id: string) =>
-    sv && sinalVivo(sv.estado) ? linhasDoSinal(sv, nomeVisao(id)) : DESENHO_VAZIO;
+  // Desenha sempre o sinal mais recente dessa estratégia, vivo ou já
+  // terminado — `sinalDe` já escolhe só um; sem isto, um alvo ou stop
+  // atingido fazia o gráfico voltar a "sem sinal" como se nada tivesse
+  // acontecido.
+  const desenhoDoSinal = (sv: SinalVisao | null, id: string) => (sv ? linhasDoSinal(sv, nomeVisao(id)) : DESENHO_VAZIO);
   const fechos = lista.map((c) => c.close);
   const media = (periodo: number) =>
     fechos.map((_, i) => {
@@ -587,14 +590,20 @@ export function analisarVisoes(
   const activos = historico.sinais.filter((s) => s.index === ultimo);
   const confluencia = assessConfluence(activos);
   const comSinais = estrategiasPara(simbolo, timeframe).length > 0;
-  const candidatos = [vw, cn, tc].filter((x): x is SinalVisao => x !== null && sinalVivo(x.estado));
+  const todos = [vw, cn, tc].filter((x): x is SinalVisao => x !== null);
+  const candidatos = todos.filter((x) => sinalVivo(x.estado));
   // Primeiro os da última vela (salvo conflito), depois os mais recentes ainda vivos.
-  const melhor =
+  const vivo =
     candidatos
       .filter((c) => c.velasAtras === 0 && confluencia.direction !== 'conflicted')
       .sort((a, b) => b.sinal.conviction - a.sinal.conviction)[0] ??
     candidatos.filter((c) => c.velasAtras > 0).sort((a, b) => a.velasAtras - b.velasAtras)[0] ??
     null;
+  // Sem plano vivo: mostra o último sinal executado (alvo, stop ou saída da
+  // regra) em vez de nada — é a referência de "o que aconteceu da última vez",
+  // não uma entrada por tomar. `CartaoSinal` já sabe distinguir os dois (a
+  // classe `vivo` some quando o estado terminou).
+  const melhor = vivo ?? [...todos].sort((a, b) => a.velasAtras - b.velasAtras)[0] ?? null;
   const resumo: Visao = {
     id: 'resumo',
     nome: 'Resumo',

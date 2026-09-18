@@ -328,6 +328,8 @@ export interface Perfil {
   objetivos?: string[];
   /** Timeframes dos sinais escolhidos pela pessoa (migração 0008). Vazio = os do objetivo. */
   timeframes_sinais?: string[];
+  /** Sessões em que os avisos push chegam (migração 0011). Vazio = qualquer hora. */
+  sessoes_sinais?: string[];
   avisos_ativos?: boolean;
   montante_por_operacao?: number;
   deriv_ligada: boolean;

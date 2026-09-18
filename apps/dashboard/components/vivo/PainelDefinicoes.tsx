@@ -21,7 +21,14 @@
  */
 
 import { useEffect, useState } from 'react';
-import { estrategiaEmTeste, estrategiasPara, TIMEFRAMES_SINAIS, timeframesDoPerfil } from '@trading/core';
+import {
+  estrategiaEmTeste,
+  estrategiasPara,
+  ROTULO_SESSAO,
+  SESSOES_NEGOCIACAO,
+  TIMEFRAMES_SINAIS,
+  timeframesDoPerfil,
+} from '@trading/core';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { guardarPerfil, lerPerfil } from '@/lib/auth';
 import { usarAvisos, usarInstalacao } from './Pwa';
@@ -39,6 +46,7 @@ export function PainelDefinicoes({ pushDisponivel }: { pushDisponivel: boolean }
     <>
       <Corretora />
       <TimeframesSinais />
+      <SessoesSinais />
       <Avisos disponivel={pushDisponivel} />
       <Aparencia />
     </>
@@ -333,6 +341,102 @@ function TimeframesSinais() {
             {sugeridos.length > 0 && (
               <button type="button" className="btn ghost" onClick={() => setEscolhidos(sugeridos)} disabled={ocupado}>
                 Voltar à sugestão do objetivo ({sugeridos.map((t) => t.toUpperCase()).join(', ')})
+              </button>
+            )}
+          </div>
+          {estado && (
+            <div className={estado.ok ? 'notice' : 'ob__erro'} style={{ marginTop: 10 }}>
+              {estado.texto}
+            </div>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/** Horas de cada sessão, em UTC, para mostrar ao lado do nome. */
+const HORAS_SESSAO: Record<string, string> = {
+  sydney: '21h–06h',
+  toquio: '00h–09h',
+  londres: '07h–16h',
+  'nova-iorque': '12h–21h',
+};
+
+/**
+ * Em que sessão a pessoa quer ser avisada.
+ *
+ * Só filtra os AVISOS (push): o sinal continua a nascer e a ficar guardado
+ * fora da sessão escolhida, só não acorda o telemóvel. Sinais diários nunca
+ * são filtrados — não têm sessão. Sem nenhuma escolhida, vale "qualquer hora"
+ * (o comportamento de sempre).
+ */
+function SessoesSinais() {
+  const [escolhidas, setEscolhidas] = useState<string[] | null>(null);
+  const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    void lerPerfil().then((p) => setEscolhidas(p?.sessoes_sinais ?? []));
+  }, []);
+
+  const alternar = (s: string) =>
+    setEscolhidas((l) => (l ? (l.includes(s) ? l.filter((x) => x !== s) : [...l, s]) : [s]));
+
+  const guardar = async () => {
+    if (!escolhidas) return;
+    setOcupado(true);
+    setEstado(null);
+    const r = await guardarPerfil({ sessoes_sinais: escolhidas });
+    setOcupado(false);
+    if (r.ok) setEstado({ ok: true, texto: 'Guardado.' });
+    else
+      setEstado({
+        ok: false,
+        texto: /sessoes_sinais|column/i.test(r.erro)
+          ? 'Falta aplicar a migração 0011 no Supabase para guardar esta escolha.'
+          : r.erro,
+      });
+  };
+
+  return (
+    <section>
+      <h2>Sessão dos avisos</h2>
+      <p className="section-cap">
+        Escolha em que sessões quer ser avisado — por exemplo, só na de Londres. Sem nenhuma
+        escolhida, os avisos chegam a qualquer hora. Isto não afecta os sinais diários: esses não
+        têm sessão.
+      </p>
+      {escolhidas === null ? (
+        <div className="brilho" style={{ height: 120, borderRadius: 16 }} />
+      ) : (
+        <>
+          <div className="grupo__caixa">
+            {SESSOES_NEGOCIACAO.map((s) => {
+              const on = escolhidas.includes(s);
+              return (
+                <button key={s} type="button" className="conta-linha" aria-pressed={on} onClick={() => alternar(s)}>
+                  <span className={`conta-linha__selo ${on ? 'demo' : ''}`}>{ROTULO_SESSAO[s].slice(0, 3).toUpperCase()}</span>
+                  <span className="conta-linha__id">
+                    <strong>{ROTULO_SESSAO[s]}</strong>
+                    <em>{HORAS_SESSAO[s]} UTC</em>
+                  </span>
+                  <span className="conta-linha__marca" aria-hidden="true">
+                    {on ? '✓' : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <button type="button" className="btn primary" onClick={() => void guardar()} disabled={ocupado}>
+              {ocupado ? 'a guardar…' : 'Guardar sessões'}
+            </button>
+            {escolhidas.length > 0 && (
+              <button type="button" className="btn ghost" onClick={() => setEscolhidas([])} disabled={ocupado}>
+                Qualquer hora
               </button>
             )}
           </div>

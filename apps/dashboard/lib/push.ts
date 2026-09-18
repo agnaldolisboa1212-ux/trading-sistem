@@ -3,7 +3,7 @@ import 'server-only';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import webpush from 'web-push';
-import { timeframesDoPerfil } from '@trading/core';
+import { dentroDaSessao, timeframesDoPerfil } from '@trading/core';
 
 /**
  * Notificacoes push — registo de subscritores e envio.
@@ -223,6 +223,8 @@ interface PreferenciaAvisos {
   readonly instrumentos: readonly string[];
   /** Timeframes de sinal que os objetivos do onboarding pedem. */
   readonly timeframes: readonly string[];
+  /** Sessões escolhidas nas Definições; vazio = qualquer hora. */
+  readonly sessoes: readonly string[];
 }
 
 /** Preferencias de avisos de todas as contas — lidas com a chave do servidor. */
@@ -236,7 +238,9 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
       });
-    let r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,avisos_ativos');
+    let r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,sessoes_sinais,avisos_ativos');
+    // Migração 0011 por aplicar: sem a coluna, vale "qualquer hora".
+    if (!r.ok) r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,avisos_ativos');
     // Migração 0008 por aplicar: sem a coluna, valem os timeframes do objetivo.
     if (!r.ok) r = await pedir('utilizador_id,instrumentos,objetivos,avisos_ativos');
     if (!r.ok) return null;
@@ -245,6 +249,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
       instrumentos: string[] | null;
       objetivos: string[] | null;
       timeframes_sinais?: string[] | null;
+      sessoes_sinais?: string[] | null;
       avisos_ativos: boolean | null;
     }>;
     return new Map(
@@ -254,6 +259,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
           activos: l.avisos_ativos !== false,
           instrumentos: l.instrumentos ?? [],
           timeframes: timeframesDoPerfil(l.objetivos, l.timeframes_sinais),
+          sessoes: l.sessoes_sinais ?? [],
         },
       ]),
     );
@@ -275,6 +281,7 @@ export function querAviso(
   prefs: ReadonlyMap<string, PreferenciaAvisos> | null,
   simbolo: string | undefined,
   timeframe?: string,
+  agora: number = Date.now(),
 ): boolean {
   if (!simbolo) return true;
   if (!s.utilizador || !prefs) return false;
@@ -282,7 +289,10 @@ export function querAviso(
   if (!p || !p.activos) return false;
   if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return false;
   // Quem escolheu horas e dias não recebe sinais de 15 minutos.
-  return !timeframe || p.timeframes.includes(timeframe);
+  if (timeframe && !p.timeframes.includes(timeframe)) return false;
+  // Quem escolheu uma sessão (Londres, por exemplo) não é acordado fora dela;
+  // o sinal continua guardado e visível na lista, só não chega ao telemóvel.
+  return dentroDaSessao(agora, p.sessoes, timeframe);
 }
 
 /** O servico de push so aceita ate 32 caracteres de base64 URL-safe. */
