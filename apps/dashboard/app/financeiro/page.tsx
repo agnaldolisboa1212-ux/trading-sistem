@@ -28,7 +28,7 @@ import Link from 'next/link';
 import { FinanceiroContas } from '@/components/FinanceiroContas';
 import { EstatisticasCard } from '@/components/EstatisticasCard';
 import { calcularEstatisticas } from '@/lib/desempenho';
-import { estrategiaEmTeste } from '@trading/core';
+import { estrategiaActiva, estrategiaEmTeste } from '@trading/core';
 import { fetchSinaisTempoReal, isConfigured } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -50,7 +50,10 @@ export default async function Page() {
     );
   }
 
-  const sinais = await fetchSinaisTempoReal(1000);
+  // Só estratégias activas (validadas e em teste). Os sinais das estratégias
+  // antigas (oferta/procura, perfil de volume…) continuam na tabela mas já não
+  // são acompanhados — ficariam para sempre "abertos" sem estado.
+  const sinais = (await fetchSinaisTempoReal(1000)).filter((r) => estrategiaActiva(r.estrategia) !== undefined);
   const fechados = sinais.filter((r) => r.estado === 'fechada');
   const abertos = sinais.filter((r) => r.estado === null || ABERTO.has(r.estado));
 
