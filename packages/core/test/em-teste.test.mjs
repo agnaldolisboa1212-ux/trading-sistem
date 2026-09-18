@@ -17,6 +17,7 @@ import {
   executarEstrategiasValidadas,
   fraseEvento,
   planSmtTeste,
+  planTendenciaBaixaCripto,
   planVwapForexTeste,
   velasNecessariasSmt,
 } from '../dist/index.js';
@@ -171,4 +172,91 @@ test('VWAP forex: +1R fecha metade e protege, como nos índices', () => {
   const a = acompanharOperacao(plano, velas);
   assert.deepEqual(a.eventos.map((e) => e.tipo), ['alvo1', 'stop-na-entrada']);
   assert.equal(a.resultadoR, 0.5);
+});
+
+const D = 86_400_000;
+
+/** Declínio para ~100 (200 velas), depois um patamar plano — SMA200 fica acima do preço actual. */
+function tendenciaBaixaCripto() {
+  const v = [];
+  let p = 300;
+  for (let i = 0; i < 150; i++) {
+    const c = p - 200 / 150;
+    v.push(vela(i * D, p, Math.max(p, c) + 0.3, Math.min(p, c) - 0.3, c));
+    p = c;
+  }
+  for (let i = 150; i < 230; i++) {
+    const c = 100 + (i % 3) * 0.1 - 0.1;
+    v.push(vela(i * D, p, Math.max(p, c) + 0.2, Math.min(p, c) - 0.2, c));
+    p = c;
+  }
+  return v;
+}
+
+test('Tendência de baixa — cripto: vende no rompimento do mínimo, abaixo da SMA200, sem convicção', () => {
+  const base = tendenciaBaixaCripto();
+  const rompe = [...base, vela(230 * D, 100, 100.2, 94, 95)];
+  const s = planTendenciaBaixaCripto(rompe, { symbol: 'BTCUSD', timeframe: '1d' });
+  assert.equal(s.length, 1);
+  assert.equal(s[0].strategy, 'tendencia-baixa-cripto');
+  assert.equal(s[0].direction, 'bearish');
+  assert.equal(s[0].targets.length, 0, 'sem alvo fixo');
+  assert.ok(s[0].stopLoss > s[0].entryPrice, 'stop acima da entrada, numa venda');
+  assert.equal(s[0].conviction, 0);
+  assert.match(s[0].rationale, /EM TESTE/);
+
+  // Só o PRIMEIRO fecho abaixo do mínimo: continuar a descer não repete o sinal.
+  const segueAbaixo = [...rompe, vela(231 * D, 95, 96, 92, 93)];
+  assert.equal(planTendenciaBaixaCripto(segueAbaixo, { symbol: 'BTCUSD', timeframe: '1d' }).length, 0);
+
+  // O motor passa pelo mesmo caminho das validadas.
+  assert.deepEqual(
+    executarEstrategiasValidadas(rompe, { symbol: 'BTCUSD', timeframe: '1d' }).map((x) => x.strategy),
+    ['tendencia-baixa-cripto'],
+  );
+  assert.equal(estrategiaEmTeste('tendencia-baixa-cripto')?.emTeste.revisao, '2026-12-18');
+});
+
+test('Tendência de baixa — cripto: acima da SMA200 não é sinal, mesmo rompendo o mínimo recente', () => {
+  // Subida forte (50→200 em 150 velas) e só depois uma correcção suave (200→190
+  // em 80 velas): rompe o mínimo dos ÚLTIMOS 55 dias, mas a média de 200 dias
+  // continua bem abaixo do preço — o regime de fundo ainda não é de baixa.
+  const v = [];
+  let p = 50;
+  for (let i = 0; i < 150; i++) {
+    const c = p + 1;
+    v.push(vela(i * D, p, Math.max(p, c) + 0.3, Math.min(p, c) - 0.3, c));
+    p = c;
+  }
+  for (let i = 150; i < 230; i++) {
+    const c = p - 10 / 80;
+    v.push(vela(i * D, p, Math.max(p, c) + 0.2, Math.min(p, c) - 0.2, c));
+    p = c;
+  }
+  const rompe = [...v, vela(230 * D, p, p + 0.2, 187, 187.8)];
+  assert.equal(planTendenciaBaixaCripto(rompe, { symbol: 'BTCUSD', timeframe: '1d' }).length, 0);
+});
+
+test('Acompanhamento: tendência de baixa segue o stop no MÁXIMO das últimas 20 velas', () => {
+  const inicio = Date.UTC(2026, 8, 1);
+  const velas = [vela(inicio, 100, 100, 100, 100)];
+  // 25 velas a descer, sempre com máximos cada vez mais baixos.
+  let p = 100;
+  for (let k = 1; k <= 25; k++) {
+    const c = p - 1;
+    velas.push(vela(inicio + k * D, p, p + 0.2, c - 0.1, c));
+    p = c;
+  }
+  const plano = {
+    estrategia: 'tendencia-baixa-cripto',
+    direccao: 'bearish',
+    entrada: 100,
+    stop: 108,
+    alvos: [],
+    geradoEm: inicio,
+  };
+  const a = acompanharOperacao(plano, velas);
+  assert.ok(a.stopActual < 108, 'o stop desceu com o máximo das últimas 20 velas');
+  assert.ok(a.stopActual > 75, 'nunca abaixo do preço actual — é um TECTO, não um alvo');
+  assert.equal(a.resultadoR, null, 'ainda em curso, sem alvo fixo');
 });

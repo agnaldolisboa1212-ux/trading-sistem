@@ -109,6 +109,25 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 - **Confirmação:** o ouro do Yahoo (2011–2026) dá o mesmo sentido.
 - **Limite:** a amostra é pequena, poucas operações por ano.
 
+## Vendas nos índices, cripto e ouro — com mais confluência do que a compra
+
+As quatro regras acima só compram. O utilizador pediu para procurar o lado da venda, mas com
+mais confirmação do que a compra tinha, já que o espelho simples ("vende no mesmo ponto em que
+comprava, ao contrário") já tinha sido testado nalguns casos e falhado. Testou-se venda com
+filtros extra — regime abaixo da média de 200 dias, ADX alto (tendência já a formar-se),
+divergência de RSI — walk-forward, com spread e financiamento, nos mesmos dados.
+
+| Estratégia | O que se tentou | Resultado |
+|---|---|---|
+| VWAP índices, 1h/4h | venda no +2σ, com os mesmos filtros extra | dados intradiários a mais curtos (~1 ano) para separar dentro/fora da amostra com confiança — inconclusivo, não validado |
+| Connors RSI(2) índices, diário (15 anos) | venda simétrica (RSI(2)>90, abaixo da SMA200), com e sem SMA200 a descer e ADX>20 | negativa nos dois períodos em quase todas as variantes; nenhuma combinação ficou positiva nos dois — **rejeitado** |
+| Tendência 55 dias, ouro, diário | venda no rompimento do mínimo, com ADX e SMA200 | positiva mas fraca até 2018, **claramente negativa desde 2019** (−0,73R, 11% de acerto) — **rejeitado**, confirma o que já se sabia |
+| Tendência 55 dias, cripto (BTC, ETH), diário | venda no rompimento do mínimo de 55 dias, abaixo da SMA200 | **positiva nos dois períodos**, e em 36 combinações de canal (20 a 100 dias) e saída (10 a 30 dias) — mas t<1,4 em todas: direcção consistente, confiança estatística ainda fraca |
+
+A venda na cripto foi a única com sinal real: entra como **`tendencia-baixa-cripto`**, em teste
+ao vivo (ver abaixo). As outras três ficam de fora — vender índices e vender ouro continuam sem
+vantagem, com ou sem confluência extra.
+
 ## Forex (EURUSD, GBPUSD, USDJPY, GBPJPY) — o que se testou
 
 Com 20 anos de diário da Dukascopy (2006–2025) e 14 anos de velas de 1 minuto da HistData
@@ -135,24 +154,35 @@ Os pares principais estão entre os mercados mais eficientes que existem: as reg
 simples que funcionavam até 2015 deixaram de funcionar. O ouro tem a tendência de 55 dias
 no diário (acima).
 
-## Em teste ao vivo (sem vantagem medida ainda)
+## Em teste ao vivo (sem vantagem medida com confiança)
 
-O utilizador continua a achar que o SMT funciona nestes pares e quer ver dados reais, não só
-o backtest. Duas regras (`packages/core/src/strategies/em-teste.ts`) correm ao vivo desde
-**17/09/2026**, marcadas em todo o lado como "EM TESTE" — badge amarela em vez de percentagem,
-convicção 0, aviso no texto do sinal — e com revisão marcada para **24/09/2026** (uma semana).
-Se ao fim da semana as operações reais forem positivas, sobem a validadas; senão, saem.
+O utilizador continua a achar que o SMT funciona nestes pares, e pediu para procurar o lado da
+venda em vez de só comprar. Três regras (`packages/core/src/strategies/em-teste.ts`) correm ao
+vivo, marcadas em todo o lado como "EM TESTE" — badge amarela em vez de percentagem, convicção 0,
+aviso no texto do sinal.
 
-- **VWAP ±2σ no forex** (`vwap-forex-teste`) — EURUSD, GBPUSD, GBPJPY, USDJPY · 1h e 4h.
+- **VWAP ±2σ no forex** (`vwap-forex-teste`) — EURUSD, GBPUSD, GBPJPY, USDJPY · 1h e 4h. Desde
+  17/09/2026, revisão a 24/09/2026 (uma semana — sinal frequente).
   A mesma regra dos índices, mas nos dois sentidos (o forex não tem a deriva de subida dos
   índices). Compra 2σ abaixo do VWAP do mês, vende 2σ acima, com RSI(14) em extremo ou o mês
   deslocado mais de 2 ATR. Nunca foi medida nesta forma.
-- **SMT sem MMXM** (`smt-teste`) — EURUSD, GBPUSD, XAUUSD, XAGUSD · 15m, 1h e 4h. Divergência
-  entre pares correlacionados (EURUSD↔GBPUSD, prata↔ouro) ou contra o DXY sintético, só a
-  favor da tendência de 4h (EMA 50 a subir ou a descer). Alvo a +2R; em 15m/1h sai às 20:00
-  UTC do dia do sinal (day trade), em 4h ao fim de 12 velas. No backtest 2022–2026: ouro
-  contra o DXY em 1h deu **+0,15R por operação, positivo nos dois períodos** — a variante
-  escolhida aqui; EURUSD e GBPUSD ficaram em ≈0R ou negativos em todos os tamanhos de swing.
+- **SMT sem MMXM** (`smt-teste`) — EURUSD, GBPUSD, XAUUSD, XAGUSD · 15m, 1h e 4h. Desde
+  17/09/2026, revisão a 24/09/2026.
+  Divergência entre pares correlacionados (EURUSD↔GBPUSD, prata↔ouro) ou contra o DXY sintético,
+  só a favor da tendência de 4h (EMA 50 a subir ou a descer). Alvo a +2R; em 15m/1h sai às 20:00
+  UTC do dia do sinal (day trade), em 4h ao fim de 12 velas. No backtest 2022–2026: ouro contra
+  o DXY em 1h deu **+0,15R por operação, positivo nos dois períodos** — a variante escolhida
+  aqui; EURUSD e GBPUSD ficaram em ≈0R ou negativos em todos os tamanhos de swing.
+- **Tendência de baixa — cripto** (`tendencia-baixa-cripto`) — BTCUSD, ETHUSD · 1d. Desde
+  18/09/2026, revisão a 18/12/2026 (trimestral — a compra teve só 57 sinais em 10–12 anos, uma
+  semana não chega para ver um sinal sequer).
+  O espelho, em venda, da tendência de 55 dias validada na cripto: fecho abaixo do mínimo dos
+  55 dias anteriores E abaixo da média de 200 dias — só entra quando o regime já é de baixa.
+  Stop inicial 2 ATR, depois desce com o máximo das últimas 20 velas. No backtest (Yahoo diário,
+  2014–2026): positiva nos dois períodos em todas as 36 combinações de canal e saída testadas,
+  mas t<1,4 em todas — ver secção acima.
+
+Se as operações reais forem positivas depois da revisão, cada regra sobe a validada; senão, sai.
 
 ## Quem recebe o quê
 
@@ -161,7 +191,7 @@ Se ao fim da semana as operações reais forem positivas, sobem a validadas; sen
 | Day trading | 15m | SMT no forex/ouro (em teste) |
 | Intradiário | 1h | VWAP em índices; VWAP e SMT no forex/ouro (em teste) |
 | Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto e ouro (1d) |
-| Investir | 1d | Connors, tendência cripto e ouro |
+| Investir | 1d | Connors, tendência cripto e ouro; tendência de baixa na cripto (em teste) |
 
 Esta é só a sugestão inicial: em **Definições → Timeframes dos sinais** cada pessoa escolhe
 exactamente em quais recebe sinais.

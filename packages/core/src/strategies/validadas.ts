@@ -23,7 +23,8 @@
  *
  * Três regras que passaram dentro E fora da amostra, com custos, e que não
  * dependem de um valor exacto de parâmetro (todas as variantes vizinhas também
- * são positivas). Todas compram: nos índices, as vendas não têm vantagem.
+ * são positivas). Todas compram: vender índices ou ouro não tem vantagem, com
+ * ou sem confluência extra (ver docs/estrategias-validadas.md).
  *
  *   compra-vwap-indices    US100, SP500, US30, GER30 · 1h e 4h
  *   connors-rsi2-indices   US100, SP500, US30, GER30 · 1d
@@ -33,7 +34,9 @@
  * Os números de cada uma estão em `ESTRATEGIAS_VALIDADAS` e seguem no texto do
  * sinal. Forex, prata e o ouro intradiário NÃO têm estratégia validada; recebem
  * sinais só das estratégias EM TESTE (`em-teste.ts`), marcadas como tal e sem
- * taxa de acerto. Os sintéticos da Deriv são gerados por um gerador aleatório:
+ * taxa de acerto — e a cripto ganhou aí um lado de VENDA (`tendencia-baixa-cripto`),
+ * o espelho da tendência de compra: positivo no backtest mas ainda com confiança
+ * estatística fraca. Os sintéticos da Deriv são gerados por um gerador aleatório:
  * nenhuma análise de gráfico tem vantagem sobre eles por construção.
  *
  * Nada disto garante o futuro. É o melhor que os dados disponíveis mostram, e a
@@ -49,6 +52,7 @@ import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import {
   ESTRATEGIAS_EM_TESTE,
   planSmtTeste,
+  planTendenciaBaixaCripto,
   planVwapForexTeste,
   type DadosExtra,
   type EstrategiaEmTeste,
@@ -405,6 +409,7 @@ export function executarEstrategiasValidadas(
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
     if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
     if (e.id === 'smt-teste') out.push(...planSmtTeste(velas, ctx, extra));
+    if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));
   }
   return out;
 }

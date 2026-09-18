@@ -515,6 +515,7 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'tendencia-ouro': 'Tendencia 55 dias (ouro)',
   'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
   'smt-teste': 'SMT sem MMXM (em teste)',
+  'tendencia-baixa-cripto': 'Tendencia de baixa - cripto (em teste)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistencia',
   'vwap-bands': 'Bandas de VWAP',

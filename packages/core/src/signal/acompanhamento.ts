@@ -10,12 +10,13 @@
  * As regras de gestão são as de cada estratégia validada, as mesmas que o
  * backtest mediu:
  *
- *   compra-vwap-indices   +1R: fecha metade, stop para a entrada; +2R: fecha o resto
- *   connors-rsi2-indices  sai no primeiro fecho acima da média de 5, ou ao fim de 10 velas
- *   tendencia-cripto/ouro stop móvel no mínimo das últimas 20 velas
- *   vwap-forex-teste      como a compra do VWAP, nos dois sentidos
- *   smt-teste             alvo a +2R; sai às 20:00 UTC (15m/1h) ou ao fim de 12 velas (4h)
- *   (outras)              primeiro alvo ou stop
+ *   compra-vwap-indices     +1R: fecha metade, stop para a entrada; +2R: fecha o resto
+ *   connors-rsi2-indices    sai no primeiro fecho acima da média de 5, ou ao fim de 10 velas
+ *   tendencia-cripto/ouro   stop móvel no mínimo das últimas 20 velas (a compra)
+ *   tendencia-baixa-cripto  o mesmo espelhado: stop móvel no MÁXIMO das últimas 20 velas
+ *   vwap-forex-teste        como a compra do VWAP, nos dois sentidos
+ *   smt-teste               alvo a +2R; sai às 20:00 UTC (15m/1h) ou ao fim de 12 velas (4h)
+ *   (outras)                primeiro alvo ou stop
  *
  * Mudança de viés: a tendência da própria série (EMA 50 a descer e fecho abaixo
  * dela, numa compra) vira contra a operação enquanto está aberta. Avisa uma vez.
@@ -85,6 +86,9 @@ const EXPIRA_VELAS = 20;
 /** Metade a +1R com o stop na entrada, o resto a +2R. */
 const GESTAO_PARCIAL = new Set(['compra-vwap-indices', 'vwap-forex-teste']);
 
+/** Sem alvo fixo: o stop segue o extremo das últimas 20 velas (mínimo numa compra, máximo numa venda). */
+const TENDENCIA_ATR = new Set(['tendencia-cripto', 'tendencia-ouro', 'tendencia-baixa-cripto']);
+
 const HORA = 3_600_000;
 const DIA = 86_400_000;
 
@@ -108,6 +112,13 @@ function mediaFechos(velas: readonly Candle[], fim: number, periodo: number): nu
 function minimoBaixas(velas: readonly Candle[], de: number, ate: number): number {
   let m = Infinity;
   for (let k = Math.max(0, de); k <= ate; k++) m = Math.min(m, velas[k]!.low);
+  return m;
+}
+
+/** O espelho de `minimoBaixas`, para o stop móvel de uma tendência de venda. */
+function maximoAltas(velas: readonly Candle[], de: number, ate: number): number {
+  let m = -Infinity;
+  for (let k = Math.max(0, de); k <= ate; k++) m = Math.max(m, velas[k]!.high);
   return m;
 }
 
@@ -144,7 +155,7 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
   let protegida = false;
   let viesAvisado = false;
   const viesInicial = viesDeTendencia(velas, iSinal).vies;
-  const tendencia = plano.estrategia === 'tendencia-cripto' || plano.estrategia === 'tendencia-ouro';
+  const tendencia = TENDENCIA_ATR.has(plano.estrategia);
 
   for (let i = iSinal + 1; i < velas.length; i++) {
     const v = velas[i]!;
@@ -206,13 +217,16 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
         return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
       }
     } else if (tendencia) {
-      // Nível para a PRÓXIMA vela: mínimo das 20 velas até esta. O stop segue-o
-      // sempre (é a regra medida); só se avisa quando sobe pelo menos 0,25 ATR.
-      const nivel = minimoBaixas(velas, i - 19, i);
+      // Nível para a PRÓXIMA vela: extremo das 20 velas até esta (mínimo numa
+      // compra, máximo numa venda). O stop segue-o sempre (é a regra medida);
+      // só se avisa quando se move pelo menos 0,25 ATR.
+      const nivel = compra ? minimoBaixas(velas, i - 19, i) : maximoAltas(velas, i - 19, i);
       const a = atr[i] ?? 0;
-      if (compra && nivel > stop) {
+      const melhorou = compra ? nivel > stop : nivel < stop;
+      if (melhorou) {
         stop = nivel;
-        if (nivel >= stopAvisado + 0.25 * a) {
+        const moveuOSuficiente = compra ? nivel >= stopAvisado + 0.25 * a : nivel <= stopAvisado - 0.25 * a;
+        if (moveuOSuficiente) {
           stopAvisado = nivel;
           ev('stop-movel', v.time, nivel, undefined, `@${v.time}`);
         }

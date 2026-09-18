@@ -1,27 +1,37 @@
 /**
- * Estratégias EM TESTE AO VIVO — geram sinais, mas SEM vantagem medida.
+ * Estratégias EM TESTE AO VIVO — geram sinais, mas SEM vantagem medida com confiança.
  *
  * ── PORQUE EXISTEM ─────────────────────────────────────────────────────────
  *
  * No backtest nenhuma regra passou nos pares de forex que se operam (EURUSD,
- * GBPUSD, GBPJPY, USDJPY). Em vez de os deixar sem sinais, duas regras correm
- * ao vivo durante uma semana e os resultados reais decidem se ficam:
+ * GBPUSD, GBPJPY, USDJPY). Em vez de os deixar sem sinais, três regras correm
+ * ao vivo e os resultados reais decidem se ficam:
  *
- *   vwap-forex-teste  a regra do VWAP dos índices levada para o forex, nos dois
- *                     sentidos (as moedas não têm a deriva de subida dos índices)
- *   smt-teste         SMT isolado, sem MMXM: divergência entre pares
- *                     correlacionados (EURUSD↔GBPUSD↔DXY, ouro↔prata↔DXY)
+ *   vwap-forex-teste       a regra do VWAP dos índices levada para o forex, nos
+ *                          dois sentidos (o forex não tem a deriva de subida dos índices)
+ *   smt-teste              SMT isolado, sem MMXM: divergência entre pares
+ *                          correlacionados (EURUSD↔GBPUSD↔DXY, ouro↔prata↔DXY)
+ *   tendencia-baixa-cripto o espelho, em venda, da tendência de 55 dias validada
+ *                          na cripto — só entra abaixo da média de 200 dias
  *
- * O que o backtest disse (2022–2026, HistData, com spread), para quem ler os
- * resultados da semana com o contexto certo:
+ * O que o backtest disse (para quem ler os resultados com o contexto certo):
  *
- *   SMT no forex        ≈ 0R ou negativo em todos os tamanhos de swing
- *   SMT ouro × DXY      +0,15R por operação em 1h, positivo nos dois períodos,
- *                       só a favor da tendência de 4h — a variante escolhida aqui
- *   VWAP ±2σ no forex   não medido nesta forma
+ *   SMT no forex (2022–2026, HistData, com spread)
+ *       ≈ 0R ou negativo em todos os tamanhos de swing
+ *   SMT ouro × DXY (idem)
+ *       +0,15R por operação em 1h, positivo nos dois períodos, só a favor da
+ *       tendência de 4h — a variante escolhida aqui
+ *   VWAP ±2σ no forex
+ *       não medido nesta forma
+ *   Tendência de baixa na cripto (Yahoo diário, 2014–2026)
+ *       positiva nos dois períodos em TODAS as combinações de canal (20 a 100
+ *       dias) e saída (10 a 30 dias) testadas — 36 no total — mas com t<1,4 em
+ *       todas: a direcção é consistente, a confiança estatística não é forte
+ *       o suficiente ainda para validar sem mais dados ao vivo. Vender ouro
+ *       continua a perder dinheiro em todas as variantes: fica de fora.
  *
- * A convicção destes sinais é 0: não há taxa de acerto medida para mostrar, e
- * um número inventado seria pior do que nenhum.
+ * A convicção destes sinais é 0: não há taxa de acerto medida para mostrar com
+ * confiança, e um número inventado seria pior do que nenhum.
  *
  * PUREZA: sem rede nem relógio; só lê as velas FECHADAS que recebe.
  */
@@ -31,7 +41,7 @@ import type { StrategySignal } from './types.js';
 import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 
-export type EstrategiaEmTesteId = 'vwap-forex-teste' | 'smt-teste';
+export type EstrategiaEmTesteId = 'vwap-forex-teste' | 'smt-teste' | 'tendencia-baixa-cripto';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -53,6 +63,7 @@ export interface EstrategiaEmTeste {
 
 export const FOREX_EM_TESTE: readonly string[] = ['EURUSD', 'GBPUSD', 'GBPJPY', 'USDJPY'];
 export const SMT_EM_TESTE: readonly string[] = ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD'];
+export const CRIPTO_EM_TESTE: readonly string[] = ['BTCUSD', 'ETHUSD'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
@@ -86,6 +97,25 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       revisao: '2026-09-24',
       antes:
         'Backtest 2022–2026: ouro × DXY +0,15R por operação nos dois períodos; EURUSD e GBPUSD ≈ 0R ou negativos.',
+    },
+  },
+  {
+    id: 'tendencia-baixa-cripto',
+    nome: 'Tendência de baixa — cripto (em teste)',
+    descricao:
+      'O espelho, em venda, da tendência de 55 dias validada na cripto: rompe o mínimo dos últimos 55 dias, abaixo da média de 200 — só quando o regime já é de baixa.',
+    instrumentos: CRIPTO_EM_TESTE,
+    timeframes: ['1d'],
+    entrada: 'Fecho abaixo do mínimo dos 55 dias anteriores E abaixo da média móvel de 200 dias. Vende ao fecho.',
+    saida: 'Stop inicial a 2 ATR; depois sai quando o preço recupera o máximo dos últimos 20 dias. Sem alvo fixo.',
+    emTeste: {
+      desde: '2026-09-18',
+      // Sinal raro (a compra teve 57 em 10-12 anos): uma semana não chega
+      // para ver um sinal sequer. Revisão trimestral.
+      revisao: '2026-12-18',
+      antes:
+        'Backtest (Yahoo diário, 2014–2026): positiva nos dois períodos em 36 combinações de canal (20–100 dias) ' +
+        'e saída (10–30 dias) — mas t<1,4 em todas. Direcção consistente, confiança estatística ainda fraca.',
     },
   },
 ];
@@ -432,6 +462,72 @@ export function planSmtTeste(velas: readonly Candle[], ctx: Contexto, extra: Dad
         `A favor da tendência de 4h (${tendencia > 0 ? 'a subir' : 'a descer'}). ${aviso('smt-teste')}`,
       assumptions: [e.descricao, e.saida],
       warnings: ['Em teste: sem vantagem medida nestes pares.'],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Tendência de baixa — cripto
+// ---------------------------------------------------------------------------
+
+function mediaSimplesEmTeste(valores: readonly number[], fim: number, periodo: number): number {
+  if (fim + 1 < periodo) return Number.NaN;
+  let soma = 0;
+  for (let k = fim - periodo + 1; k <= fim; k++) soma += valores[k] ?? 0;
+  return soma / periodo;
+}
+
+/**
+ * Venda no rompimento do mínimo de 55 dias, só abaixo da média de 200 — o
+ * espelho da tendência de 55 dias validada na cripto (compra), com a
+ * confluência extra que o backtest mostrou ajudar sem prejudicar a robustez.
+ */
+export function planTendenciaBaixaCripto(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+  const lista = velas as Candle[];
+  const i = lista.length - 1;
+  const u = lista[i];
+  if (!u || lista.length < 210) return [];
+  const fechos = lista.map((v) => v.close);
+  const sma200 = mediaSimplesEmTeste(fechos, i, 200);
+  if (!(u.close < sma200)) return [];
+
+  let minimo = Infinity;
+  for (let k = i - 55; k < i; k++) minimo = Math.min(minimo, lista[k]?.low ?? Infinity);
+  // Só o PRIMEIRO fecho abaixo: se ontem já tinha fechado abaixo do seu mínimo, não é sinal novo.
+  let minimoOntem = Infinity;
+  for (let k = i - 56; k < i - 1; k++) minimoOntem = Math.min(minimoOntem, lista[k]?.low ?? Infinity);
+  const atr = atrSerie(lista, 14)[i] ?? Number.NaN;
+  if (!(u.close < minimo) || !(atr > 0)) return [];
+  if ((lista[i - 1]?.close ?? Infinity) < minimoOntem) return [];
+
+  const entrada = u.close;
+  const stop = entrada + 2 * atr;
+  let maximo20 = -Infinity;
+  for (let k = i - 19; k <= i; k++) maximo20 = Math.max(maximo20, lista[k]?.high ?? -Infinity);
+  const e = estrategiaEmTeste('tendencia-baixa-cripto')!;
+  return [
+    {
+      strategy: 'tendencia-baixa-cripto',
+      symbol: ctx.symbol,
+      timeframe: ctx.timeframe,
+      direction: 'bearish',
+      regime: 'continuation',
+      index: i,
+      generatedAt: u.time,
+      referencePrice: u.close,
+      entryZoneLow: entrada,
+      entryZoneHigh: entrada,
+      entryPrice: entrada,
+      stopLoss: stop,
+      targets: [],
+      maxRMultiple: 0,
+      conviction: 0,
+      rationale:
+        `Fecho abaixo do mínimo dos 55 dias anteriores (${minimo.toFixed(2)}) e abaixo da média de 200 dias ` +
+        `(${sma200.toFixed(2)}). Sem alvo fixo: o stop desce para o máximo dos últimos 20 dias (hoje ${maximo20.toFixed(2)}) ` +
+        `e é aí que se sai. ${aviso('tendencia-baixa-cripto')}`,
+      assumptions: [e.descricao, e.saida],
+      warnings: ['Em teste: direcção consistente no backtest, mas t<1,4 em todas as variantes — confiança ainda fraca.'],
     },
   ];
 }

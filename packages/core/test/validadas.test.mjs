@@ -25,7 +25,10 @@ const vela = (time, open, high, low, close) => ({ time, open, high, low, close, 
 test('só índices e cripto validados, nos timeframes medidos', () => {
   assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices']);
   assert.deepEqual(estrategiasPara('SP500', '1d').map((e) => e.id), ['connors-rsi2-indices']);
-  assert.deepEqual(estrategiasPara('BTCUSD', '1d').map((e) => e.id), ['tendencia-cripto']);
+  // BTCUSD 1d: a compra validada, mais a venda em teste (tendencia-baixa-cripto).
+  const btc1d = estrategiasPara('BTCUSD', '1d');
+  assert.ok(btc1d.some((e) => e.id === 'tendencia-cripto' && !('emTeste' in e)));
+  assert.ok(btc1d.filter((e) => e.id !== 'tendencia-cripto').every((e) => 'emTeste' in e));
   assert.equal(estrategiasPara('US100', '15m').length, 0);
   // Forex e ouro intradiário só têm estratégias EM TESTE (em-teste.test.mjs).
   assert.ok(estrategiasPara('EURUSD', '1h').every((e) => 'emTeste' in e));

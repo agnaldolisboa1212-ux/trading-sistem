@@ -80,6 +80,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'connors-rsi2-indices': 'connors-rsi2-indices',
   'tendencia-cripto': 'tendencia-cripto',
   'tendencia-ouro': 'tendencia-cripto',
+  'tendencia-baixa-cripto': 'tendencia-cripto',
   // O VWAP no forex/ouro partilha a mesma visão (bandas); o SMT ainda não tem
   // desenho próprio no gráfico — precisa das velas de outros instrumentos, que
   // esta página não pede. Os avisos de push abrem o Resumo nesse caso.
@@ -549,7 +550,7 @@ export function analisarVisoes(
   };
 
   // --- tendência de 55 dias ----------------------------------------------------
-  const tc = sinalDe('tendencia-cripto') ?? sinalDe('tendencia-ouro');
+  const tc = sinalDe('tendencia-cripto') ?? sinalDe('tendencia-ouro') ?? sinalDe('tendencia-baixa-cripto');
   const maximo55 = lista.map((_, i) => {
     if (i < 55) return Number.NaN;
     let m = -Infinity;
@@ -562,9 +563,24 @@ export function analisarVisoes(
     for (let k = i - 19; k <= i; k++) m = Math.min(m, lista[k]!.low);
     return m;
   });
-  const tendenciaValida = estrategiasPara(simbolo, timeframe).some(
-    (e) => e.id === 'tendencia-cripto' || e.id === 'tendencia-ouro',
+  // Espelho da compra, para a venda em teste: rompimento do mínimo, saída no máximo.
+  const minimo55 = lista.map((_, i) => {
+    if (i < 55) return Number.NaN;
+    let m = Infinity;
+    for (let k = i - 55; k < i; k++) m = Math.min(m, lista[k]!.low);
+    return m;
+  });
+  const maximo20 = lista.map((_, i) => {
+    if (i < 19) return Number.NaN;
+    let m = -Infinity;
+    for (let k = i - 19; k <= i; k++) m = Math.max(m, lista[k]!.high);
+    return m;
+  });
+  const estrategiasTendencia = estrategiasPara(simbolo, timeframe).filter((e) =>
+    ['tendencia-cripto', 'tendencia-ouro', 'tendencia-baixa-cripto'].includes(e.id),
   );
+  const tendenciaValida = estrategiasTendencia.some((e) => !('emTeste' in e));
+  const baixaEmTeste = estrategiasTendencia.some((e) => e.id === 'tendencia-baixa-cripto');
   const tendenciaVisao: Visao = {
     id: 'tendencia-cripto',
     nome: nomeVisao('tendencia-cripto'),
@@ -573,17 +589,31 @@ export function analisarVisoes(
       {
         zonas: [],
         linhas: [],
-        curvas: [curvaDe(maximo55, 'banda2', 'máximo 55', desde), curvaDe(minimo20, 'banda1', 'mínimo 20', desde)],
+        curvas: [
+          curvaDe(maximo55, 'banda2', 'máximo 55', desde),
+          curvaDe(minimo20, 'banda1', 'mínimo 20', desde),
+          ...(baixaEmTeste
+            ? [curvaDe(minimo55, 'banda2', 'mínimo 55', desde), curvaDe(maximo20, 'banda1', 'máximo 20', desde)]
+            : []),
+        ],
       },
       desenhoDoSinal(tc, tc?.sinal.strategy ?? 'tendencia-cripto'),
     ),
     estruturas: [
       ...(Number.isFinite(maximo55[ultimo]) ? [{ rotulo: 'Máximo de 55 — compra no fecho acima', baixo: maximo55[ultimo]!, tipo: 'bull' as const }] : []),
-      ...(Number.isFinite(minimo20[ultimo]) ? [{ rotulo: 'Mínimo de 20 — saída / stop móvel', baixo: minimo20[ultimo]!, tipo: 'bear' as const }] : []),
+      ...(Number.isFinite(minimo20[ultimo]) ? [{ rotulo: 'Mínimo de 20 — saída / stop móvel (compra)', baixo: minimo20[ultimo]!, tipo: 'bear' as const }] : []),
+      ...(baixaEmTeste && Number.isFinite(minimo55[ultimo])
+        ? [{ rotulo: 'Mínimo de 55 — venda no fecho abaixo (em teste)', baixo: minimo55[ultimo]!, tipo: 'bear' as const }]
+        : []),
+      ...(baixaEmTeste && Number.isFinite(maximo20[ultimo])
+        ? [{ rotulo: 'Máximo de 20 — saída / stop móvel (venda)', baixo: maximo20[ultimo]!, tipo: 'bull' as const }]
+        : []),
     ],
     nota: tendenciaValida
-      ? 'Sinal: fecho acima do máximo dos 55 dias anteriores. Sem alvo fixo: sai quando perde o mínimo de 20 dias.'
-      : 'Esta regra só está validada no diário (1D) de BTCUSD, ETHUSD e XAUUSD. Aqui é contexto.',
+      ? `Sinal: fecho acima do máximo dos 55 dias anteriores. Sem alvo fixo: sai quando perde o mínimo de 20 dias.${baixaEmTeste ? ' Em teste: também vende no fecho abaixo do mínimo de 55 dias, abaixo da média de 200.' : ''}`
+      : baixaEmTeste
+        ? 'Em teste: vende no fecho abaixo do mínimo dos 55 dias anteriores, abaixo da média de 200 — sem taxa de acerto medida ainda.'
+        : 'Esta regra só está validada no diário (1D) de BTCUSD, ETHUSD e XAUUSD. Aqui é contexto.',
   };
 
   // --- resumo ---------------------------------------------------------------
