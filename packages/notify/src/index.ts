@@ -516,6 +516,7 @@ const NOME_ESTRATEGIA: Record<string, string> = {
   'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
   'smt-teste': 'SMT sem MMXM (em teste)',
   'tendencia-baixa-cripto': 'Tendencia de baixa - cripto (em teste)',
+  'abertura-dax-teste': 'Abertura de Londres no DAX (em teste)',
   'supply-demand': 'Oferta e procura',
   'support-resistance': 'Suporte/resistencia',
   'vwap-bands': 'Bandas de VWAP',

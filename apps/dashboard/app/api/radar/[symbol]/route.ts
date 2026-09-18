@@ -45,6 +45,7 @@ export const maxDuration = 60;
 
 const GRANULARIDADE_S: Record<string, number> = {
   '15m': 900,
+  '30m': 1800,
   '1h': 3600,
   '4h': 14400,
   '1d': 86400,
@@ -137,6 +138,9 @@ export async function GET(
       }
       const velas4h = tf === '4h' ? fechadas : await velasFechadas(s.deriv, GRANULARIDADE_S['4h']!);
       extra = { referencias, velas4h };
+    }
+    if (estrategias.some((e) => e.id === 'abertura-dax-teste')) {
+      extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
     }
 
     const frescos = executarEstrategiasValidadas(

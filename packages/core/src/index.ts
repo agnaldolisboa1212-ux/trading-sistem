@@ -28,6 +28,7 @@ export * from './mmxm/model.js';
 
 // Tempo (macros em escala swing)
 export * from './time/windows.js';
+export * from './time/europa.js';
 
 // Sinal
 export * from './signal/entries.js';

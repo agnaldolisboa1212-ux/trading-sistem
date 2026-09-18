@@ -59,7 +59,7 @@ type Estado = 'espera' | 'corre' | 'passou' | 'falhou';
 /** Em intradiário a vela fecha a cada poucos minutos: repetir mais depressa. */
 const INTRADIARIO = new Set(['1m', '5m', '15m', '30m']);
 
-const TIMEFRAMES_RADAR = ['15m', '1h', '4h', '1d'] as const;
+const TIMEFRAMES_RADAR = ['15m', '30m', '1h', '4h', '1d'] as const;
 const CHAVE_RADAR = 'radar_timeframe';
 
 /** Ordena com sinal primeiro (por convicção), depois sem sinal, depois falhas. */

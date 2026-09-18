@@ -154,12 +154,40 @@ Os pares principais estão entre os mercados mais eficientes que existem: as reg
 simples que funcionavam até 2015 deixaram de funcionar. O ouro tem a tendência de 55 dias
 no diário (acima).
 
+## GER30 (DAX) em 30m na abertura de Londres — o que se testou
+
+A abertura de Londres (08:00 em Londres) e a do DAX à vista (09:00 em Frankfurt) caem sempre à
+mesma hora UTC — 07:00 no verão, 08:00 no inverno — porque os dois mudam a hora no mesmo dia. É
+o momento de mais liquidez do DAX. Testou-se com velas de 1 minuto da HistData (GRXEUR,
+jan/2022–ago/2026, agregadas em 30m), custo de 2,5 pontos por operação, uma operação por dia,
+saída no máximo no fecho do DAX à vista (15:30 / 16:30 UTC):
+
+| Regra | Resultado |
+|---|---|
+| Falso rompimento da 1.ª vela (operar contra) | −0,42R por operação — rejeitada |
+| Entrar no sentido da 1.ª vela | −0,28R — rejeitada |
+| Rompimento da 1.ª vela, alvo fixo de 1R ou 2R | ≈ 0R |
+| Rompimento da 1.ª hora (duas velas) | ≈ 0R |
+| **Rompimento da 1.ª vela de 30m, a favor da EMA 20 diária, stop a meio da faixa, sai no fecho** | **+0,19R em 611 operações, positiva em 8 de 10 semestres, compras e vendas positivas** |
+
+A melhor variante aguenta EMA de 10, 20 ou 50 dias e janelas de entrada de 2 ou 3 horas, e dá o
+mesmo com o fecho diário à meia-noite UTC (como as velas diárias da Deriv). Mas:
+
+- **Sensível ao custo.** A 2,5 pontos é positiva nos dois períodos; a 4 pontos, 2022–2024 fica
+  em zero; a 6 pontos só o período recente se aguenta.
+- **Depende de tendência.** Por semestre: 2022 +0,04R e +0,45R; 2023 −0,29R e +0,06R; 2024
+  +0,28R e +0,38R; 2025 +0,42R e +0,66R; 2026 +0,14R e **−0,53R** (jul–ago, 30 operações). Os
+  dados da própria Deriv (mai–set/2026) também dão negativo.
+
+É a melhor ideia intradiária em índices até agora, mas não está validada: entra em teste, só
+em conta demo (ver abaixo).
+
 ## Em teste ao vivo (sem vantagem medida com confiança)
 
-O utilizador continua a achar que o SMT funciona nestes pares, e pediu para procurar o lado da
-venda em vez de só comprar. Três regras (`packages/core/src/strategies/em-teste.ts`) correm ao
-vivo, marcadas em todo o lado como "EM TESTE" — badge amarela em vez de percentagem, convicção 0,
-aviso no texto do sinal.
+O utilizador continua a achar que o SMT funciona nestes pares, pediu para procurar o lado da
+venda em vez de só comprar, e para operar o DAX na abertura de Londres. Quatro regras
+(`packages/core/src/strategies/em-teste.ts`) correm ao vivo, marcadas em todo o lado como
+"EM TESTE" — badge amarela em vez de percentagem, convicção 0, aviso no texto do sinal.
 
 - **VWAP ±2σ no forex** (`vwap-forex-teste`) — EURUSD, GBPUSD, GBPJPY, USDJPY · 1h e 4h. Desde
   17/09/2026, revisão a 24/09/2026 (uma semana — sinal frequente).
@@ -181,6 +209,12 @@ aviso no texto do sinal.
   Stop inicial 2 ATR, depois desce com o máximo das últimas 20 velas. No backtest (Yahoo diário,
   2014–2026): positiva nos dois períodos em todas as 36 combinações de canal e saída testadas,
   mas t<1,4 em todas — ver secção acima.
+- **Abertura de Londres no DAX** (`abertura-dax-teste`) — GER30 · 30m. Desde 18/09/2026,
+  revisão a 18/01/2027 (~2,5 operações por semana: 40 operações levam uns 4 meses). Só conta demo.
+  A 1.ª vela de 30m da abertura faz a faixa; nas 3 horas seguintes, o primeiro fecho acima dela
+  compra e abaixo vende, só do mesmo lado da EMA 20 diária. Stop no meio da faixa, sem alvo: sai
+  no fecho do DAX à vista. Como os outros sinais de 15m e 1h, não sai a 30 minutos de uma notícia
+  de alto impacto do euro. Ver a secção do GER30 acima — incluindo o spread máximo de 2,5 pontos.
 
 Se as operações reais forem positivas depois da revisão, cada regra sobe a validada; senão, sai.
 
@@ -189,6 +223,7 @@ Se as operações reais forem positivas depois da revisão, cada regra sobe a va
 | Objetivo no onboarding | Timeframes | Estratégias que podem dar sinal |
 |---|---|---|
 | Day trading | 15m | SMT no forex/ouro (em teste) |
+| (escolha nas Definições) | 30m | Abertura de Londres no GER30 (em teste) |
 | Intradiário | 1h | VWAP em índices; VWAP e SMT no forex/ouro (em teste) |
 | Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto e ouro (1d) |
 | Investir | 1d | Connors, tendência cripto e ouro; tendência de baixa na cripto (em teste) |

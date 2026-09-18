@@ -4,7 +4,7 @@
  * ── PORQUE EXISTEM ─────────────────────────────────────────────────────────
  *
  * No backtest nenhuma regra passou nos pares de forex que se operam (EURUSD,
- * GBPUSD, GBPJPY, USDJPY). Em vez de os deixar sem sinais, três regras correm
+ * GBPUSD, GBPJPY, USDJPY). Em vez de os deixar sem sinais, estas regras correm
  * ao vivo e os resultados reais decidem se ficam:
  *
  *   vwap-forex-teste       a regra do VWAP dos índices levada para o forex, nos
@@ -13,6 +13,8 @@
  *                          correlacionados (EURUSD↔GBPUSD↔DXY, ouro↔prata↔DXY)
  *   tendencia-baixa-cripto o espelho, em venda, da tendência de 55 dias validada
  *                          na cripto — só entra abaixo da média de 200 dias
+ *   abertura-dax-teste     GER30 em 30m: rompimento da 1.ª vela da abertura de
+ *                          Londres (= abertura do DAX), a favor da EMA 20 diária
  *
  * O que o backtest disse (para quem ler os resultados com o contexto certo):
  *
@@ -29,6 +31,10 @@
  *       todas: a direcção é consistente, a confiança estatística não é forte
  *       o suficiente ainda para validar sem mais dados ao vivo. Vender ouro
  *       continua a perder dinheiro em todas as variantes: fica de fora.
+ *   Abertura de Londres no DAX (HistData 1 min, 2022–ago/2026, custo 2,5 pts)
+ *       +0,19R por operação em 611, positiva em 8 de 10 semestres, compras e
+ *       vendas positivas. MAS: sensível ao custo (a 4 pts, 2022–2024 fica em
+ *       zero), depende de mercados em tendência, e jul–ago/2026 deu −0,53R.
  *
  * A convicção destes sinais é 0: não há taxa de acerto medida para mostrar com
  * confiança, e um número inventado seria pior do que nenhum.
@@ -40,8 +46,9 @@ import type { Candle, Direction, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
 import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
+import { sessaoDax } from '../time/europa.js';
 
-export type EstrategiaEmTesteId = 'vwap-forex-teste' | 'smt-teste' | 'tendencia-baixa-cripto';
+export type EstrategiaEmTesteId = 'vwap-forex-teste' | 'smt-teste' | 'tendencia-baixa-cripto' | 'abertura-dax-teste';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -64,6 +71,7 @@ export interface EstrategiaEmTeste {
 export const FOREX_EM_TESTE: readonly string[] = ['EURUSD', 'GBPUSD', 'GBPJPY', 'USDJPY'];
 export const SMT_EM_TESTE: readonly string[] = ['EURUSD', 'GBPUSD', 'XAUUSD', 'XAGUSD'];
 export const CRIPTO_EM_TESTE: readonly string[] = ['BTCUSD', 'ETHUSD'];
+export const DAX_EM_TESTE: readonly string[] = ['GER30'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
@@ -118,6 +126,25 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
         'e saída (10–30 dias) — mas t<1,4 em todas. Direcção consistente, confiança estatística ainda fraca.',
     },
   },
+  {
+    id: 'abertura-dax-teste',
+    nome: 'Abertura de Londres no DAX (em teste)',
+    descricao:
+      'Rompimento da primeira vela de 30 minutos da abertura de Londres (que é também a abertura do DAX à vista), só a favor da tendência diária. Day trade: sai no fecho do DAX.',
+    instrumentos: DAX_EM_TESTE,
+    timeframes: ['30m'],
+    entrada:
+      'A 1.ª vela de 30m da abertura (07:00 UTC no verão, 08:00 no inverno) faz a faixa. Nas 3 horas seguintes, o primeiro fecho acima dela compra e abaixo dela vende — só se estiver do mesmo lado da EMA 20 diária.',
+    saida: 'Stop no meio da faixa. Sem alvo fixo: sai no fecho do DAX à vista (15:30 UTC no verão, 16:30 no inverno).',
+    emTeste: {
+      desde: '2026-09-18',
+      // ~2,5 operações por semana: 40 operações levam uns 4 meses.
+      revisao: '2027-01-18',
+      antes:
+        'Backtest (HistData 1 min, 2022–ago/2026, custo 2,5 pts): +0,19R por operação em 611, positiva em 8 de 10 semestres. ' +
+        'Sensível ao custo (a 4 pts, 2022–2024 fica em zero), depende de tendência, e jul–ago/2026 deu −0,53R. Só em conta demo.',
+    },
+  },
 ];
 
 export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
@@ -140,6 +167,8 @@ export interface DadosExtra {
   referencias?: Readonly<Record<string, readonly Candle[]>>;
   /** Velas FECHADAS de 4h do próprio instrumento (tendência do SMT). */
   velas4h?: readonly Candle[];
+  /** Velas diárias FECHADAS do próprio instrumento (EMA 20 da abertura do DAX). */
+  velas1d?: readonly Candle[];
 }
 
 const HORA = 3_600_000;
@@ -528,6 +557,97 @@ export function planTendenciaBaixaCripto(velas: readonly Candle[], ctx: Contexto
         `e é aí que se sai. ${aviso('tendencia-baixa-cripto')}`,
       assumptions: [e.descricao, e.saida],
       warnings: ['Em teste: direcção consistente no backtest, mas t<1,4 em todas as variantes — confiança ainda fraca.'],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Abertura de Londres no DAX (GER30, 30m)
+// ---------------------------------------------------------------------------
+
+const M30 = 30 * 60_000;
+/** Até quando, depois da abertura, um rompimento ainda conta (medido com 3h). */
+export const JANELA_ABERTURA_DAX_MS = 3 * HORA;
+/** O risco tem de ser maior do que o custo usado no backtest (spread + deslize). */
+export const CUSTO_ABERTURA_DAX_PONTOS = 2.5;
+
+function fimDeSemana(tempoMs: number): boolean {
+  const d = new Date(tempoMs).getUTCDay();
+  return d === 0 || d === 6;
+}
+
+/**
+ * Rompimento da 1.ª vela de 30m da abertura de Londres / DAX, a favor da EMA 20
+ * diária — exactamente a variante medida (`orb30-meio`, filtro EMA 20, saída no
+ * fecho). Precisa de `extra.velas1d`; sem elas não corre.
+ */
+export function planAberturaDaxTeste(
+  velas: readonly Candle[],
+  ctx: Contexto,
+  extra: DadosExtra = {},
+): StrategySignal[] {
+  if (ctx.timeframe !== '30m') return [];
+  const lista = velas as Candle[];
+  const i = lista.length - 1;
+  const u = lista[i];
+  if (!u || fimDeSemana(u.time)) return [];
+  const dia = Math.floor(u.time / DIA) * DIA;
+  const { abre, fecha } = sessaoDax(dia);
+  // A vela de rompimento começa depois da 1.ª vela, dentro da janela, e fecha antes do fecho do DAX.
+  if (u.time < abre + M30 || u.time >= abre + JANELA_ABERTURA_DAX_MS || u.time + M30 > fecha) return [];
+
+  let iPrimeira = -1;
+  for (let k = i - 1; k >= 0 && lista[k]!.time >= abre; k--) if (lista[k]!.time === abre) iPrimeira = k;
+  if (iPrimeira < 0) return [];
+  const primeira = lista[iPrimeira]!;
+  const hi = primeira.high;
+  const lo = primeira.low;
+  if (!(hi > lo)) return [];
+  // Só o PRIMEIRO fecho fora da faixa conta: se uma vela anterior de hoje já saiu, o dia está feito.
+  for (let k = iPrimeira + 1; k < i; k++) {
+    if (lista[k]!.close > hi || lista[k]!.close < lo) return [];
+  }
+  const lado = u.close > hi ? 1 : u.close < lo ? -1 : 0;
+  if (lado === 0) return [];
+
+  // Tendência diária: EMA 20 dos fechos diários ATÉ ONTEM, sem fins de semana.
+  const diarias = (extra.velas1d ?? []).filter((c) => c.time < dia && !fimDeSemana(c.time));
+  if (diarias.length < 25) return [];
+  const ema = emaSerie(diarias.map((c) => c.close), 20).at(-1) ?? Number.NaN;
+  if (!Number.isFinite(ema)) return [];
+  if (lado > 0 ? !(u.close > ema) : !(u.close < ema)) return [];
+
+  const entrada = u.close;
+  const stop = (hi + lo) / 2;
+  const risco = (entrada - stop) * lado;
+  if (!(risco > CUSTO_ABERTURA_DAX_PONTOS)) return [];
+
+  const e = estrategiaEmTeste('abertura-dax-teste')!;
+  const hora = (t: number) => new Date(t).toISOString().slice(11, 16);
+  const direction: Direction = lado > 0 ? 'bullish' : 'bearish';
+  return [
+    {
+      strategy: 'abertura-dax-teste',
+      symbol: ctx.symbol,
+      timeframe: ctx.timeframe,
+      direction,
+      regime: 'continuation',
+      index: i,
+      generatedAt: u.time,
+      referencePrice: u.close,
+      entryZoneLow: entrada,
+      entryZoneHigh: entrada,
+      entryPrice: entrada,
+      stopLoss: stop,
+      targets: [],
+      maxRMultiple: 0,
+      conviction: 0,
+      rationale:
+        `Fecho ${lado > 0 ? 'acima' : 'abaixo'} da 1.ª vela da abertura (${lo.toFixed(1)}–${hi.toFixed(1)}, ${hora(abre)} UTC), ` +
+        `${lado > 0 ? 'acima' : 'abaixo'} da EMA 20 diária (${ema.toFixed(1)}). Stop no meio da faixa; sem alvo fixo, ` +
+        `sai no fecho do DAX às ${hora(fecha)} UTC. ${aviso('abertura-dax-teste')}`,
+      assumptions: [e.descricao, e.saida],
+      warnings: ['Em teste: só em conta demo. Sensível ao spread — confirme que o do GER30 à abertura é ≤ 2,5 pontos.'],
     },
   ];
 }

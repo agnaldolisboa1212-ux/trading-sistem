@@ -571,8 +571,9 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
   };
 
   /**
-   * Velas de uma referência do SMT, com `referenciasCache`. Válidas até à
-   * vela seguinte: o EURUSD já pedido para si mesmo serve de referência ao
+   * Velas de uma referência do SMT, ou de outro timeframe do próprio
+   * instrumento (4h do SMT, diário da abertura do DAX), com `referenciasCache`.
+   * Válidas até à vela seguinte: o EURUSD já pedido para si mesmo serve de referência ao
    * GBPUSD na mesma passagem, e nenhuma delas volta a pedir-se nas passagens
    * seguintes enquanto o período não mudar.
    */
@@ -686,7 +687,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // A convicção é a taxa medida no backtest; não há limite de R nem de
         // convicção a aplicar por cima — a regra da estratégia já é o filtro.
         let extra: DadosExtra = {};
-        if (estrategiasPara(s.codigo, tf).some((e) => e.id === 'smt-teste')) {
+        const aplicaveis = estrategiasPara(s.codigo, tf);
+        if (aplicaveis.some((e) => e.id === 'smt-teste')) {
           const referencias: Record<string, Candle[]> = {};
           for (const c of velasNecessariasSmt(s.codigo)) {
             const v = await fechadasDe(c, gran);
@@ -694,6 +696,11 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           }
           const velas4h = tf === '4h' ? fechadas : await fechadasDe(s.codigo, GRANULARIDADE_S['4h']!);
           extra = { referencias, velas4h: velas4h ?? undefined };
+        }
+        if (aplicaveis.some((e) => e.id === 'abertura-dax-teste')) {
+          // EMA 20 diária do próprio GER30 — com o cache, pede-se uma vez por dia.
+          const velas1d = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);
+          extra = { ...extra, velas1d: velas1d ?? undefined };
         }
         const frescos = executarEstrategiasValidadas(
           fechadas,

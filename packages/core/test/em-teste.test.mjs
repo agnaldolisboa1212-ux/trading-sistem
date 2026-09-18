@@ -16,8 +16,10 @@ import {
   estrategiasPara,
   executarEstrategiasValidadas,
   fraseEvento,
+  planAberturaDaxTeste,
   planSmtTeste,
   planTendenciaBaixaCripto,
+  sessaoDax,
   planVwapForexTeste,
   velasNecessariasSmt,
 } from '../dist/index.js';
@@ -259,4 +261,97 @@ test('Acompanhamento: tendência de baixa segue o stop no MÁXIMO das últimas 2
   assert.ok(a.stopActual < 108, 'o stop desceu com o máximo das últimas 20 velas');
   assert.ok(a.stopActual > 75, 'nunca abaixo do preço actual — é um TECTO, não um alvo');
   assert.equal(a.resultadoR, null, 'ainda em curso, sem alvo fixo');
+  const movel = a.eventos.find((e) => e.tipo === 'stop-movel');
+  assert.match(fraseEvento(movel, 2, 'tendencia-baixa-cripto').titulo, /desceu/);
+});
+
+// --- Abertura de Londres no DAX ---------------------------------------------------
+
+const M30 = 30 * 60_000;
+
+test('Sessão do DAX: abertura e fecho em UTC mudam com o horário de verão europeu', () => {
+  assert.deepEqual(sessaoDax(Date.UTC(2026, 8, 17)), { abre: Date.UTC(2026, 8, 17, 7), fecha: Date.UTC(2026, 8, 17, 15, 30) });
+  assert.deepEqual(sessaoDax(Date.UTC(2026, 0, 15)), { abre: Date.UTC(2026, 0, 15, 8), fecha: Date.UTC(2026, 0, 15, 16, 30) });
+  // 2026: verão de 29/03 a 25/10.
+  assert.equal(sessaoDax(Date.UTC(2026, 2, 27)).abre, Date.UTC(2026, 2, 27, 8));
+  assert.equal(sessaoDax(Date.UTC(2026, 2, 30)).abre, Date.UTC(2026, 2, 30, 7));
+  assert.equal(sessaoDax(Date.UTC(2026, 9, 23)).abre, Date.UTC(2026, 9, 23, 7));
+  assert.equal(sessaoDax(Date.UTC(2026, 9, 26)).abre, Date.UTC(2026, 9, 26, 8));
+});
+
+/** 40 dias úteis de velas diárias do GER30, a subir (sobe=true) ou a descer, a acabar em `fim`. */
+function diariasDax(fim, de, ate) {
+  const v = [];
+  let t = fim - D;
+  const dias = [];
+  while (dias.length < 40) {
+    const d = new Date(t).getUTCDay();
+    if (d !== 0 && d !== 6) dias.unshift(t);
+    t -= D;
+  }
+  dias.forEach((tt, k) => {
+    const c = de + ((ate - de) * k) / 39;
+    v.push(vela(tt, c, c + 20, c - 20, c));
+  });
+  return v;
+}
+
+/** Um dia de 30m no GER30 (17/09/2026, verão: abre 07:00 UTC). `fechos` a partir das 07:30. */
+function diaDax(fechos) {
+  const dia = Date.UTC(2026, 8, 17);
+  const v = [vela(dia + 6 * H, 24990, 25010, 24980, 25000), vela(dia + 6.5 * H, 25000, 25015, 24990, 25005)];
+  v.push(vela(dia + 7 * H, 25005, 25040, 25000, 25020)); // 1.ª vela: faixa 25000–25040, meio 25020
+  fechos.forEach((c, k) => v.push(vela(dia + 7 * H + (k + 1) * M30, c - 5, c + 5, c - 10, c)));
+  return v;
+}
+
+test('Abertura do DAX: compra no primeiro fecho acima da 1.ª vela, a favor da EMA 20 diária', () => {
+  const dia = Date.UTC(2026, 8, 17);
+  const ctx = { symbol: 'GER30', timeframe: '30m' };
+  const subida = { velas1d: diariasDax(dia, 24000, 24900) };
+  const velas = diaDax([25030, 25050]); // 07:30 dentro da faixa; 08:00 fecha acima
+  const s = planAberturaDaxTeste(velas, ctx, subida);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].strategy, 'abertura-dax-teste');
+  assert.equal(s[0].direction, 'bullish');
+  assert.equal(s[0].entryPrice, 25050);
+  assert.equal(s[0].stopLoss, 25020, 'stop no meio da faixa');
+  assert.equal(s[0].targets.length, 0, 'sem alvo fixo');
+  assert.equal(s[0].conviction, 0);
+  assert.match(s[0].rationale, /EM TESTE/);
+  assert.deepEqual(estrategiasPara('GER30', '30m').map((e) => e.id), ['abertura-dax-teste']);
+  assert.equal(executarEstrategiasValidadas(velas, ctx, subida)[0]?.strategy, 'abertura-dax-teste');
+
+  // Só o primeiro fecho fora da faixa: a vela seguinte já não dá sinal.
+  assert.equal(planAberturaDaxTeste(diaDax([25030, 25050, 25060]), ctx, subida).length, 0);
+  // Contra a EMA 20 diária (tendência de baixa): não compra.
+  assert.equal(planAberturaDaxTeste(velas, ctx, { velas1d: diariasDax(dia, 26000, 25500) }).length, 0);
+  // Sem as velas diárias não corre.
+  assert.equal(planAberturaDaxTeste(velas, ctx, {}).length, 0);
+  // Outro timeframe: nada.
+  assert.equal(planAberturaDaxTeste(velas, { symbol: 'GER30', timeframe: '1h' }, subida).length, 0);
+  // Depois da janela de 3h (rompimento às 10:00 UTC): não conta.
+  assert.equal(planAberturaDaxTeste(diaDax([25030, 25030, 25030, 25030, 25030, 25050]), ctx, subida).length, 0);
+});
+
+test('Abertura do DAX: vende no primeiro fecho abaixo, em tendência de baixa', () => {
+  const dia = Date.UTC(2026, 8, 17);
+  const s = planAberturaDaxTeste(diaDax([24980]), { symbol: 'GER30', timeframe: '30m' }, { velas1d: diariasDax(dia, 26000, 25500) });
+  assert.equal(s.length, 1);
+  assert.equal(s[0].direction, 'bearish');
+  assert.equal(s[0].stopLoss, 25020);
+});
+
+test('Abertura do DAX: sai no fecho do DAX à vista se o stop não for tocado', () => {
+  const dia = Date.UTC(2026, 8, 17);
+  const velas = diaDax([25030, 25050]);
+  for (let t = dia + 8.5 * H; t <= dia + 17 * H; t += M30) velas.push(vela(t, 25060, 25080, 25040, 25070));
+  const plano = { estrategia: 'abertura-dax-teste', direccao: 'bullish', entrada: 25050, stop: 25020, alvos: [], geradoEm: dia + 8 * H };
+  const a = acompanharOperacao(plano, velas);
+  assert.equal(a.estado, 'fechada');
+  const saida = a.eventos.at(-1);
+  assert.equal(saida.tipo, 'saida-tempo');
+  assert.equal(saida.em, dia + 15 * H, 'a vela das 15:00 fecha às 15:30, o fecho do DAX no verão');
+  assert.ok(Math.abs(a.resultadoR - 20 / 30) < 1e-9, '+20 pontos com 30 de risco');
+  assert.match(fraseEvento(saida, 1, 'abertura-dax-teste').titulo, /fecho do DAX/);
 });

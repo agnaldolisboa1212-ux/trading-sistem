@@ -18,7 +18,7 @@
 import type { Timeframe } from '../types/market.js';
 
 /** Timeframes em que o motor de tempo real gera sinais, do mais curto ao mais longo. */
-export const TIMEFRAMES_SINAIS: readonly Timeframe[] = ['15m', '1h', '4h', '1d'];
+export const TIMEFRAMES_SINAIS: readonly Timeframe[] = ['15m', '30m', '1h', '4h', '1d'];
 
 const POR_OBJETIVO: Readonly<Record<string, readonly Timeframe[]>> = {
   day: ['15m'],

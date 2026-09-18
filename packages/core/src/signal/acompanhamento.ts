@@ -16,6 +16,7 @@
  *   tendencia-baixa-cripto  o mesmo espelhado: stop móvel no MÁXIMO das últimas 20 velas
  *   vwap-forex-teste        como a compra do VWAP, nos dois sentidos
  *   smt-teste               alvo a +2R; sai às 20:00 UTC (15m/1h) ou ao fim de 12 velas (4h)
+ *   abertura-dax-teste      stop no meio da faixa; sem alvo, sai no fecho do DAX à vista
  *   (outras)                primeiro alvo ou stop
  *
  * Mudança de viés: a tendência da própria série (EMA 50 a descer e fecho abaixo
@@ -27,6 +28,7 @@
 
 import type { Candle } from '../types/market.js';
 import { atrSerie, viesDeTendencia } from '../strategies/contexto.js';
+import { sessaoDax } from '../time/europa.js';
 
 export type TipoEvento =
   | 'entrada'
@@ -248,6 +250,15 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
         ev('saida-tempo', v.time, v.close, r);
         return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
       }
+    } else if (plano.estrategia === 'abertura-dax-teste') {
+      // Day trade: sai no fecho da vela que acaba no fecho do DAX à vista do dia do sinal.
+      const passo = passoDasVelas(velas, iSinal);
+      const { fecha } = sessaoDax(Math.floor(velas[iSinal]!.time / DIA) * DIA);
+      if (v.time + passo >= fecha) {
+        const r = rDe(v.close);
+        ev('saida-tempo', v.time, v.close, r);
+        return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
+      }
     }
 
     // --- mudança de viés ------------------------------------------------------------
@@ -293,9 +304,13 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
     case 'saida-tempo':
       return estrategia === 'smt-teste'
         ? { titulo: `sair: fim do day trade ${r}`, corpo: `Não chegou ao alvo nem ao stop no tempo da regra. Fecho a ${p}.` }
-        : { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
+        : estrategia === 'abertura-dax-teste'
+          ? { titulo: `sair: fecho do DAX ${r}`, corpo: `O DAX à vista fechou e o stop não foi tocado. Fecho a ${p}.` }
+          : { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
     case 'stop-movel':
-      return { titulo: 'stop móvel subiu', corpo: `Novo stop: ${p} (mínimo das últimas 20 velas).` };
+      return estrategia === 'tendencia-baixa-cripto'
+        ? { titulo: 'stop móvel desceu', corpo: `Novo stop: ${p} (máximo das últimas 20 velas).` }
+        : { titulo: 'stop móvel subiu', corpo: `Novo stop: ${p} (mínimo das últimas 20 velas).` };
     case 'vies':
       return {
         titulo: 'viés mudou contra a operação',

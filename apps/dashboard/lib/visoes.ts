@@ -669,6 +669,6 @@ export function analisarVisoes(
 /** "1H e 4H" — os timeframes validados de um instrumento, para as notas. */
 function estrategiasDoSimbolo(simbolo: string): string {
   const tfs = new Set<string>();
-  for (const tf of ['15m', '1h', '4h', '1d']) if (estrategiasPara(simbolo, tf).length > 0) tfs.add(tf.toUpperCase());
+  for (const tf of ['15m', '30m', '1h', '4h', '1d']) if (estrategiasPara(simbolo, tf).length > 0) tfs.add(tf.toUpperCase());
   return [...tfs].join(' e ');
 }

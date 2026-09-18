@@ -92,6 +92,7 @@ const H = 60 * MIN;
 /** Janela de aviso por timeframe: quanto tempo à frente uma notícia importa. */
 const JANELA_AVISO: Readonly<Record<string, number>> = {
   '15m': 2 * H,
+  '30m': 3 * H,
   '1h': 4 * H,
   '4h': 12 * H,
   '1d': 36 * H,
@@ -117,7 +118,7 @@ export function riscoDeNoticias(
   if (proximos.length === 0) return { suspender: false, aviso: null, eventos: [] };
 
   const colado = proximos.filter((e) => Math.abs(e.em - agora) <= 30 * MIN);
-  const deHoras = timeframe === '15m' || timeframe === '1h';
+  const deHoras = timeframe === '15m' || timeframe === '30m' || timeframe === '1h';
   const primeiro = colado[0] ?? proximos[0]!;
   const lista = proximos
     .slice(0, 3)
