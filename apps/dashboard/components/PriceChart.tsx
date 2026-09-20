@@ -76,6 +76,7 @@ interface Props {
   bands?: PriceBand[];
   lines?: PriceLine[];
   markers?: PriceMarker[];
+  operacoes?: { precoEntrada: number | null; stopLoss: number | null; takeProfit: number | null; lado: 'compra' | 'venda' }[];
   precision?: number;
   /** Mostrado na legenda, canto superior esquerdo. */
   title?: string;
@@ -97,6 +98,7 @@ export function PriceChart({
   bands = [],
   lines = [],
   markers = [],
+  operacoes = [],
   precision = 5,
   title,
   className = '',
@@ -175,6 +177,20 @@ export function PriceChart({
     for (const l of lines) {
       if (l.price < lo) lo = l.price;
       if (l.price > hi) hi = l.price;
+    }
+    for (const op of operacoes) {
+      if (op.precoEntrada !== null) {
+        if (op.precoEntrada < lo) lo = op.precoEntrada;
+        if (op.precoEntrada > hi) hi = op.precoEntrada;
+      }
+      if (op.stopLoss !== null) {
+        if (op.stopLoss < lo) lo = op.stopLoss;
+        if (op.stopLoss > hi) hi = op.stopLoss;
+      }
+      if (op.takeProfit !== null) {
+        if (op.takeProfit < lo) lo = op.takeProfit;
+        if (op.takeProfit > hi) hi = op.takeProfit;
+      }
     }
     for (const b of bands) {
       const from = b.fromIndex ?? 0;
@@ -444,6 +460,90 @@ export function PriceChart({
                 >
                   {l.label}
                 </text>
+              </g>
+            );
+          })}
+
+          {/* operações (entradas, stop, tp) */}
+          {operacoes.map((op, i) => {
+            const corBase = op.lado === 'compra' ? 'var(--bull)' : 'var(--bear)';
+            return (
+              <g key={`op${i}`}>
+                {op.precoEntrada !== null && (
+                  <g>
+                    <line
+                      x1={PAD.left}
+                      x2={w - PAD.right}
+                      y1={y(op.precoEntrada)}
+                      y2={y(op.precoEntrada)}
+                      stroke={corBase}
+                      strokeWidth={1.5}
+                      strokeDasharray="4 2"
+                      opacity={0.8}
+                    />
+                    <text
+                      x={w - PAD.right - 4}
+                      y={y(op.precoEntrada) - 4}
+                      fill={corBase}
+                      fontSize={fonte - 1}
+                      fontFamily="var(--mono)"
+                      fontWeight={600}
+                      textAnchor="end"
+                    >
+                      {op.lado === 'compra' ? 'COMPRA' : 'VENDA'} {fmt(op.precoEntrada)}
+                    </text>
+                  </g>
+                )}
+                {op.stopLoss !== null && (
+                  <g>
+                    <line
+                      x1={PAD.left}
+                      x2={w - PAD.right}
+                      y1={y(op.stopLoss)}
+                      y2={y(op.stopLoss)}
+                      stroke="var(--bear)"
+                      strokeWidth={1.5}
+                      strokeDasharray="2 2"
+                      opacity={0.8}
+                    />
+                    <text
+                      x={w - PAD.right - 4}
+                      y={y(op.stopLoss) - 4}
+                      fill="var(--bear)"
+                      fontSize={fonte - 1}
+                      fontFamily="var(--mono)"
+                      fontWeight={600}
+                      textAnchor="end"
+                    >
+                      SL {fmt(op.stopLoss)}
+                    </text>
+                  </g>
+                )}
+                {op.takeProfit !== null && (
+                  <g>
+                    <line
+                      x1={PAD.left}
+                      x2={w - PAD.right}
+                      y1={y(op.takeProfit)}
+                      y2={y(op.takeProfit)}
+                      stroke="var(--bull)"
+                      strokeWidth={1.5}
+                      strokeDasharray="2 2"
+                      opacity={0.8}
+                    />
+                    <text
+                      x={w - PAD.right - 4}
+                      y={y(op.takeProfit) - 4}
+                      fill="var(--bull)"
+                      fontSize={fonte - 1}
+                      fontFamily="var(--mono)"
+                      fontWeight={600}
+                      textAnchor="end"
+                    >
+                      TP {fmt(op.takeProfit)}
+                    </text>
+                  </g>
+                )}
               </g>
             );
           })}

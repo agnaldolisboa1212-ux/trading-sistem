@@ -8,37 +8,34 @@ import type { Estatisticas } from '@/lib/desempenho';
 export function EstatisticasCard({ e }: { e: Estatisticas }) {
   return (
     <>
-      <div className="card">
-        <div className="kv">
-          <div>
-            <span>R total realizado</span>
-            <strong className={e.totalR >= 0 ? 'bull-t' : 'bear-t'}>
-              {e.totalR >= 0 ? '+' : ''}
-              {e.totalR.toFixed(2)}R
-            </strong>
+      <div className="metrics-grid">
+        <div className={`metric-card ${e.totalR > 0 ? 'positive' : e.totalR < 0 ? 'negative' : ''}`}>
+          <div className="m-label">R total realizado</div>
+          <div className={`m-value ${e.totalR >= 0 ? 'bull-t' : 'bear-t'}`}>
+            {e.totalR >= 0 ? '+' : ''}{e.totalR.toFixed(2)}R
           </div>
-          <div>
-            <span>Operações fechadas</span>
-            <strong>{e.n}</strong>
+        </div>
+        <div className="metric-card">
+          <div className="m-label">Op. fechadas</div>
+          <div className="m-value">{e.n}</div>
+        </div>
+        <div className="metric-card">
+          <div className="m-label">Taxa de acerto</div>
+          <div className="m-value">{e.n > 0 ? `${(e.winRate * 100).toFixed(0)}%` : '—'}</div>
+        </div>
+        <div className="metric-card">
+          <div className="m-label">R médio ganho</div>
+          <div className="m-value bull-t">{e.avgWin > 0 ? `+${e.avgWin.toFixed(2)}R` : '—'}</div>
+        </div>
+        <div className={`metric-card ${e.expectancy > 0 ? 'positive' : e.expectancy < 0 ? 'negative' : ''}`}>
+          <div className="m-label">Expectativa</div>
+          <div className={`m-value ${e.expectancy >= 0 ? 'bull-t' : 'bear-t'}`}>
+            {e.n > 0 ? `${e.expectancy >= 0 ? '+' : ''}${e.expectancy.toFixed(2)}R` : '—'}
           </div>
-          <div>
-            <span>Taxa de acerto</span>
-            <strong>{e.n > 0 ? `${(e.winRate * 100).toFixed(0)}%` : '—'}</strong>
-          </div>
-          <div>
-            <span>R médio ganho</span>
-            <strong className="bull-t">{e.avgWin > 0 ? `+${e.avgWin.toFixed(2)}R` : '—'}</strong>
-          </div>
-          <div>
-            <span>Expectativa</span>
-            <strong className={e.expectancy >= 0 ? 'bull-t' : 'bear-t'}>
-              {e.n > 0 ? `${e.expectancy >= 0 ? '+' : ''}${e.expectancy.toFixed(2)}R` : '—'}
-            </strong>
-          </div>
-          <div>
-            <span>Melhor operação</span>
-            <strong className="bull-t">{e.best > 0 ? `+${e.best.toFixed(2)}R` : '—'}</strong>
-          </div>
+        </div>
+        <div className="metric-card">
+          <div className="m-label">Melhor operação</div>
+          <div className="m-value bull-t">{e.best > 0 ? `+${e.best.toFixed(2)}R` : '—'}</div>
         </div>
       </div>
 

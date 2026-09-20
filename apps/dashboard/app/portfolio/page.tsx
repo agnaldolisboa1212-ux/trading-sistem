@@ -57,20 +57,21 @@ export default function Page() {
         <Ligacao rotulo={false} />
       </div>
 
-      <CartaoSaldo />
-
-      <MeusInstrumentos />
+      <div className="metrics-grid">
+        <CartaoSaldo />
+        <MeusInstrumentos />
+      </div>
 
       <Posicoes />
 
-      <section>
-        <div className="section-head">
-          <h2>Mercados</h2>
+      <section className="card glass-panel" style={{ padding: '24px', marginTop: '32px' }}>
+        <div className="section-head" style={{ marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '18px', margin: 0 }}>Mercados</h2>
           <span className="grow" />
-          <Link href="/mercados">ver todos</Link>
+          <Link href="/mercados" className="btn ghost" style={{ padding: '4px 8px', fontSize: '14px' }}>ver todos</Link>
         </div>
 
-        <div className="abas" role="tablist" aria-label="Grupos de mercado">
+        <div className="abas" role="tablist" aria-label="Grupos de mercado" style={{ marginBottom: '24px' }}>
           {ABAS.map((a) => (
             <button
               key={a.id}
@@ -87,7 +88,7 @@ export default function Page() {
 
         {aba === 'indices' && (
           <>
-            <p className="section-cap">
+            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
               Índices mundiais a vista. Fecham ao fim de semana e fora do horário da bolsa
               respetiva — quando isso acontece a linha diz <em>fech.</em> em vez de fingir um preço.
             </p>
@@ -97,7 +98,7 @@ export default function Page() {
 
         {aba === 'sinteticos' && (
           <>
-            <p className="section-cap">
+            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
               Índices sintéticos da Deriv: <strong>não são mercados reais</strong>, são séries
               geradas com volatilidade fixa. Negoceiam 24 horas por dia, todos os dias — é o que
               se mexe quando as bolsas estão fechadas.
@@ -108,7 +109,7 @@ export default function Page() {
 
         {aba === 'materias' && (
           <>
-            <p className="section-cap">
+            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
               Metais preciosos e criptomoedas. A cripto negoceia 24/7; os metais seguem o horário
               do mercado à vista.
             </p>
@@ -117,13 +118,13 @@ export default function Page() {
         )}
       </section>
 
-      <section>
-        <div className="section-head">
-          <h2>Desempenho da estratégia</h2>
+      <section className="card glass-panel" style={{ padding: '24px', marginTop: '32px' }}>
+        <div className="section-head" style={{ marginBottom: '8px' }}>
+          <h2 style={{ fontSize: '18px', margin: 0 }}>Desempenho da estratégia</h2>
           <span className="grow" />
-          <Link href="/financeiro">abrir</Link>
+          <Link href="/financeiro" className="btn primary" style={{ padding: '4px 12px', fontSize: '14px' }}>abrir</Link>
         </div>
-        <p className="section-cap">
+        <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, margin: 0 }}>
           O saldo diz quanto está na conta. Se a estratégia tem vantagem é outra pergunta, medida
           em múltiplos de risco e não em dinheiro — está no Financeiro.
         </p>
@@ -148,18 +149,17 @@ function MeusInstrumentos() {
   };
 
   return (
-    <section>
-      <div className="section-head">
-        <h2>Os meus instrumentos</h2>
+    <div className="card glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, padding: '24px' }}>
+      <div className="section-head" style={{ marginBottom: 0 }}>
+        <h2 style={{ fontSize: '18px', margin: 0 }}>Os meus instrumentos</h2>
         <span className="grow" />
-        <button type="button" className="btn ghost" onClick={() => setEscolher(true)}>
+        <button type="button" className="btn primary" onClick={() => setEscolher(true)} style={{ padding: '6px 12px', fontSize: '14px' }}>
           + adicionar
         </button>
       </div>
-      <p className="section-cap">
+      <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, margin: 0 }}>
         Só recebe sinais — no telemóvel e no início — dos instrumentos desta lista, e só dos que têm
         uma estratégia com vantagem medida: índices (US100, SP500, US30, GER30) e cripto (BTC, ETH).
-        Os marcados <em>sem sinais</em> ficam para acompanhar o gráfico.
       </p>
 
       {p.instrumentos === null ? (
@@ -199,7 +199,7 @@ function MeusInstrumentos() {
           })}
         </div>
       )}
-      {erro && <div className="ob__erro">{erro}</div>}
+      {erro && <div className="ob__erro" style={{ marginTop: 'auto' }}>{erro}</div>}
 
       {escolher && (
         <SelectorMercado
@@ -211,7 +211,7 @@ function MeusInstrumentos() {
           }}
         />
       )}
-    </section>
+    </div>
   );
 }
 
@@ -225,13 +225,17 @@ function Posicoes() {
   const c = usarCtrader();
   if (!c.ligada) return null;
   return (
-    <section>
+    <section style={{ marginTop: '32px' }}>
       <div className="section-head">
         <h2>Posições e ordens</h2>
         <span className="grow" />
-        <span className="section-note">{c.posicoes.length + c.ordens.length}</span>
+        <span className="chip-estado bear-bg" style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '13px' }}>
+          {c.posicoes.length + c.ordens.length} ativas
+        </span>
       </div>
-      <Carteira />
+      <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px' }}>
+        <Carteira />
+      </div>
     </section>
   );
 }

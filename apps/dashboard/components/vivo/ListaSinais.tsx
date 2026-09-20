@@ -19,6 +19,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
 import { planoInvalidado, planoVivo, ROTULO_PLANO, type EstadoPlano } from '@/lib/estado-sinal';
+import { estrategiaActiva } from '@trading/core';
 
 interface Sinal {
   id: string;
@@ -40,20 +41,8 @@ interface Sinal {
   emTeste?: boolean;
 }
 
-const NOME_ESTRATEGIA: Record<string, string> = {
-  'compra-vwap-indices': 'Compra na banda −2σ do VWAP',
-  'connors-rsi2-indices': 'RSI(2) de Connors',
-  'tendencia-cripto': 'Tendência 55 dias',
-  'tendencia-ouro': 'Tendência 55 dias (ouro)',
-  'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
-  'smt-teste': 'SMT sem MMXM (em teste)',
-  'tendencia-baixa-cripto': 'Tendência de baixa — cripto (em teste)',
-  'abertura-dax-teste': 'Abertura de Londres no DAX (em teste)',
-  'supply-demand': 'Oferta e procura',
-  'support-resistance': 'Suporte/resistência',
-  'vwap-bands': 'Bandas de VWAP',
-  'volume-profile': 'Perfil de volume',
-};
+/** Nome legível de uma estratégia — fonte única: @trading/core. */
+const nomeEstrategia = (id: string) => estrategiaActiva(id)?.nome ?? id;
 
 function ha(iso: string, agora: number): string {
   const s = Math.max(0, Math.round((agora - Date.parse(iso)) / 1000));
@@ -251,7 +240,7 @@ function LinhaSinal({
             entrada {formatarPreco(s.entrada, casas)} · stop{' '}
             {formatarPreco(s.stopActual ?? s.stop, casas)}
             {s.stopActual !== null && s.stopActual !== undefined && s.stopActual !== s.stop ? ' (subiu)' : ''} ·{' '}
-            {NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia}
+            {nomeEstrategia(s.estrategia)}
             {s.ultimoEvento ? ` · ${s.ultimoEvento}` : ''}
           </em>
         </span>

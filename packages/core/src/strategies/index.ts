@@ -45,6 +45,7 @@ export * from './volume-profile.js';
 export * from './contexto.js';
 export * from './validadas.js';
 export * from './em-teste.js';
+export * from './conviccao-dinamica.js';
 
 export interface RunStrategiesOptions {
   /** R mínimo exigido a qualquer sinal. Por omissão 2. */

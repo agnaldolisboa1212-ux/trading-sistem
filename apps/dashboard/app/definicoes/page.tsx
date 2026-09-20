@@ -18,6 +18,7 @@
 import { PainelConta } from '@/components/conta/PainelConta';
 import { PainelDefinicoes } from '@/components/vivo/PainelDefinicoes';
 import { PainelMotores } from '@/components/vivo/PainelMotores';
+import { PainelAutomacao } from '@/components/vivo/PainelAutomacao';
 import { ehAdministrador } from '@/lib/administracao';
 import { estadoPush } from '@/lib/push';
 import { isConfigured } from '@/lib/supabase';
@@ -51,6 +52,11 @@ export default async function Page() {
 
       {/* Tudo o que é interativo vive aqui dentro. */}
       <PainelDefinicoes pushDisponivel={push.configurado} />
+
+      {/* Secção de Automação cTrader */}
+      <section style={{ marginTop: '32px' }}>
+        <PainelAutomacao />
+      </section>
 
       {/*
         Daqui para baixo é o estado do servidor — chaves, integrações, fontes.

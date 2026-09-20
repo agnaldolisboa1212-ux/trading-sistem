@@ -404,10 +404,20 @@ function TabelaSinais({
                       }`}
                     >
                       {r.estado === 'fechada' && r.resultado_r !== null
-                        ? `${r.resultado_r >= 0 ? '+' : ''}${r.resultado_r.toFixed(2)}R`
+                        ? <span className={`pill ${r.resultado_r >= 0 ? 'bull' : 'bear'}`}>
+                            {r.resultado_r >= 0 ? '+' : ''}{r.resultado_r.toFixed(2)}R
+                          </span>
                         : '—'}
                     </td>
-                    <td className="dim">{FECHADO_MOTIVO[r.estado ?? ''] ?? r.estado ?? '—'}</td>
+                    <td className="dim">
+                      {r.estado === 'fechada' 
+                        ? <span className="pill" style={{ borderColor: 'var(--border)', color: 'var(--text)' }}>Fechada</span> 
+                        : r.estado === 'expirado' 
+                        ? <span className="pill" style={{ borderColor: 'var(--warn)', color: 'var(--warn)' }}>Expirada</span>
+                        : r.estado === 'perdido'
+                        ? <span className="pill bear">Perdida (Alvo)</span>
+                        : '—'}
+                    </td>
                   </>
                 )}
                 <td>

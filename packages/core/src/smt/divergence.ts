@@ -43,7 +43,9 @@ export interface SmtEvent {
   degree: SwingDegree;
   time: number;
   primaryIndex: number;
+  primaryPrevIndex: number;
   referenceIndex: number;
+  referencePrevIndex: number;
   primaryPrice: number;
   primaryPrevPrice: number;
   referencePrice: number;
@@ -198,7 +200,9 @@ export function detectSmtDivergences(
         degree: pCur.degree,
         time: candle?.time ?? pCur.time,
         primaryIndex: pCur.index,
+        primaryPrevIndex: pPrev.index,
         referenceIndex: rCur.index,
+        referencePrevIndex: rPrev.index,
         primaryPrice: pCur.price,
         primaryPrevPrice: pPrev.price,
         referencePrice: rCur.price,

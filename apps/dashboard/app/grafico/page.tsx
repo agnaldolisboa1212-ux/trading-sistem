@@ -33,6 +33,7 @@ import { GraficoVivo } from '@/components/vivo/GraficoVivo';
 import { Negociar, type PlanoParaOrdem } from '@/components/vivo/Negociar';
 import { Ligacao, Variacao } from '@/components/vivo/Preco';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
+import { GraficoSmt } from '@/components/vivo/GraficoSmt';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
 import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
 import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
@@ -40,6 +41,7 @@ import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
 import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
 import { usarPortfolio } from '@/components/vivo/usarPortfolio';
+import { usarCtrader } from '@/components/vivo/usarCtrader';
 import {
   acharSimbolo,
   formatarPreco,
@@ -77,6 +79,7 @@ function Terminal() {
   const s = acharSimbolo(codigo);
   const portfolio = usarPortfolio();
   const ecra = usarEcraLargo();
+  const { posicoes } = usarCtrader();
   const velas = usarVelas(codigo, tf, 300);
   const preco = usarPreco(codigo);
   const horario = usarHorario(codigo);
@@ -182,16 +185,39 @@ function Terminal() {
     );
   }
 
-  const grafico = (
+  const alturaCalculada = cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 300) : 340;
+
+  const linhasComPosicoes = useMemo(() => {
+    const pos = posicoes.filter((p) => p.simbolo.toUpperCase() === codigo.toUpperCase());
+    const extraLinhas = pos.flatMap((p) => {
+      const base = p.lado === 'compra' ? 'COMPRA' : 'VENDA';
+      const arr: Array<{ preco: number; rotulo: string; tipo: string }> = [];
+      if (p.precoEntrada !== null) {
+        arr.push({ preco: p.precoEntrada, rotulo: `${base} ${p.lotes} lotes`, tipo: p.lado === 'compra' ? 'alvo' : 'stop' });
+      }
+      if (p.stopLoss !== null) {
+        arr.push({ preco: p.stopLoss, rotulo: 'SL', tipo: 'stop' });
+      }
+      if (p.takeProfit !== null) {
+        arr.push({ preco: p.takeProfit, rotulo: 'TP', tipo: 'alvo' });
+      }
+      return arr;
+    });
+    return [...(desenho.linhas ?? []), ...extraLinhas];
+  }, [desenho.linhas, posicoes, codigo]);
+
+  const grafico = visao === 'smt-teste' ? (
+    <GraficoSmt codigo={codigo} tf={tf} altura={alturaCalculada || 420} />
+  ) : (
     <GraficoVivo
       velas={velas.velas}
       casas={s.casas}
       timeframe={tf}
       zonas={desenho.zonas}
-      linhas={desenho.linhas}
+      linhas={linhasComPosicoes}
       curvas={desenho.curvas}
       // No computador o gráfico enche a altura da janela ao lado do painel.
-      altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 300) : 340}
+      altura={alturaCalculada}
       cheio={cheio}
       titulo={`${s.codigo} · ${s.nome}`}
       aoMudarTimeframe={(novo) => navegar(codigo, novo)}

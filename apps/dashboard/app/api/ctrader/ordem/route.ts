@@ -12,6 +12,7 @@ import { validarOrdem, type Lado, type TipoOrdem } from '@/lib/ctrader/protocolo
 import { corpoJson, erroCtrader, LIMITE_LOTES, preco, semAcesso } from '@/lib/ctrader/rotas';
 import { acessoCtrader } from '@/lib/ctrader/sessao';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
+import { clienteServidor } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,47 @@ export async function POST(pedido: Request) {
       return NextResponse.json({ erro: 'Conta REAL: confirme que percebe que usa dinheiro seu.', precisaAceitarRisco: true }, { status: 428 });
     }
     const r = await abrirOrdemCtrader(a.sessao.a, conta.id, pedidoOrdem);
+
+    const sinalId = typeof c['sinalId'] === 'string' ? c['sinalId'] : null;
+    if (sinalId) {
+      const db = await clienteServidor();
+      if (db && a.utilizador.id) {
+        // Tentar encontrar uma conta interna com a corretora cTrader
+        const { data: contas } = await db
+          .from('contas')
+          .select('id')
+          .eq('utilizador_id', a.utilizador.id)
+          .ilike('corretora', '%cTrader%')
+          .limit(1);
+
+        let contaInternaId = contas?.[0]?.id;
+
+        // Se não existir, criar uma para esta conta
+        if (!contaInternaId) {
+          const { data: nova } = await db
+            .from('contas')
+            .insert({ 
+              utilizador_id: a.utilizador.id, 
+              nome: `cTrader #${conta.login ?? conta.id}`, 
+              corretora: 'cTrader', 
+              moeda: 'USD' 
+            })
+            .select('id')
+            .single();
+          contaInternaId = nova?.id;
+        }
+
+        if (contaInternaId) {
+          // Marcar como negociado
+          await db.from('entradas_pessoais').upsert({
+            utilizador_id: a.utilizador.id,
+            conta_id: contaInternaId,
+            sinal_id: sinalId
+          }, { onConflict: 'conta_id,sinal_id' });
+        }
+      }
+    }
+
     return NextResponse.json({ ok: true, ...r, conta: { id: conta.id, real: conta.real } });
   } catch (e) {
     return erroCtrader(e);

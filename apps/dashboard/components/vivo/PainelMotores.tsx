@@ -15,6 +15,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
+import { estrategiaActiva, ESTRATEGIAS_ACTIVAS } from '@trading/core';
 
 interface Execucao {
   iniciadoEm: string;
@@ -55,20 +56,8 @@ interface Sinal {
   geradoEm: string;
 }
 
-const NOME_ESTRATEGIA: Record<string, string> = {
-  'compra-vwap-indices': 'Compra na banda −2σ do VWAP',
-  'connors-rsi2-indices': 'RSI(2) de Connors',
-  'tendencia-cripto': 'Tendência 55 dias',
-  'tendencia-ouro': 'Tendência 55 dias (ouro)',
-  'vwap-forex-teste': 'VWAP ±2σ no forex (em teste)',
-  'smt-teste': 'SMT sem MMXM (em teste)',
-  'tendencia-baixa-cripto': 'Tendência de baixa — cripto (em teste)',
-  'abertura-dax-teste': 'Abertura de Londres no DAX (em teste)',
-  'supply-demand': 'Oferta e procura',
-  'support-resistance': 'Suporte/resistência',
-  'vwap-bands': 'Bandas de VWAP',
-  'volume-profile': 'Perfil de volume',
-};
+/** Nome legível de uma estratégia — fonte única: @trading/core. */
+const nomeEstrategia = (id: string) => estrategiaActiva(id)?.nome ?? id;
 
 function ha(iso: string | null, agora: number): string {
   if (!iso) return '—';
@@ -151,7 +140,7 @@ export function PainelMotores({ compacto = false }: { compacto?: boolean }) {
       <div className="grupo__caixa">
         <LinhaMotor
           nome="Principal"
-          sub="MMXM + SMT · velas diárias · gere as posições"
+          sub="Gestão de posições · acompanhamento diário"
           exec={e.diario}
           aCorrer={e.aCorrer.includes('diario')}
           agora={agora}
@@ -159,7 +148,7 @@ export function PainelMotores({ compacto = false }: { compacto?: boolean }) {
         />
         <LinhaMotor
           nome="Tempo real"
-          sub="4 estratégias institucionais · 15m e 1h"
+          sub={`${ESTRATEGIAS_ACTIVAS.length} estratégias activas · 15m, 1h e 4h`}
           exec={e.tempoReal}
           aCorrer={e.aCorrer.includes('tempoReal')}
           agora={agora}
@@ -268,7 +257,7 @@ function SinaisTempoReal({
                   </strong>
                   <em>
                     entrada {formatarPreco(s.entrada, casas)} · stop {formatarPreco(s.stop, casas)} ·{' '}
-                    {NOME_ESTRATEGIA[s.estrategia] ?? s.estrategia}
+                    {nomeEstrategia(s.estrategia)}
                   </em>
                 </span>
                 <span className="sinal-tr__r">

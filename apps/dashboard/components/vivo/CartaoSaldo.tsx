@@ -40,7 +40,7 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
   const emAberto = c.posicoes.reduce((a, p) => a + p.lucro, 0);
 
   return (
-    <div className="saldo">
+    <div className="saldo card glass-panel" style={{ flex: 1, padding: '24px' }}>
       <div className="saldo__topo">
         <span className="saldo__rotulo">
           {nome ? `Olá, ${nome}` : 'Saldo disponível'}
@@ -117,7 +117,7 @@ export function CartaoSaldo({ nome }: { nome?: string | null }) {
  */
 function ConviteLigar({ erro, configurado }: { erro: string | null; configurado: boolean }) {
   return (
-    <div className="saldo">
+    <div className="saldo card glass-panel" style={{ flex: 1, padding: '24px' }}>
       <div className="saldo__topo">
         <span className="saldo__rotulo">Corretora</span>
       </div>

@@ -33,6 +33,7 @@ import {
   type PosicaoCtrader,
 } from './usarCtrader';
 import { usarPreco } from './usarPreco';
+import { FolhaCalculadoraLote } from './CalculadoraLote';
 
 /** O plano de um sinal, para colar no bilhete. */
 export interface PlanoParaOrdem {
@@ -195,6 +196,8 @@ function Bilhete({
   const [alvoSinal, setAlvoSinal] = useState(0);
   const [confirmar, setConfirmar] = useState<Lado | null>(null);
   const [aviso, setAviso] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [mostrarCalc, setMostrarCalc] = useState(false);
+  const c = usarCtrader();
 
   // Começa no volume mínimo do instrumento nesta conta.
   useEffect(() => {
@@ -293,7 +296,17 @@ function Bilhete({
 
       <div className="bilhete__campos">
         <div className="campo" role="group" aria-label="Volume em lotes">
-          <span>Volume (lotes)</span>
+          <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+            Volume (lotes)
+            <button 
+              type="button" 
+              className="dim" 
+              style={{ background: 'transparent', border: 'none', textDecoration: 'underline', fontSize: '11px', padding: 0 }}
+              onClick={() => setMostrarCalc(true)}
+            >
+              Calculadora
+            </button>
+          </span>
           <span className="campo__passo">
             <button type="button" onClick={() => ajustarLotes(-1)} aria-label="Menos volume">
               −
@@ -362,9 +375,24 @@ function Bilhete({
           takeProfit={num(takeProfit)}
           precoReferencia={confirmar === 'compra' ? precoCompra : precoVenda}
           casas={casasOrdem}
+          sinalId={sinal?.id ?? null}
           aoFechar={(texto) => {
             setConfirmar(null);
             if (texto) setAviso({ ok: true, texto });
+          }}
+        />
+      )}
+
+      {mostrarCalc && (
+        <FolhaCalculadoraLote 
+          saldoCtrader={c.saldo}
+          precoEntrada={num(precoOrdem) || (meio ? Number(meio.toFixed(casasOrdem)) : null)}
+          stopLoss={num(stopLoss)}
+          aoFechar={() => setMostrarCalc(false)}
+          aoCalcular={(novoLote) => {
+            const arredondado = Math.max(info?.lotesMinimo ?? passo, Math.round(novoLote / passo) * passo);
+            setLotes(String(Number(arredondado.toFixed(6))));
+            setMostrarCalc(false);
           }}
         />
       )}
@@ -382,6 +410,7 @@ function FolhaOrdem(p: {
   takeProfit: number | null;
   precoReferencia: number | null;
   casas: number;
+  sinalId: string | null;
   aoFechar: (sucesso: string | null) => void;
 }) {
   const c = usarCtrader();
@@ -408,6 +437,7 @@ function FolhaOrdem(p: {
       precoReferencia: p.precoReferencia,
       confirmacao: 'sim',
       aceitoRisco: real ? aceito : true,
+      sinalId: p.sinalId,
     });
     setOcupado(false);
     if (!r.ok) return setErro(r.erro);
@@ -425,8 +455,19 @@ function FolhaOrdem(p: {
       <Kv k="Preço agora" v={fmt(p.precoReferencia)} />
       <Kv k="Stop loss" v={p.stopLoss ? `${fmt(p.stopLoss)}${risco ? ` · ${formatarPreco(risco, p.casas)} de distância` : ''}` : 'sem stop'} tom={p.stopLoss ? 'bear' : undefined} />
       <Kv k="Take profit" v={p.takeProfit ? fmt(p.takeProfit) : 'sem alvo'} tom={p.takeProfit ? 'bull' : undefined} />
-      {risco && ganho && <Kv k="Relação alvo/risco" v={`${(ganho / risco).toFixed(2)} R`} />}
       <Kv k="Conta" v={`${real ? 'REAL' : 'DEMO'} · #${c.conta?.login ?? c.conta?.id}`} tom={real ? 'bear' : undefined} />
+      {risco && ganho && (
+        <div style={{ marginTop: 12, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+            <span className="bear-t">Risco: 1R</span>
+            <span className="bull-t">Ganho: {(ganho / risco).toFixed(2)}R</span>
+          </div>
+          <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', background: 'var(--surface-3)' }}>
+            <div style={{ width: `${(1 / (1 + ganho / risco)) * 100}%`, background: 'var(--bear)' }} />
+            <div style={{ width: `${((ganho / risco) / (1 + ganho / risco)) * 100}%`, background: 'var(--bull)' }} />
+          </div>
+        </div>
+      )}
       {!p.stopLoss && <div className="perigo">Sem stop loss a perda não tem limite definido.</div>}
       {real && (
         <>
@@ -498,62 +539,95 @@ export function Carteira({ codigo, simboloCtrader }: { codigo?: string; simboloC
         posicoes.length === 0 ? (
           <p className="carteira__vazio">Sem posições abertas{soEste ? ` em ${codigo}` : ''}.</p>
         ) : (
-          posicoes.map((p) => (
-            <div key={p.id} className="linha-ct">
-              <div className="linha-ct__id">
-                <b>
-                  <span className={p.lado === 'compra' ? 'bull-t' : 'bear-t'}>{p.lado === 'compra' ? 'COMPRA' : 'VENDA'}</span>{' '}
-                  {p.simbolo} · {p.lotes} lt
-                </b>
-                <em>
-                  {p.precoEntrada !== null ? formatarPreco(p.precoEntrada, p.casas) : '—'} · SL{' '}
-                  {p.stopLoss !== null ? formatarPreco(p.stopLoss, p.casas) : '—'} · TP{' '}
-                  {p.takeProfit !== null ? formatarPreco(p.takeProfit, p.casas) : '—'}
-                </em>
-              </div>
-              <div className={`linha-ct__lucro ${p.lucro >= 0 ? 'bull-t' : 'bear-t'}`}>
-                {p.lucro >= 0 ? '+' : ''}
-                {p.lucro.toFixed(2)}
-              </div>
-              <div className="linha-ct__accoes">
-                <button type="button" onClick={() => setAlterar({ tipo: 'posicao', p })}>
-                  Modificar
-                </button>
-                <button type="button" className="linha-ct__fechar" onClick={() => setFechar(p)}>
-                  Fechar
-                </button>
-              </div>
-            </div>
-          ))
+          <div className="metrics-grid" style={{ marginTop: 12 }}>
+            {posicoes.map((p) => {
+              const temSlTp = p.stopLoss !== null || p.takeProfit !== null;
+              return (
+                <div key={p.id} className="metric-card">
+                  <div className="metric-card__header">
+                    <span className="metric-card__title">
+                      <span className={p.lado === 'compra' ? 'bull-t' : 'bear-t'}>{p.lado === 'compra' ? 'COMPRA' : 'VENDA'}</span>{' '}
+                      {p.simbolo}
+                    </span>
+                    <span className={`pill ${p.lucro >= 0 ? 'bull' : 'bear'}`}>
+                      {p.lucro >= 0 ? '+' : ''}{p.lucro.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="metric-card__value" style={{ fontSize: 14 }}>
+                    {p.lotes} lt a {p.precoEntrada !== null ? formatarPreco(p.precoEntrada, p.casas) : '—'}
+                  </div>
+                  
+                  {temSlTp && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }} className="dim">
+                        <span>SL {p.stopLoss !== null ? formatarPreco(p.stopLoss, p.casas) : '—'}</span>
+                        <span>TP {p.takeProfit !== null ? formatarPreco(p.takeProfit, p.casas) : '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', background: 'var(--surface-3)' }}>
+                        {p.stopLoss !== null && <div style={{ width: '50%', background: 'var(--bear)', opacity: 0.8 }} />}
+                        {p.stopLoss === null && <div style={{ width: '50%' }} />}
+                        {p.takeProfit !== null && <div style={{ width: '50%', background: 'var(--bull)', opacity: 0.8 }} />}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                    <button type="button" className="btn ghost" style={{ flex: 1, padding: '6px 0' }} onClick={() => setAlterar({ tipo: 'posicao', p })}>
+                      Modificar
+                    </button>
+                    <button type="button" className="btn perigo-btn" style={{ flex: 1, padding: '6px 0' }} onClick={() => setFechar(p)}>
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )
       ) : ordens.length === 0 ? (
         <p className="carteira__vazio">Sem ordens pendentes{soEste ? ` em ${codigo}` : ''}.</p>
       ) : (
-        ordens.map((o) => (
-          <div key={o.id} className="linha-ct">
-            <div className="linha-ct__id">
-              <b>
-                <span className={o.lado === 'compra' ? 'bull-t' : 'bear-t'}>
-                  {o.lado === 'compra' ? 'COMPRA' : 'VENDA'} {o.tipo.toUpperCase()}
-                </span>{' '}
-                {o.simbolo} · {o.lotes} lt
-              </b>
-              <em>
-                a {o.preco !== null ? formatarPreco(o.preco, o.casas) : '—'} · SL{' '}
-                {o.stopLoss !== null ? formatarPreco(o.stopLoss, o.casas) : '—'} · TP{' '}
-                {o.takeProfit !== null ? formatarPreco(o.takeProfit, o.casas) : '—'}
-              </em>
+        <div className="metrics-grid" style={{ marginTop: 12 }}>
+          {ordens.map((o) => (
+            <div key={o.id} className="metric-card">
+              <div className="metric-card__header">
+                <span className="metric-card__title">
+                  <span className={o.lado === 'compra' ? 'bull-t' : 'bear-t'}>
+                    {o.lado === 'compra' ? 'COMPRA' : 'VENDA'} {o.tipo.toUpperCase()}
+                  </span>{' '}
+                  {o.simbolo}
+                </span>
+                <span className="pill dim">Pendente</span>
+              </div>
+              <div className="metric-card__value" style={{ fontSize: 14 }}>
+                {o.lotes} lt a {o.preco !== null ? formatarPreco(o.preco, o.casas) : '—'}
+              </div>
+              
+              {(o.stopLoss !== null || o.takeProfit !== null) && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }} className="dim">
+                    <span>SL {o.stopLoss !== null ? formatarPreco(o.stopLoss, o.casas) : '—'}</span>
+                    <span>TP {o.takeProfit !== null ? formatarPreco(o.takeProfit, o.casas) : '—'}</span>
+                  </div>
+                  <div style={{ display: 'flex', height: 4, borderRadius: 2, overflow: 'hidden', background: 'var(--surface-3)' }}>
+                    {o.stopLoss !== null && <div style={{ width: '50%', background: 'var(--bear)', opacity: 0.8 }} />}
+                    {o.stopLoss === null && <div style={{ width: '50%' }} />}
+                    {o.takeProfit !== null && <div style={{ width: '50%', background: 'var(--bull)', opacity: 0.8 }} />}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                <button type="button" className="btn ghost" style={{ flex: 1, padding: '6px 0' }} onClick={() => setAlterar({ tipo: 'pendente', o })}>
+                  Modificar
+                </button>
+                <button type="button" className="btn perigo-btn" style={{ flex: 1, padding: '6px 0' }} onClick={() => setCancelar(o)}>
+                  Cancelar
+                </button>
+              </div>
             </div>
-            <div className="linha-ct__accoes">
-              <button type="button" onClick={() => setAlterar({ tipo: 'pendente', o })}>
-                Modificar
-              </button>
-              <button type="button" className="linha-ct__fechar" onClick={() => setCancelar(o)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
 
       {alterar && <FolhaAlterar alvo={alterar} aoFechar={() => setAlterar(null)} />}

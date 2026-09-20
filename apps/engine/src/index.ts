@@ -35,6 +35,7 @@ const { correrTempoReal, formatarRelatorioTempoReal } = await import('./pipeline
 const estado = await import('./pipeline/estado.js');
 const { iniciarOuvinteConta, ouvinteConfigurado } = await import('./pipeline/conta-ouvinte.js');
 const { closeDerivConnection } = await import('@trading/data');
+const { isN8nConfigured, sendToN8n, isTelegramConfigured, sendTelegram } = await import('@trading/notify');
 
 const config = loadConfig();
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -240,7 +241,35 @@ if (comando === 'scan') {
   }
 
   // Batimento: é o que permite ao painel distinguir "à espera" de "morto".
-  setInterval(() => estado.batimento(), 60_000);
+  let avisouParagem = false;
+  setInterval(() => {
+    estado.batimento();
+
+    // Watchdog do motor tempo-real
+    const e = estado.lerEstado();
+    if (e && e.tempoReal && e.tempoReal.terminadoEm) {
+      const msDesdeUltimo = Date.now() - Date.parse(e.tempoReal.terminadoEm);
+      if (msDesdeUltimo > 5 * 60_000) {
+        if (!avisouParagem) {
+          avisouParagem = true;
+          const msg = `⚠️ *MOTOR PARADO*\n\nO motor de tempo real não completa uma passagem há mais de ${Math.round(msDesdeUltimo / 60000)} minutos.`;
+          console.warn('[motores] ALERTA: ' + msg);
+          if (isTelegramConfigured()) {
+            sendTelegram(msg).catch(() => undefined);
+          }
+          if (isN8nConfigured()) {
+            sendToN8n('engine.stuck', {
+              motor: 'tempoReal',
+              msDesdeUltimo,
+              mensagem: 'O motor de tempo real não completa uma passagem há mais de 5 minutos.'
+            }).catch(() => undefined);
+          }
+        }
+      } else {
+        avisouParagem = false;
+      }
+    }
+  }, 60_000);
 
   const parar = () => {
     pararOuvinte?.();

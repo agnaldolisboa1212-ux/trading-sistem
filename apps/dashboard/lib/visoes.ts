@@ -64,6 +64,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
   { id: 'mmxm', nome: 'MMXM + SMT', curto: 'MMXM', contexto: true },
+  { id: 'smt-teste', nome: 'SMT Divergence (em teste)', curto: 'SMT' },
 ];
 
 /** Aviso das visões que só mostram contexto. */
@@ -85,6 +86,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   // desenho próprio no gráfico — precisa das velas de outros instrumentos, que
   // esta página não pede. Os avisos de push abrem o Resumo nesse caso.
   'vwap-forex-teste': 'vwap-bands',
+  'smt-teste': 'smt-teste',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {

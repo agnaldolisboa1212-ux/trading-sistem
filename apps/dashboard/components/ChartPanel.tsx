@@ -26,6 +26,7 @@ import {
   type PriceLine,
   type PriceMarker,
 } from './PriceChart';
+import { usarCtrader } from './vivo/usarCtrader';
 
 export interface ChartPanelProps {
   candles: PriceChartCandle[];
@@ -75,6 +76,7 @@ export function ChartPanel({
   const [aoVivo, setAoVivo] = useState<{ em: number; fonte: string } | null>(null);
   const [erroPreco, setErroPreco] = useState<string | null>(null);
   const [ligado, setLigado] = useState(true);
+  const { posicoes } = usarCtrader();
 
   // Nova análise do servidor: repõe a base e descarta a ponta antiga.
   useEffect(() => {
@@ -230,6 +232,7 @@ export function ChartPanel({
         bands={bandsVisiveis}
         lines={camadas.niveis ? lines : []}
         markers={camadas.marcadores ? markers : []}
+        operacoes={posicoes.filter(p => p.simbolo.toUpperCase() === symbol.toUpperCase())}
         precision={precision}
         title={title}
         className={cheio ? 'chart--cheio' : 'chart--normal'}
