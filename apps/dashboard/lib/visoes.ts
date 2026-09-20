@@ -52,7 +52,7 @@ import {
   type Timeframe,
 } from '@trading/core';
 
-export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto';
+export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto' | 'smt-teste';
 export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
@@ -651,6 +651,15 @@ export function analisarVisoes(
         : undefined,
   };
 
+  const smtVisao: Visao = {
+    id: 'smt-teste',
+    nome: nomeVisao('smt-teste'),
+    sinal: sinalDe('smt-teste'),
+    desenho: DESENHO_VAZIO, // O SMT tem um componente próprio de desenho (GraficoSmt)
+    estruturas: [],
+    nota: 'O gráfico do SMT desenha-se numa vista própria em baixo.',
+  };
+
   return {
     velas: lista.length,
     visoes: {
@@ -661,6 +670,7 @@ export function analisarVisoes(
       'volume-profile': perfilVisao,
       'connors-rsi2-indices': connorsVisao,
       'tendencia-cripto': tendenciaVisao,
+      'smt-teste': smtVisao,
     },
     comSinais,
     confluencia,

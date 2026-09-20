@@ -84,56 +84,61 @@ export default function Page() {
         <SaldoCompacto />
       </div>
 
-      <div className="procura">
-        <span aria-hidden="true">⌕</span>
-        <input
-          type="search"
-          inputMode="search"
-          placeholder="Procurar símbolo ou nome"
-          value={procura}
-          onChange={(e) => setProcura(e.target.value)}
-          aria-label="Procurar mercado"
-        />
-        {procura && (
-          <button type="button" onClick={() => setProcura('')} aria-label="Limpar procura">
-            ✕
-          </button>
+      <div className="card glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="procura" style={{ margin: 0, padding: '0 16px', borderRadius: '12px', background: 'var(--surface-2)', display: 'flex', alignItems: 'center' }}>
+          <span aria-hidden="true" style={{ color: 'var(--text-faint)' }}>⌕</span>
+          <input
+            type="search"
+            inputMode="search"
+            placeholder="Procurar símbolo ou nome"
+            value={procura}
+            onChange={(e) => setProcura(e.target.value)}
+            aria-label="Procurar mercado"
+            style={{ border: 'none', background: 'transparent', flex: 1, padding: '12px 8px', outline: 'none', color: 'var(--text)' }}
+          />
+          {procura && (
+            <button type="button" onClick={() => setProcura('')} aria-label="Limpar procura" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}>
+              ✕
+            </button>
+          )}
+        </div>
+
+        {!procura && (
+          <div className="abas" role="tablist" aria-label="Grupos de mercado" style={{ margin: 0 }}>
+            {GRUPOS.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                role="tab"
+                aria-selected={grupo === g.id}
+                className={grupo === g.id ? 'active' : ''}
+                onClick={() => setGrupo(g.id)}
+              >
+                {g.rotulo}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="mercados__contagem" style={{ display: 'flex', alignItems: 'center', margin: 0, padding: '0 8px' }}>
+          <Ligacao />
+          <span className="grow" />
+          <span className="text-dim" style={{ fontSize: '13px' }}>
+            {lista.length} instrumento{lista.length === 1 ? '' : 's'}
+          </span>
+        </div>
+
+        {lista.length === 0 ? (
+          <div className="empty" style={{ margin: 0, padding: '48px 0' }}>
+            <strong>Nada corresponde a “{procura}”.</strong>
+            Experimente o código (EURUSD) ou o nome (Nasdaq).
+          </div>
+        ) : (
+          <div style={{ margin: '0 -8px' }}>
+            <ListaIndices simbolos={lista} href={(c) => `/grafico?s=${encodeURIComponent(c)}`} />
+          </div>
         )}
       </div>
-
-      {!procura && (
-        <div className="abas" role="tablist" aria-label="Grupos de mercado">
-          {GRUPOS.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              role="tab"
-              aria-selected={grupo === g.id}
-              className={grupo === g.id ? 'active' : ''}
-              onClick={() => setGrupo(g.id)}
-            >
-              {g.rotulo}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="mercados__contagem">
-        <Ligacao />
-        <span className="grow" />
-        <span>
-          {lista.length} instrumento{lista.length === 1 ? '' : 's'}
-        </span>
-      </div>
-
-      {lista.length === 0 ? (
-        <div className="empty">
-          <strong>Nada corresponde a “{procura}”.</strong>
-          Experimente o código (EURUSD) ou o nome (Nasdaq).
-        </div>
-      ) : (
-        <ListaIndices simbolos={lista} href={(c) => `/grafico?s=${encodeURIComponent(c)}`} />
-      )}
 
       <footer className="note">
         Tocar num mercado abre o terminal, com o gráfico ao vivo e o painel de ordem. Para a

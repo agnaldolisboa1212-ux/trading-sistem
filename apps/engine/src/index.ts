@@ -258,7 +258,7 @@ if (comando === 'scan') {
             sendTelegram(msg).catch(() => undefined);
           }
           if (isN8nConfigured()) {
-            sendToN8n('engine.stuck', {
+            sendToN8n('system.error', {
               motor: 'tempoReal',
               msDesdeUltimo,
               mensagem: 'O motor de tempo real não completa uma passagem há mais de 5 minutos.'

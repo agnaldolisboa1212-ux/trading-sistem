@@ -42,6 +42,7 @@ export interface PlanoParaOrdem {
   stop: number;
   alvos: Array<{ preco: number; r?: number }>;
   origem: string;
+  id?: string;
 }
 
 interface InfoSimbolo {
