@@ -57,7 +57,7 @@ export interface PedidoPkce {
 }
 
 export function exigirLogin(): boolean {
-  return process.env.NODE_ENV === 'production' || process.env['DERIV_EXIGIR_LOGIN'] === 'true';
+  return process.env['DERIV_EXIGIR_LOGIN'] === 'true';
 }
 
 /**
