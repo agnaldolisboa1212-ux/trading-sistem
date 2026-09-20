@@ -53,8 +53,8 @@ export default async function Page() {
       {/* Tudo o que é interativo vive aqui dentro. */}
       <PainelDefinicoes pushDisponivel={push.configurado} />
 
-      {/* Secção de Automação cTrader */}
-      <section style={{ marginTop: '32px' }}>
+      {/* Secção de Automação */}
+      <section>
         <PainelAutomacao />
       </section>
 

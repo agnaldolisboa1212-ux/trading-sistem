@@ -23,131 +23,144 @@ export function PainelAutomacao() {
   };
 
   return (
-    <div className="painel-automacao">
-      <div className="cabecalho-seccao" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <h2>Automação (cTrader)</h2>
-        <div className="toggle-geral">
-          <label className="switch">
-            <input type="checkbox" checked={activa} onChange={(e) => setActiva(e.target.checked)} />
-            <span className="slider round"></span>
-          </label>
-          <span style={{ marginLeft: '8px', fontWeight: 'bold', color: activa ? 'var(--bull)' : 'var(--text-faint)' }}>
-            {activa ? 'ACTIVA' : 'DESLIGADA'}
+    <>
+      <h2>Automação</h2>
+      <div className="rows">
+        <div>
+          <span className="k">Estado da automação</span>
+          <span className="v">
+            <button 
+              type="button"
+              className="switch" 
+              aria-checked={activa} 
+              onClick={() => setActiva(!activa)}
+              aria-label={activa ? 'Desligar automação' : 'Ligar automação'}
+            />
           </span>
         </div>
       </div>
-
-      <div className="card-automacao" style={{ opacity: activa ? 1 : 0.6, pointerEvents: activa ? 'auto' : 'none' }}>
-        
-        <div className="grupo-opcoes">
-          <h3>Estratégias a Executar</h3>
-          <div className="lista-checkbox">
-            {ESTRATEGIAS_VALIDADAS.map(e => (
-              <label key={e.id} className="checkbox-item" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                <input 
-                  type="checkbox" 
-                  checked={estrategias.has(e.id)} 
-                  onChange={() => alternarEstrategia(e.id)} 
-                />
-                <span>{e.nome}</span>
-              </label>
-            ))}
+      
+      {activa && (
+        <>
+          <h3 style={{ marginTop: '24px', fontSize: '14px', marginBottom: '12px' }}>Estratégias a executar</h3>
+          <div className="grupo__caixa">
+            {ESTRATEGIAS_VALIDADAS.map(e => {
+              const on = estrategias.has(e.id);
+              return (
+                <button 
+                  key={e.id} 
+                  type="button" 
+                  className="conta-linha" 
+                  aria-pressed={on} 
+                  onClick={() => alternarEstrategia(e.id)}
+                >
+                  <span className="conta-linha__id">
+                    <strong>{e.nome}</strong>
+                  </span>
+                  <span className="conta-linha__marca" aria-hidden="true">
+                    {on ? '✓' : ''}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
 
-        <div className="grupo-opcoes" style={{ marginTop: '24px' }}>
-          <h3>Tamanho da Posição</h3>
-          <div className="tabs-mini" style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-            <label>
-              <input type="radio" name="modolote" checked={modoLote === 'risco'} onChange={() => setModoLote('risco')} />
-              {' '}Risco (%)
-            </label>
-            <label>
-              <input type="radio" name="modolote" checked={modoLote === 'fixo'} onChange={() => setModoLote('fixo')} />
-              {' '}Lote Fixo
-            </label>
-          </div>
-          
-          <div className="input-linha" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h3 style={{ marginTop: '24px', fontSize: '14px', marginBottom: '12px' }}>Tamanho da posição</h3>
+          <div className="rows">
+            <div>
+              <span className="k">Modo de cálculo</span>
+              <span className="v">
+                <div className="segmentos">
+                  <button type="button" aria-pressed={modoLote === 'risco'} onClick={() => setModoLote('risco')}>Risco (%)</button>
+                  <button type="button" aria-pressed={modoLote === 'fixo'} onClick={() => setModoLote('fixo')}>Lote Fixo</button>
+                </div>
+              </span>
+            </div>
             {modoLote === 'risco' ? (
-              <>
-                <input 
-                  type="number" 
-                  step="0.1" 
-                  value={riscoPct} 
-                  onChange={(e) => setRiscoPct(e.target.value)} 
-                  style={{ width: '80px', padding: '4px' }}
-                />
-                <span>% da conta por operação</span>
-              </>
+              <div>
+                <span className="k">Risco por operação</span>
+                <span className="v" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input 
+                    type="number" 
+                    step="0.1" 
+                    value={riscoPct} 
+                    onChange={(e) => setRiscoPct(e.target.value)} 
+                    style={{ width: '80px', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}
+                  />
+                  <span className="faint">%</span>
+                </span>
+              </div>
             ) : (
-              <>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  value={loteFixo} 
-                  onChange={(e) => setLoteFixo(e.target.value)} 
-                  style={{ width: '80px', padding: '4px' }}
-                />
-                <span>lotes</span>
-              </>
+              <div>
+                <span className="k">Lotes fixos</span>
+                <span className="v" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input 
+                    type="number" 
+                    step="0.01" 
+                    value={loteFixo} 
+                    onChange={(e) => setLoteFixo(e.target.value)} 
+                    style={{ width: '80px', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}
+                  />
+                  <span className="faint">lotes</span>
+                </span>
+              </div>
             )}
           </div>
-        </div>
 
-        <div className="grupo-opcoes" style={{ marginTop: '24px' }}>
-          <h3>Gestão de Risco Global</h3>
-          <div className="tabs-mini" style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-            <label>
-              <input type="radio" name="modolimite" checked={modoLimite === 'pct'} onChange={() => setModoLimite('pct')} />
-              {' '}Porcentagem (%)
-            </label>
-            <label>
-              <input type="radio" name="modolimite" checked={modoLimite === 'usd'} onChange={() => setModoLimite('usd')} />
-              {' '}Valor (USD)
-            </label>
+          <h3 style={{ marginTop: '24px', fontSize: '14px', marginBottom: '12px' }}>Gestão de risco global</h3>
+          <div className="rows">
+            <div>
+              <span className="k">Modo do limite</span>
+              <span className="v">
+                <div className="segmentos">
+                  <button type="button" aria-pressed={modoLimite === 'pct'} onClick={() => setModoLimite('pct')}>Percentagem (%)</button>
+                  <button type="button" aria-pressed={modoLimite === 'usd'} onClick={() => setModoLimite('usd')}>Valor (USD)</button>
+                </div>
+              </span>
+            </div>
+            <div>
+              <span className="k">Perda máx. diária</span>
+              <span className="v" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="number" 
+                  step={modoLimite === 'pct' ? '0.5' : '10'} 
+                  value={limiteDiario} 
+                  onChange={(e) => setLimiteDiario(e.target.value)} 
+                  style={{ width: '80px', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}
+                />
+                <span className="faint">{modoLimite === 'pct' ? '%' : 'USD'}</span>
+              </span>
+            </div>
+            <div>
+              <span className="k">Perda máx. total</span>
+              <span className="v" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="number" 
+                  step={modoLimite === 'pct' ? '1' : '50'} 
+                  value={limiteTotal} 
+                  onChange={(e) => setLimiteTotal(e.target.value)} 
+                  style={{ width: '80px', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}
+                />
+                <span className="faint">{modoLimite === 'pct' ? '%' : 'USD'}</span>
+              </span>
+            </div>
           </div>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div className="input-linha" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '120px' }}>Perda máx. diária:</span>
-              <input 
-                type="number" 
-                step={modoLimite === 'pct' ? '0.5' : '10'} 
-                value={limiteDiario} 
-                onChange={(e) => setLimiteDiario(e.target.value)} 
-                style={{ width: '80px', padding: '4px' }}
-              />
-              <span>{modoLimite === 'pct' ? '%' : 'USD'}</span>
-            </div>
-            
-            <div className="input-linha" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ width: '120px' }}>Perda máx. total:</span>
-              <input 
-                type="number" 
-                step={modoLimite === 'pct' ? '1' : '50'} 
-                value={limiteTotal} 
-                onChange={(e) => setLimiteTotal(e.target.value)} 
-                style={{ width: '80px', padding: '4px' }}
-              />
-              <span>{modoLimite === 'pct' ? '%' : 'USD'}</span>
+          <div className="notice" style={{ marginTop: '24px' }}>
+            <strong>Preview da Automação</strong>
+            <div style={{ marginTop: 6, lineHeight: 1.55 }}>
+              Se surgir um sinal hoje, o sistema abrirá <strong>{modoLote === 'risco' ? `${riscoPct}% de risco` : `${loteFixo} lotes`}</strong>. 
+              A automação será suspensa para o dia se perder <strong>{limiteDiario}{modoLimite === 'pct' ? '%' : ' USD'}</strong>, e desligada completamente se a conta cair <strong>{limiteTotal}{modoLimite === 'pct' ? '%' : ' USD'}</strong>.
             </div>
           </div>
-        </div>
-        
-        <div className="preview-caixa" style={{ marginTop: '24px', padding: '16px', background: 'var(--bg-faint)', borderRadius: '8px' }}>
-          <h4>Preview da Automação</h4>
-          <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--text-faint)' }}>
-            Se surgir um sinal hoje, o sistema abrirá <strong>{modoLote === 'risco' ? `${riscoPct}% de risco` : `${loteFixo} lotes`}</strong>. 
-            A automação será suspensa para o dia se perder <strong>{limiteDiario}{modoLimite === 'pct' ? '%' : ' USD'}</strong>, e desligada completamente se a conta cair <strong>{limiteTotal}{modoLimite === 'pct' ? '%' : ' USD'}</strong>.
-          </p>
-        </div>
 
-        <button className="btn principal" style={{ marginTop: '24px', width: '100%' }}>
-          Guardar Definições
-        </button>
-
-      </div>
-    </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+            <button className="btn primary">
+              Guardar definições
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }

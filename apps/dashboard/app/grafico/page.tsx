@@ -207,7 +207,14 @@ function Terminal() {
   }, [desenho.linhas, posicoes, codigo]);
 
   const grafico = visao === 'smt-teste' ? (
-    <GraficoSmt codigo={codigo} tf={tf} altura={alturaCalculada || 420} />
+    <GraficoSmt
+      codigo={codigo}
+      tf={tf}
+      altura={alturaCalculada || 420}
+      aoMudarTimeframe={(novo) => navegar(codigo, novo)}
+      cheio={cheio}
+      aoAlternarCheio={() => setCheio((v) => !v)}
+    />
   ) : (
     <GraficoVivo
       velas={velas.velas}
