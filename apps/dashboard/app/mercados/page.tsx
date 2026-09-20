@@ -84,9 +84,9 @@ export default function Page() {
         <SaldoCompacto />
       </div>
 
-      <div className="card glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <div className="procura" style={{ margin: 0, padding: '0 16px', borderRadius: '12px', background: 'var(--surface-2)', display: 'flex', alignItems: 'center' }}>
-          <span aria-hidden="true" style={{ color: 'var(--text-faint)' }}>⌕</span>
+      <div className="card glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', border: 'none', background: 'transparent', boxShadow: 'none' }}>
+        <div className="procura glass-pill" style={{ margin: 0, padding: '0 20px', display: 'flex', alignItems: 'center', height: '52px' }}>
+          <span aria-hidden="true" style={{ color: 'var(--text-faint)', fontSize: '20px' }}>⌕</span>
           <input
             type="search"
             inputMode="search"
@@ -97,7 +97,7 @@ export default function Page() {
             style={{ border: 'none', background: 'transparent', flex: 1, padding: '12px 8px', outline: 'none', color: 'var(--text)' }}
           />
           {procura && (
-            <button type="button" onClick={() => setProcura('')} aria-label="Limpar procura" style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}>
+            <button type="button" onClick={() => setProcura('')} aria-label="Limpar procura" style={{ background: 'var(--surface-3)', border: 'none', color: 'var(--text)', cursor: 'pointer', padding: '6px', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s ease' }}>
               ✕
             </button>
           )}

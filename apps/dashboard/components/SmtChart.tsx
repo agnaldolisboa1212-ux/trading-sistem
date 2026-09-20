@@ -50,7 +50,6 @@ interface Props {
   height?: number;
 }
 
-const W = 1000;
 const PAD = { top: 30, right: 96, bottom: 26, left: 10 };
 
 const SERIES_1 = '#3987e5'; // slot categórico 1 — azul
@@ -70,7 +69,22 @@ export function SmtChart({
 }: Props) {
   const H = height;
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [W, setW] = useState(1000); // default fallback
+
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          setW(entry.contentRect.width);
+        }
+      }
+    });
+    observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
@@ -134,21 +148,17 @@ export function SmtChart({
         </span>
       </div>
 
-      <div className="chart-scroll">
+      <div className="chart-scroll" ref={wrapperRef} style={{ width: '100%', height: H, overflow: 'hidden' }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        /*
-         * Sem atributo `height`: com viewBox e width, a altura vem do rácio.
-         * Fixar a altura fazia o browser aplicar letterbox — o desenho encolhia
-         * na horizontal e sobrava faixa vazia em cima e em baixo.
-         */
+        height="100%"
         role="img"
         aria-label={`Comparação reindexada entre ${primarySymbol} e ${referenceSymbol}, com as divergências marcadas`}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
-        style={{ display: 'block', height: 'auto' }}
+        style={{ display: 'block' }}
       >
         {ticks.map((t, i) => (
           <g key={i}>
