@@ -51,6 +51,7 @@ interface InfoSimbolo {
   casas?: number;
   lotesMinimo?: number;
   lotesPasso?: number;
+  unidadesPorLote?: number;
 }
 
 const limpar = (s: string) => s.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -251,6 +252,14 @@ function Bilhete({
     setLotes(String(Number(novo.toFixed(6))));
   };
 
+  const entradaBase = tipo === 'mercado' ? meio : num(precoOrdem);
+  const loteNum = Number(lotes.replace(',', '.'));
+  const slNum = num(stopLoss);
+  const tpNum = num(takeProfit);
+
+  const riscoPrevisto = entradaBase !== null && slNum !== null && info?.unidadesPorLote ? Math.abs(entradaBase - slNum) * loteNum * info.unidadesPorLote : null;
+  const ganhoPrevisto = entradaBase !== null && tpNum !== null && info?.unidadesPorLote ? Math.abs(tpNum - entradaBase) * loteNum * info.unidadesPorLote : null;
+
   return (
     <div className="bilhete">
       {sinal && (
@@ -325,11 +334,17 @@ function Bilhete({
           </label>
         )}
         <label className="campo">
-          <span>Stop loss</span>
+          <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+            Stop loss
+            {riscoPrevisto !== null && <span className="bear-t">Risco: {dinheiroConta(riscoPrevisto, c.moeda)}</span>}
+          </span>
           <input inputMode="decimal" placeholder="opcional" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} />
         </label>
         <label className="campo">
-          <span>Take profit</span>
+          <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+            Take profit
+            {ganhoPrevisto !== null && <span className="bull-t">Lucro: {dinheiroConta(ganhoPrevisto, c.moeda)}</span>}
+          </span>
           <input inputMode="decimal" placeholder="opcional" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} />
         </label>
       </div>
@@ -377,6 +392,7 @@ function Bilhete({
           precoReferencia={confirmar === 'compra' ? precoCompra : precoVenda}
           casas={casasOrdem}
           sinalId={sinal?.id ?? null}
+          info={info}
           aoFechar={(texto) => {
             setConfirmar(null);
             if (texto) setAviso({ ok: true, texto });
@@ -412,6 +428,7 @@ function FolhaOrdem(p: {
   precoReferencia: number | null;
   casas: number;
   sinalId: string | null;
+  info: InfoSimbolo | null;
   aoFechar: (sucesso: string | null) => void;
 }) {
   const c = usarCtrader();
@@ -423,6 +440,9 @@ function FolhaOrdem(p: {
   const entrada = p.tipo === 'mercado' ? p.precoReferencia : p.preco;
   const risco = entrada !== null && p.stopLoss !== null ? Math.abs(entrada - p.stopLoss) : null;
   const ganho = entrada !== null && p.takeProfit !== null ? Math.abs(p.takeProfit - entrada) : null;
+
+  const riscoDinheiro = risco !== null && p.info?.unidadesPorLote ? risco * p.lotes * p.info.unidadesPorLote : null;
+  const ganhoDinheiro = ganho !== null && p.info?.unidadesPorLote ? ganho * p.lotes * p.info.unidadesPorLote : null;
 
   const enviar = async () => {
     setOcupado(true);
@@ -454,8 +474,8 @@ function FolhaOrdem(p: {
       <Kv k="Tipo" v={p.tipo === 'mercado' ? 'a mercado' : `${p.tipo} a ${fmt(p.preco)}`} />
       <Kv k="Volume" v={`${p.lotes} lotes`} />
       <Kv k="Preço agora" v={fmt(p.precoReferencia)} />
-      <Kv k="Stop loss" v={p.stopLoss ? `${fmt(p.stopLoss)}${risco ? ` · ${formatarPreco(risco, p.casas)} de distância` : ''}` : 'sem stop'} tom={p.stopLoss ? 'bear' : undefined} />
-      <Kv k="Take profit" v={p.takeProfit ? fmt(p.takeProfit) : 'sem alvo'} tom={p.takeProfit ? 'bull' : undefined} />
+      <Kv k="Stop loss" v={p.stopLoss ? `${fmt(p.stopLoss)}${riscoDinheiro ? ` · Risco de ${dinheiroConta(riscoDinheiro, c.moeda)}` : ''}` : 'sem stop'} tom={p.stopLoss ? 'bear' : undefined} />
+      <Kv k="Take profit" v={p.takeProfit ? `${fmt(p.takeProfit)}${ganhoDinheiro ? ` · Lucro de ${dinheiroConta(ganhoDinheiro, c.moeda)}` : ''}` : 'sem alvo'} tom={p.takeProfit ? 'bull' : undefined} />
       <Kv k="Conta" v={`${real ? 'REAL' : 'DEMO'} · #${c.conta?.login ?? c.conta?.id}`} tom={real ? 'bear' : undefined} />
       {risco && ganho && (
         <div style={{ marginTop: 12, marginBottom: 12 }}>

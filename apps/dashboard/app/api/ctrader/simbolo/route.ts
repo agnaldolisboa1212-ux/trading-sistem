@@ -29,6 +29,7 @@ export async function GET(pedido: Request) {
         lotesMinimo: d.minVolume / d.lotSize,
         lotesPasso: d.stepVolume / d.lotSize,
         lotesMaximo: d.maxVolume / d.lotSize,
+        unidadesPorLote: d.lotSize / 100,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
