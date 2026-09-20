@@ -81,7 +81,7 @@ export function GraficoInstrumento({
       zonas={desenho.zonas}
       linhas={desenho.linhas}
       curvas={desenho.curvas}
-      altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 320) : 340}
+      altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 320) : Math.max(320, Math.floor(ecra.alturaJanela * 0.55))}
       cheio={cheio}
       titulo={`${codigo} · ${nome}`}
       aoMudarTimeframe={(novo) => ir(novo, visao)}

@@ -185,7 +185,7 @@ function Terminal() {
     );
   }
 
-  const alturaCalculada = cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 300) : 340;
+  const alturaCalculada = cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 300) : Math.max(320, Math.floor(ecra.alturaJanela * 0.55));
 
   const linhasComPosicoes = useMemo(() => {
     const pos = posicoes.filter((p) => p.simbolo.toUpperCase() === codigo.toUpperCase());
