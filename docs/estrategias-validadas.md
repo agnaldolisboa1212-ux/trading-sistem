@@ -295,6 +295,52 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## Power of 3 (AMD) em 15m — testado e recusado (22/09/2026)
+
+Pedido: testar o Power of 3 (acumulação, manipulação, distribuição + POI) nos pares de forex em
+15 minutos, e acrescentá-lo **se** fosse lucrativo, com capacidade de reconhecer sinais falsos.
+Foi testado; não é. Fica aqui porque um teste bem feito que diz "não" vale tanto como um que diz
+"sim" — e evita repetir a ideia daqui a seis meses.
+
+**Como se traduziu a ideia em regra medível** (`scripts/backtest/power-of-3.mjs`):
+
+| Fase | Regra |
+|---|---|
+| Acumulação | o intervalo da sessão asiática, 00:00–06:00 UTC |
+| Manipulação | durante Londres (07:00–12:00 UTC) o preço varre um dos lados desse intervalo |
+| Distribuição | entra-se CONTRA a varredura quando uma vela fecha de volta para dentro |
+| POI / stop | stop do outro lado da varredura; alvo no lado oposto do intervalo, ou 1R/2R/3R |
+| Saída | fecha às 20:00 UTC — day trade |
+
+**Os filtros de sinal falso** foram medidos ligados e desligados, um a um: fecho de volta para
+dentro, varredura só de pavio (fechar fora é rompimento, não manipulação), corpo da vela de
+regresso ≥ 0,3 ou 0,5 ATR, desequilíbrio (FVG) no regresso, ásia estreita (≤3 ATR) e tendência
+de 4h a favor.
+
+**Resultado — EURUSD e GBPUSD, 2016–2026, com spread:**
+
+| Filtros | Operações | Acerto | R/operação | t |
+|---|---|---|---|---|
+| Só o regresso ao intervalo | 3690 | 36% | **−0,136R** | −5,8 |
+| + só pavio | 2265 | 36% | −0,156R | −5,2 |
+| + corpo ≥ 0,3 ATR | 2129 | 35% | −0,160R | −5,2 |
+| **+ desequilíbrio (FVG)** | 600 | 39% | **+0,005R** | 0,1 |
+| + corpo + FVG | 426 | 36% | −0,061R | −0,9 |
+| + tendência de 4h | 1019 | 36% | −0,128R | −2,8 |
+
+E o controlo, a operar **a favor** da varredura (ou seja, tratá-la como rompimento em vez de
+manipulação): também negativo, −0,20R a −0,27R. Não é o sentido que está trocado — é o setup que
+não tem vantagem.
+
+**O que se aprendeu, e que fica para usar:** o filtro de FVG é um bom detector de sinal falso.
+Sozinho, leva o resultado de −0,28R para 0,00R — corta as varreduras que não eram manipulação.
+Mas um filtro só pode tirar operações más; não inventa vantagem onde não existe. Com stops
+colados à varredura (o que a regra pede) o spread come ~15% de R por operação em 15m, e é isso
+que enterra o setup — o mesmo que a fase 1b da procura intradiária já tinha mostrado.
+
+**Não foi acrescentado ao sistema.** Falta medir no ouro e nos pares de iene; se lá mudar de
+sinal, este documento é actualizado.
+
 ## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
 
 Os números da secção 1 vêm de **um ano** de dados da Deriv (out/2025–set/2026): 135 operações,
