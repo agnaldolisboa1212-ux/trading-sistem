@@ -16,7 +16,7 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { RotuloMetrica, RotulosChecklist } from './RotulosChecklist';
+import { Sparkline, formaDoProgresso } from './Sparkline';
 import { IconeAtivo } from './vivo/IconeAtivo';
 
 export interface ItemMercado {
