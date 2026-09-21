@@ -24,7 +24,15 @@ const HORA = 3_600_000;
 // Spread + deslize em pontos do índice. GER30 como no verificar-validadas; os
 // outros com o dobro da margem, por serem menos líquidos na corretora.
 const CUSTO = { GER30: 2, UK100: 2, FRA40: 2, EU50: 2, JP225: 12, SP500: 0.6, US100: 1.8, US30: 3.5 };
-const FICHEIRO = { GER30: 'GRXEUR', UK100: 'UKXGBP', FRA40: 'FRXEUR', EU50: 'ETXEUR', JP225: 'JPXJPY', SP500: 'SPXUSD', US100: 'NSXUSD', US30: 'UDXUSD' };
+/*
+ * Nome do ficheiro da HistData para cada instrumento do catálogo.
+ *
+ * ATENÇÃO: `UDXUSD` na HistData é o ÍNDICE DO DÓLAR, não o Dow Jones — não há
+ * Dow na HistData. Usá-lo como US30 dá −11R por operação (custo do Dow sobre um
+ * preço de ~100), que é o sintoma de estar a medir outro instrumento.
+ * O Dow e o EuroStoxx só se medem com os dados da Deriv (FONTE=deriv).
+ */
+const FICHEIRO = { GER30: 'GRXEUR', UK100: 'UKXGBP', FRA40: 'FRXEUR', EU50: 'ETXEUR', JP225: 'JPXJPY', SP500: 'SPXUSD', US100: 'NSXUSD' };
 
 function ler(simbolo, tf) {
   // FONTE=deriv usa o histórico da Deriv (1 ano) — o controlo que confirma que

@@ -207,6 +207,9 @@ Os números da secção 1 vêm de **um ano** de dados da Deriv (out/2025–set/2
 | FTSE (UK100) | −0,068R | −0,114R | +0,011R | 57 |
 | CAC (FRA40) | −0,065R | −0,067R | −0,063R | 40 |
 
+O Dow e o EuroStoxx ficam de fora desta tabela: a HistData não tem Dow (o `UDXUSD` de lá é o
+índice do dólar) e o ficheiro do EuroStoxx veio vazio.
+
 **O controlo foi feito primeiro:** o mesmo script, nos dados da Deriv, reproduz os números
 publicados (GER30 +0,36R, SP500 +0,55R, US100 +0,29R, US30 +0,47R, 135 operações no total). O
 script não é o problema. As duas fontes não são idênticas — a Deriv dá cerca de metade dos sinais
