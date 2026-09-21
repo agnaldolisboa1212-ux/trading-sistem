@@ -66,27 +66,149 @@ export default async function Page() {
     <div className="wrap">
       <Nav />
 
-      <header className="top">
-        <h1>Financeiro</h1>
-        <p>
-          {abertos.length} posição(ões) aberta(s) no sistema · {fechados.length} fechada(s) ·{' '}
-          {emTeste.length} em teste
-        </p>
+      {/* Header premium com gradiente e informações dinâmicas */}
+      <header style={{
+        position: 'relative',
+        overflow: 'hidden',
+        borderRadius: '24px',
+        padding: '32px 28px',
+        marginBottom: '32px',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)) 0%, var(--surface) 100%)',
+        border: '1px solid color-mix(in srgb, var(--accent) 15%, var(--border))',
+        animation: 'fadeSlideIn 0.5s ease-out both',
+      }}>
+        {/* Glow decorativo */}
+        <div style={{
+          position: 'absolute',
+          top: '-40%',
+          right: '-15%',
+          width: '280px',
+          height: '280px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 15%, transparent) 0%, transparent 70%)',
+          animation: 'pulseGlow 6s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+
+        <div style={{ position: 'relative' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 16px 0' }}>
+            Financeiro
+          </h1>
+
+          {/* Badges dinâmicos */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '6px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 600,
+              background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+              color: 'var(--accent-strong)',
+              animation: 'fadeSlideIn 0.4s ease-out 0.1s both',
+            }}>
+              <span style={{
+                width: '6px', height: '6px', borderRadius: '50%',
+                background: 'var(--accent)',
+                animation: 'pulseGlow 2s ease-in-out infinite',
+              }} />
+              {abertos.length} abertas
+            </span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '6px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 600,
+              background: 'color-mix(in srgb, var(--bull) 12%, transparent)',
+              color: 'var(--bull)',
+              animation: 'fadeSlideIn 0.4s ease-out 0.15s both',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              {fechados.length} fechadas
+            </span>
+            {emTeste.length > 0 && (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '6px 14px', borderRadius: '10px', fontSize: '12px', fontWeight: 600,
+                background: 'color-mix(in srgb, var(--warn) 12%, transparent)',
+                color: 'var(--warn)',
+                animation: 'fadeSlideIn 0.4s ease-out 0.2s both',
+              }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+                </svg>
+                {emTeste.length} em teste
+              </span>
+            )}
+          </div>
+        </div>
       </header>
 
-      <section>
-        <h2>Resultado acumulado do sistema — estratégias validadas</h2>
-        <p className="section-cap">
+      {/* Secção: Estratégias validadas */}
+      <section className="glass-panel" style={{
+        padding: '28px',
+        borderRadius: '20px',
+        marginBottom: '28px',
+        animation: 'fadeSlideIn 0.5s ease-out 0.1s both',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Barra decorativa */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+          background: 'linear-gradient(90deg, transparent, var(--bull), transparent)',
+          animation: 'shimmerBar 3s ease-in-out infinite',
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: '10px',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--bull) 20%, transparent), color-mix(in srgb, var(--bull) 8%, transparent))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--bull)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><path d="M22 4L12 14.01l-3-3" />
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Resultado acumulado — estratégias validadas</h2>
+          </div>
+        </div>
+        <p className="section-cap" style={{ marginLeft: '46px' }}>
           TODOS os sinais gerados, negociados ou não — a referência macro de como as estratégias
-          activas estão a sair. Para o SEU desempenho real, veja "Desempenho pessoal" abaixo.
+          activas estão a sair. Para o SEU desempenho real, veja &quot;Desempenho pessoal&quot; abaixo.
         </p>
         <EstatisticasCard e={estValidadas} />
       </section>
 
+      {/* Secção: Em teste */}
       {estEmTeste.n > 0 && (
-        <section>
-          <h2>Resultado acumulado do sistema — em teste ao vivo</h2>
-          <p className="section-cap">
+        <section className="glass-panel" style={{
+          padding: '28px',
+          borderRadius: '20px',
+          marginBottom: '28px',
+          animation: 'fadeSlideIn 0.5s ease-out 0.2s both',
+          position: 'relative',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+            background: 'linear-gradient(90deg, transparent, var(--warn), transparent)',
+            animation: 'shimmerBar 3s ease-in-out infinite',
+          }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '10px',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--warn) 20%, transparent), color-mix(in srgb, var(--warn) 8%, transparent))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+            </div>
+            <div>
+              <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Resultado acumulado — em teste ao vivo</h2>
+            </div>
+          </div>
+          <p className="section-cap" style={{ marginLeft: '46px' }}>
             Sem taxa de acerto medida no backtest: é exactamente para medir isto ao vivo que estas
             operações contam à parte.
           </p>
@@ -94,9 +216,36 @@ export default async function Page() {
         </section>
       )}
 
-      <section>
-        <h2>As minhas contas</h2>
-        <p className="section-cap">
+      {/* Secção: As minhas contas */}
+      <section className="glass-panel" style={{
+        padding: '28px',
+        borderRadius: '20px',
+        marginBottom: '28px',
+        animation: 'fadeSlideIn 0.5s ease-out 0.3s both',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+          background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+          animation: 'shimmerBar 3s ease-in-out infinite',
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: '10px',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), color-mix(in srgb, var(--accent) 8%, transparent))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>As minhas contas</h2>
+          </div>
+        </div>
+        <p className="section-cap" style={{ marginLeft: '46px' }}>
           Marque, nas tabelas abaixo, os sinais que realmente negociou — numa conta (pode ter
           várias, uma por corretora). Só o marcado entra no desempenho pessoal e na curva de
           capital dessa conta.
@@ -104,9 +253,27 @@ export default async function Page() {
         <FinanceiroContas sinais={sinais} />
       </section>
 
-      <footer className="note">
-        Nenhuma ordem é enviada sem um toque seu: os sinais do sistema acima são os anunciados
-        pelo motor; o desempenho pessoal é só o que marcou como negociado.
+      {/* Footer */}
+      <footer style={{
+        padding: '20px 24px',
+        borderRadius: '16px',
+        fontSize: '12px',
+        lineHeight: 1.6,
+        color: 'var(--text-faint)',
+        background: 'var(--surface-2)',
+        border: '1px solid var(--border)',
+        animation: 'fadeSlideIn 0.5s ease-out 0.4s both',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '10px',
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
+          <circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" />
+        </svg>
+        <span>
+          Nenhuma ordem é enviada sem um toque seu: os sinais do sistema acima são os anunciados
+          pelo motor; o desempenho pessoal é só o que marcou como negociado.
+        </span>
       </footer>
     </div>
   );
@@ -114,9 +281,25 @@ export default async function Page() {
 
 function Nav() {
   return (
-    <nav className="nav">
-      <Link href="/">Radar</Link>
-      <Link href="/financeiro" className="active">
+    <nav className="nav" style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      marginBottom: '24px',
+      padding: '4px',
+      background: 'var(--surface-2)',
+      borderRadius: '12px',
+      width: 'fit-content',
+    }}>
+      <Link href="/" style={{
+        padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500,
+        color: 'var(--text-dim)', textDecoration: 'none', transition: 'all 200ms ease',
+      }}>Radar</Link>
+      <Link href="/financeiro" style={{
+        padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 700,
+        background: 'var(--surface)', color: 'var(--text)', textDecoration: 'none',
+        boxShadow: 'var(--elevacao-1)',
+      }}>
         Financeiro
       </Link>
     </nav>

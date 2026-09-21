@@ -20,6 +20,7 @@ import { acharSimbolo, formatarPreco, type SimboloDeriv } from '@/lib/deriv/simb
 import { usarPreco, usarVelas, variacao } from './usarPreco';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
 import { Variacao } from './Preco';
+import { IconeAtivo } from './IconeAtivo';
 
 export function ListaIndices({
   simbolos,
@@ -123,18 +124,7 @@ function LinhaIndice({
   );
 }
 
-/**
- * Abreviatura para o quadrado à esquerda.
- *
- * Cortar às cegas dava "EURUS" e "GBPUS" — truncaturas que não são o nome de
- * nada. Num par de divisas a metade que identifica é a PRIMEIRA moeda (o USD
- * repete-se em todos), por isso `EURUSD` fica `EUR`. Nos outros códigos, que já
- * são curtos, mostra-se o código inteiro.
- */
-function marca(codigo: string): string {
-  if (codigo.length === 6 && /^[A-Z]{6}$/.test(codigo)) return codigo.slice(0, 3);
-  return codigo.length > 5 ? codigo.slice(0, 4) : codigo;
-}
+
 
 function Conteudo({ s, activo }: { s: SimboloDeriv; activo: boolean }) {
   const p = usarPreco(s.codigo, activo);
@@ -155,8 +145,8 @@ function Conteudo({ s, activo }: { s: SimboloDeriv; activo: boolean }) {
 
   return (
     <>
-      <span className="indice__marca" aria-hidden="true">
-        {marca(s.codigo)}
+      <span className="indice__marca" aria-hidden="true" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <IconeAtivo symbol={s.codigo} assetClass={s.classe} />
       </span>
 
       <span className="indice__id">

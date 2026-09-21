@@ -38,10 +38,34 @@ import { INDICES, SINTETICOS, CRIPTO, METAIS } from '@/lib/deriv/simbolos';
 
 type Aba = 'indices' | 'sinteticos' | 'materias';
 
-const ABAS: Array<{ id: Aba; rotulo: string }> = [
-  { id: 'indices', rotulo: 'Índices' },
-  { id: 'sinteticos', rotulo: '24/7' },
-  { id: 'materias', rotulo: 'Ouro e cripto' },
+const ABAS: Array<{ id: Aba; rotulo: string; icone: React.ReactNode }> = [
+  {
+    id: 'indices',
+    rotulo: 'Índices',
+    icone: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" /><path d="M18 9l-5 5-4-4-6 6" />
+      </svg>
+    ),
+  },
+  {
+    id: 'sinteticos',
+    rotulo: '24/7',
+    icone: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+      </svg>
+    ),
+  },
+  {
+    id: 'materias',
+    rotulo: 'Ouro e cripto',
+    icone: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+      </svg>
+    ),
+  },
 ];
 
 export default function Page() {
@@ -49,82 +73,205 @@ export default function Page() {
 
   return (
     <div className="wrap">
-      <div className="cabeca">
-        <div className="cabeca__id">
-          <p className="cabeca__saudacao">A sua conta</p>
-          <h1>Portfólio</h1>
+      {/* Header premium com gradiente subtil */}
+      <div className="cabeca portfolio-hero" style={{
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--surface)) 0%, var(--surface) 100%)',
+        border: '1px solid color-mix(in srgb, var(--accent) 15%, var(--border))',
+        animation: 'fadeSlideIn 0.5s ease-out both',
+      }}>
+        {/* Brilho decorativo animado */}
+        <div style={{
+          position: 'absolute', top: '-50%', right: '-20%',
+          width: '250px', height: '250px', borderRadius: '50%',
+          background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 70%)',
+          animation: 'pulseGlow 6s ease-in-out infinite',
+          pointerEvents: 'none',
+        }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <p className="cabeca__saudacao" style={{
+              fontSize: '13px', opacity: 0.6, letterSpacing: '0.08em',
+              textTransform: 'uppercase', fontWeight: 600, marginBottom: '4px',
+            }}>A sua conta</p>
+            <h1 style={{ fontWeight: 800, letterSpacing: '-0.03em', margin: 0 }}>Portfólio</h1>
+          </div>
+          <Ligacao rotulo={false} />
         </div>
-        <Ligacao rotulo={false} />
       </div>
 
-      <div className="metrics-grid">
+      {/* Métricas principais — com animação escalonada */}
+      <div className="metrics-grid" style={{ animation: 'fadeSlideIn 0.5s ease-out 0.1s both' }}>
         <CartaoSaldo />
         <MeusInstrumentos />
       </div>
 
-      <Posicoes />
+      {/* Posições */}
+      <div style={{ animation: 'fadeSlideIn 0.5s ease-out 0.2s both' }}>
+        <Posicoes />
+      </div>
 
-      <section className="card glass-panel" style={{ padding: '24px', marginTop: '32px' }}>
-        <div className="section-head" style={{ marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '18px', margin: 0 }}>Mercados</h2>
+      {/* Mercados — tabs modernos */}
+      <section className="card glass-panel" style={{
+        padding: '28px',
+        marginTop: '28px',
+        borderRadius: '20px',
+        animation: 'fadeSlideIn 0.5s ease-out 0.3s both',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Linha decorativa animada no topo */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+          animation: 'shimmerBar 3s ease-in-out infinite',
+        }} />
+
+        <div className="section-head" style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), color-mix(in srgb, var(--accent) 8%, transparent))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><path d="M2 12h20" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </div>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Mercados</h2>
+          </div>
           <span className="grow" />
-          <Link href="/mercados" className="btn ghost" style={{ padding: '4px 8px', fontSize: '14px' }}>ver todos</Link>
+          <Link href="/mercados" className="btn ghost" style={{
+            padding: '6px 14px',
+            fontSize: '13px',
+            borderRadius: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}>
+            ver todos
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
 
-        <div className="abas" role="tablist" aria-label="Grupos de mercado" style={{ marginBottom: '24px' }}>
+        {/* Tabs estilizados — classes CSS para responsividade */}
+        <div className="portfolio-tabs" role="tablist" aria-label="Grupos de mercado">
           {ABAS.map((a) => (
             <button
               key={a.id}
               type="button"
               role="tab"
               aria-selected={aba === a.id}
-              className={aba === a.id ? 'active' : ''}
+              className={`portfolio-tab ${aba === a.id ? 'active' : ''}`}
               onClick={() => setAba(a.id)}
             >
+              {a.icone}
               {a.rotulo}
             </button>
           ))}
         </div>
 
-        {aba === 'indices' && (
-          <>
-            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
-              Índices mundiais a vista. Fecham ao fim de semana e fora do horário da bolsa
-              respetiva — quando isso acontece a linha diz <em>fech.</em> em vez de fingir um preço.
-            </p>
-            <ListaIndices simbolos={INDICES} />
-          </>
-        )}
+        <div key={aba} style={{ animation: 'fadeSlideIn 0.3s ease-out both' }}>
+          {aba === 'indices' && (
+            <>
+              <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: 'var(--bull)', display: 'inline-block',
+                  animation: 'pulseGlow 2s ease-in-out infinite',
+                }} />
+                Índices mundiais a vista. Fecham ao fim de semana e fora do horário da bolsa
+                respetiva — quando isso acontece a linha diz <em>fech.</em> em vez de fingir um preço.
+              </p>
+              <ListaIndices simbolos={INDICES} />
+            </>
+          )}
 
-        {aba === 'sinteticos' && (
-          <>
-            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
-              Índices sintéticos da Deriv: <strong>não são mercados reais</strong>, são séries
-              geradas com volatilidade fixa. Negoceiam 24 horas por dia, todos os dias — é o que
-              se mexe quando as bolsas estão fechadas.
-            </p>
-            <ListaIndices simbolos={SINTETICOS} />
-          </>
-        )}
+          {aba === 'sinteticos' && (
+            <>
+              <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: 'var(--accent)', display: 'inline-block',
+                  animation: 'pulseGlow 2s ease-in-out infinite',
+                }} />
+                Índices sintéticos da Deriv: <strong>não são mercados reais</strong>, são séries
+                geradas com volatilidade fixa. Negoceiam 24 horas por dia, todos os dias.
+              </p>
+              <ListaIndices simbolos={SINTETICOS} />
+            </>
+          )}
 
-        {aba === 'materias' && (
-          <>
-            <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, marginBottom: '16px' }}>
-              Metais preciosos e criptomoedas. A cripto negoceia 24/7; os metais seguem o horário
-              do mercado à vista.
-            </p>
-            <ListaIndices simbolos={[...METAIS, ...CRIPTO]} />
-          </>
-        )}
+          {aba === 'materias' && (
+            <>
+              <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  width: '6px', height: '6px', borderRadius: '50%',
+                  background: 'var(--warn)', display: 'inline-block',
+                  animation: 'pulseGlow 2s ease-in-out infinite',
+                }} />
+                Metais preciosos e criptomoedas. A cripto negoceia 24/7; os metais seguem o horário
+                do mercado à vista.
+              </p>
+              <ListaIndices simbolos={[...METAIS, ...CRIPTO]} />
+            </>
+          )}
+        </div>
       </section>
 
-      <section className="card glass-panel" style={{ padding: '24px', marginTop: '32px' }}>
-        <div className="section-head" style={{ marginBottom: '8px' }}>
-          <h2 style={{ fontSize: '18px', margin: 0 }}>Desempenho da estratégia</h2>
+      {/* CTA — Desempenho da estratégia */}
+      <section className="card glass-panel" style={{
+        padding: '28px',
+        marginTop: '28px',
+        borderRadius: '20px',
+        animation: 'fadeSlideIn 0.5s ease-out 0.4s both',
+        position: 'relative',
+        overflow: 'hidden',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--surface)) 0%, var(--surface) 100%)',
+      }}>
+        <div className="section-head" style={{ marginBottom: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--bull) 20%, transparent), color-mix(in srgb, var(--bull) 8%, transparent))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--bull)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-4" />
+              </svg>
+            </div>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Desempenho da estratégia</h2>
+          </div>
           <span className="grow" />
-          <Link href="/financeiro" className="btn primary" style={{ padding: '4px 12px', fontSize: '14px' }}>abrir</Link>
+          <Link href="/financeiro" className="btn primary" style={{
+            padding: '8px 20px',
+            fontSize: '14px',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontWeight: 600,
+          }}>
+            abrir
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
-        <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, margin: 0 }}>
+        <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
           O saldo diz quanto está na conta. Se a estratégia tem vantagem é outra pergunta, medida
           em múltiplos de risco e não em dinheiro — está no Financeiro.
         </p>
@@ -135,9 +282,6 @@ export default function Page() {
 
 /**
  * Os instrumentos que a conta segue.
- *
- * É daqui que saem os sinais: só chegam ao telemóvel e ao início os dos
- * instrumentos desta lista.
  */
 function MeusInstrumentos() {
   const p = usarPortfolio();
@@ -149,17 +293,38 @@ function MeusInstrumentos() {
   };
 
   return (
-    <div className="card glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, padding: '24px' }}>
+    <div className="card glass-panel" style={{
+      display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, padding: '24px',
+      borderRadius: '20px', position: 'relative', overflow: 'hidden',
+    }}>
       <div className="section-head" style={{ marginBottom: 0 }}>
-        <h2 style={{ fontSize: '18px', margin: 0 }}>Os meus instrumentos</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent) 6%, transparent))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+          </div>
+          <h2 style={{ fontSize: '16px', margin: 0, fontWeight: 700 }}>Os meus instrumentos</h2>
+        </div>
         <span className="grow" />
-        <button type="button" className="btn primary" onClick={() => setEscolher(true)} style={{ padding: '6px 12px', fontSize: '14px' }}>
-          + adicionar
+        <button type="button" className="btn primary" onClick={() => setEscolher(true)} style={{
+          padding: '6px 14px', fontSize: '13px', borderRadius: '10px',
+          display: 'flex', alignItems: 'center', gap: '4px',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14" /><path d="M5 12h14" />
+          </svg>
+          adicionar
         </button>
       </div>
-      <p className="text-dim" style={{ fontSize: '13px', lineHeight: 1.4, margin: 0 }}>
-        Só recebe sinais — no telemóvel e no início — dos instrumentos desta lista, e só dos que têm
-        uma estratégia com vantagem medida: índices (US100, SP500, US30, GER30) e cripto (BTC, ETH).
+
+      <p className="text-dim" style={{ fontSize: '12px', lineHeight: 1.4, margin: 0 }}>
+        Só recebe sinais dos instrumentos desta lista que tenham estratégia com vantagem medida.
       </p>
 
       {p.instrumentos === null ? (
@@ -171,13 +336,14 @@ function MeusInstrumentos() {
         </div>
       ) : (
         <div className="chips-portfolio">
-          {p.instrumentos.map((c) => {
+          {p.instrumentos.map((c, i) => {
             const validada = temEstrategiaValidada(c);
             const emTeste = !validada && temEstrategiaEmTeste(c);
             return (
               <span
                 key={c}
                 className={`chip-portfolio ${validada || emTeste ? '' : 'chip-portfolio--sem-sinais'}`}
+                style={{ animation: `fadeSlideIn 0.3s ease-out ${i * 0.05}s both` }}
                 title={
                   validada
                     ? 'Com estratégia validada'
@@ -217,23 +383,41 @@ function MeusInstrumentos() {
 
 /**
  * Posições e ordens pendentes da conta cTrader, com lucro a mexer.
- *
- * É a mesma carteira do terminal, sem filtro de instrumento: modificar SL/TP,
- * fechar tudo ou parte e cancelar pendentes, cada acção com confirmação.
  */
 function Posicoes() {
   const c = usarCtrader();
   if (!c.ligada) return null;
   return (
-    <section style={{ marginTop: '32px' }}>
+    <section style={{ marginTop: '28px' }}>
       <div className="section-head">
-        <h2>Posições e ordens</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '32px', height: '32px', borderRadius: '8px',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--bear) 18%, transparent), color-mix(in srgb, var(--bear) 6%, transparent))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--bear)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+            </svg>
+          </div>
+          <h2 style={{ margin: 0 }}>Posições e ordens</h2>
+        </div>
         <span className="grow" />
-        <span className="chip-estado bear-bg" style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '13px' }}>
+        <span style={{
+          padding: '5px 12px', borderRadius: '10px', fontSize: '12px', fontWeight: 700,
+          background: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+          color: 'var(--accent-strong)',
+          display: 'flex', alignItems: 'center', gap: '5px',
+        }}>
+          <span style={{
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: 'var(--accent)',
+            animation: 'pulseGlow 2s ease-in-out infinite',
+          }} />
           {c.posicoes.length + c.ordens.length} ativas
         </span>
       </div>
-      <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px' }}>
+      <div className="glass-panel" style={{ padding: '24px', borderRadius: '20px' }}>
         <Carteira />
       </div>
     </section>

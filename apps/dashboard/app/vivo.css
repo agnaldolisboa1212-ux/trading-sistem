@@ -3437,3 +3437,386 @@ body:has(.terminal--cheio) .bottomnav {
 .agentes__tfs {
   margin: var(--s2) 0;
 }
+
+/* ===========================================================================
+   Animações dinâmicas — Portfólio e Financeiro
+   =========================================================================== */
+
+/* Entrada suave: os elementos deslizam de baixo para cima ao aparecer. */
+@keyframes fadeSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Brilho pulsante: usado nos indicadores de estado ao vivo. */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.3);
+  }
+}
+
+/* Barra brilhante no topo das secções: indica secção activa/viva. */
+@keyframes shimmerBar {
+  0% {
+    opacity: 0.3;
+    background-position: -200% center;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+    background-position: 200% center;
+  }
+}
+
+/* Metric cards modernizados com hover mais vivo */
+.metric-card {
+  transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.metric-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
+}
+
+/* Chip de portfólio com animação na remoção */
+.chip-portfolio--sem-sinais {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+/* Secções do financeiro — glassmorphism nas sections */
+.financeiro-section {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 28px;
+}
+
+/* ===========================================================================
+   Portfolio Hero — cabeçalho premium
+   =========================================================================== */
+
+.portfolio-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: 32px 28px;
+  margin-bottom: 28px;
+}
+
+/* Ícone decorativo nas secções */
+.section-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Tabs segmentados no portfólio */
+.portfolio-tabs {
+  margin-bottom: 24px;
+  background: var(--surface-2);
+  border-radius: 14px;
+  padding: 4px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.portfolio-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.portfolio-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 200ms ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.portfolio-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--elevacao-1);
+}
+
+/* Badge/indicador ao vivo */
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulseGlow 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Contagem de posições ativas */
+.badge-count {
+  padding: 5px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* CTA section com gradiente */
+.cta-section {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 6%, var(--surface)) 0%, var(--surface) 100%);
+}
+
+/* Linha decorativa animada no topo das secções */
+.section-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: shimmerBar 3s ease-in-out infinite;
+}
+
+.section-shimmer--bull {
+  background: linear-gradient(90deg, transparent, var(--bull), transparent);
+}
+
+.section-shimmer--warn {
+  background: linear-gradient(90deg, transparent, var(--warn), transparent);
+}
+
+/* ===========================================================================
+   Responsividade Mobile — Portfólio e Financeiro
+   =========================================================================== */
+
+@media (max-width: 768px) {
+  /* Header compacto */
+  .portfolio-hero {
+    padding: 20px 16px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+  }
+
+  .portfolio-hero h1 {
+    font-size: 22px !important;
+  }
+
+  .portfolio-hero .cabeca__saudacao {
+    font-size: 11px !important;
+  }
+
+  /* Metrics grid empilhada */
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: var(--s2);
+    margin-bottom: var(--s3);
+  }
+
+  /* Cards e secções com padding reduzido */
+  .card.glass-panel,
+  .glass-panel {
+    padding: 16px !important;
+    border-radius: 16px !important;
+    margin-top: 16px !important;
+  }
+
+  /* Section head em coluna no mobile */
+  .section-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Tabs scrolláveis */
+  .portfolio-tabs {
+    margin-bottom: 16px;
+    border-radius: 12px;
+    padding: 3px;
+  }
+
+  .portfolio-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+    gap: 4px;
+  }
+
+  .portfolio-tab svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* Section icon menor */
+  .section-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .section-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* Chips de portfólio mais compactos */
+  .chips-portfolio {
+    gap: 6px;
+  }
+
+  .chip-portfolio a {
+    padding: 6px 4px 6px 10px;
+    font-size: 12px;
+  }
+
+  .chip-portfolio button {
+    padding: 6px 10px 6px 6px;
+    font-size: 14px;
+  }
+
+  /* Texto adaptado */
+  .text-dim {
+    font-size: 12px !important;
+  }
+
+  /* Badge count */
+  .badge-count {
+    padding: 4px 10px;
+    font-size: 11px;
+  }
+
+  /* Saldo compacto */
+  .saldo {
+    border-radius: 20px;
+    padding: var(--s4) var(--s4) var(--s3);
+  }
+
+  .saldo__valor {
+    font-size: 32px;
+  }
+
+  .saldo__accoes {
+    gap: var(--s1);
+    margin-top: var(--s3);
+  }
+
+  .saldo__accao {
+    padding: 10px 2px;
+    gap: 6px;
+    font-size: 10.5px;
+  }
+
+  /* Financeiro header badges */
+  .financeiro-badges {
+    gap: 6px !important;
+  }
+
+  .financeiro-badge {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+  }
+
+  /* Metric cards compactos */
+  .metric-card {
+    padding: var(--s3);
+  }
+
+  .metric-card .m-value {
+    font-size: 20px;
+  }
+
+  .metric-card .m-label {
+    font-size: 12px;
+  }
+
+  /* Footer do financeiro */
+  .financeiro-footer {
+    padding: 14px 16px !important;
+    font-size: 11px !important;
+    border-radius: 12px !important;
+  }
+
+  /* Posições e ordens */
+  .posicoes-header h2 {
+    font-size: 16px;
+  }
+}
+
+/* Telemóveis muito pequenos */
+@media (max-width: 400px) {
+  .portfolio-hero {
+    padding: 16px 12px;
+    border-radius: 14px;
+  }
+
+  .portfolio-hero h1 {
+    font-size: 20px !important;
+  }
+
+  .card.glass-panel,
+  .glass-panel {
+    padding: 12px !important;
+    border-radius: 14px !important;
+  }
+
+  .saldo__valor {
+    font-size: 28px;
+  }
+
+  .saldo__accoes {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .portfolio-tabs {
+    padding: 2px;
+  }
+
+  .portfolio-tab {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .metrics-grid {
+    gap: 8px;
+  }
+
+  .metric-card .m-value {
+    font-size: 18px;
+  }
+
+  .chip-portfolio a {
+    font-size: 11px;
+    padding: 5px 3px 5px 8px;
+  }
+}
+
