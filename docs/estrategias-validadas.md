@@ -59,9 +59,10 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 - **O filtro de RSI ou σ:** sem nenhuma das duas condições, o resultado caía para 54% e
   +0,06R.
 
-### 2. RSI(2) de Connors — índices, diário
+### 2. RSI(2) de Connors — índices, Nikkei e bitcoin, diário
 
-- **Instrumentos:** US100, SP500, US30, GER30.
+- **Instrumentos:** US100, SP500, US30, GER30, JP225 e BTCUSD (os dois últimos acrescentados
+  em 21/09/2026 — ver "Alargar o catálogo" mais abaixo).
 - **Entrada:** fecho acima da média de 200 dias com RSI(2) < 10. Compra ao fecho.
 - **Saída:** primeiro fecho acima da média de 5 dias, ou ao fim de 10 dias. Stop de
   protecção a 2 ATR.
@@ -74,12 +75,15 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 
 - **Robustez:** positiva nas 24 variantes testadas (RSI < 5/10/15/20, saída na média de
   3/5/10, stop 2/3 ATR).
-- **Nos outros índices da Deriv** (FTSE, CAC, Nikkei, Hang Seng…) a vantagem é mais fraca e
-  instável. Por isso ficam de fora.
+- **Nos outros índices** a regra foi medida uma a uma em 21/09/2026: o Nikkei passou (+0,16R,
+  t=2,3, positivo nas duas metades) e entrou; FTSE e SMI eram positivos até 2020 e passaram a
+  negativos depois; CAC, Hang Seng, AUS200, NL25 e EU50 ficaram abaixo da barra. Ver a secção
+  "Alargar o catálogo".
 
-### 3. Tendência de 55 dias — cripto, diário
+### 3. Tendência de 55 dias — cripto, ouro e Nikkei, diário
 
-- **Instrumentos:** BTCUSD, ETHUSD.
+- **Instrumentos:** BTCUSD e ETHUSD (cripto), XAUUSD (ouro) e JP225 (Nikkei, acrescentado em
+  21/09/2026: 35 operações, +1,07R, t=1,5, positivo nas duas metades).
 - **Entrada:** primeiro fecho acima do máximo dos 55 dias anteriores. Compra ao fecho.
 - **Saída:** stop inicial a 2 ATR; depois sai quando o preço perde o mínimo dos últimos 20
   dias. Sem alvo fixo.
@@ -154,6 +158,39 @@ Os pares principais estão entre os mercados mais eficientes que existem: as reg
 simples que funcionavam até 2015 deixaram de funcionar. O ouro tem a tendência de 55 dias
 no diário (acima).
 
+## Alargar o catálogo: as mesmas regras noutros mercados (21/09/2026)
+
+As estratégias diárias validadas foram medidas em TODOS os instrumentos com 15 anos de histórico
+(Yahoo, 2011–2026), com o código de produção e as mesmas regras conservadoras: spread,
+financiamento overnight de 0,02%/dia, uma operação de cada vez, escolha até 2020 e confirmação de
+2021 em diante. A barra é a das validadas: positivo nas DUAS metades, t≥1,5 e pelo menos 30
+operações.
+
+**RSI(2) de Connors** (fecho acima da média de 200 dias com RSI(2)<10):
+
+| Mercado | Resultado | Decisão |
+|---|---|---|
+| Nikkei (JP225) | 110 ops, 68%, **+0,16R**, t=2,3 · +0,09R até 2020 e +0,27R depois · 11/14 anos+ | **entra** |
+| Bitcoin | 118 ops, 71%, **+0,10R**, t=1,7 · +0,06R e +0,13R · 8/11 anos+ | **entra** |
+| EU50 | 103 ops, +0,085R, t=1,4, positivo nas duas metades | fica de fora (t<1,5) |
+| AUS200, NL25 | +0,04R e +0,03R, t<1 | fora |
+| UK100, SWI20 | positivos até 2020, **negativos** de 2021 em diante | fora |
+| FRA40, HK50, ouro, prata, ETH, EURUSD, GBPUSD | ≈0R ou negativo | fora |
+
+**Tendência de 55 dias** (a regra da cripto e do ouro):
+
+| Mercado | Resultado | Decisão |
+|---|---|---|
+| Nikkei (JP225) | 35 ops, 37%, **+1,07R**, t=1,5 · +0,93R até 2020 e +1,37R depois · 9/15 anos+ | **entra** |
+| Hang Seng (HK50) | +0,24R, t=1,0, positivo nas duas metades | fora (t<1,5) |
+| Prata | +0,52R, t=0,7 | fora |
+| CAC, AUS200, SMI, NL25, EU50, UK100 | negativos, alguns muito (−0,38R a −0,50R) | fora |
+
+O Nikkei entrou nas duas, o bitcoin no Connors. **Nenhum deles entrou no VWAP intradiário**: essa
+regra vive em 1h e 4h e nunca foi medida nestes mercados. As listas de instrumentos passaram a ser
+uma por estratégia, exactamente para impedir que um mercado aprovado no diário entre sem querer
+no intradiário.
+
 ## GER30 (DAX) em 30m na abertura de Londres — o que se testou
 
 A abertura de Londres (08:00 em Londres) e a do DAX à vista (09:00 em Frankfurt) caem sempre à
@@ -225,8 +262,8 @@ Se as operações reais forem positivas depois da revisão, cada regra sobe a va
 | Day trading | 15m | SMT no forex/ouro (em teste) |
 | (escolha nas Definições) | 30m | Abertura de Londres no GER30 (em teste) |
 | Intradiário | 1h | VWAP em índices; VWAP e SMT no forex/ouro (em teste) |
-| Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto e ouro (1d) |
-| Investir | 1d | Connors, tendência cripto e ouro; tendência de baixa na cripto (em teste) |
+| Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto, ouro e Nikkei (1d) |
+| Investir | 1d | Connors (índices, Nikkei e bitcoin), tendência cripto, ouro e Nikkei; tendência de baixa na cripto (em teste) |
 
 Esta é só a sugestão inicial: em **Definições → Timeframes dos sinais** cada pessoa escolhe
 exactamente em quais recebe sinais.

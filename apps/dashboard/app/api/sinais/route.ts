@@ -66,13 +66,6 @@ export interface SinalDaConta {
   stopActual: number | null;
   /** Estratégia em teste ao vivo: sem taxa de acerto medida. */
   emTeste: boolean;
-  /**
-   * Estratégia já retirada (o MMXM do motor diário, por exemplo). A `conviccao`
-   * destes sinais é a confiança do modelo antigo, NÃO uma taxa de acerto
-   * medida — mostrá-la como percentagem seria dizer um número que ninguém
-   * mediu.
-   */
-  semMedida: boolean;
 }
 
 /** O estado do acompanhamento na linguagem da lista. */
@@ -155,7 +148,7 @@ export async function GET() {
   }
 
   const desde = new Date(Date.now() - JANELA_DIAS * 86_400_000).toISOString();
-  const { data: linhasNovas, error: err1 } = await db
+  const { data: linhas, error } = await db
     .from('sinais_tempo_real')
     .select('id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,r_maximo,conviccao,razao,gerado_em,criado_em')
     .in('simbolo', portfolio)
@@ -163,44 +156,13 @@ export async function GET() {
     .gte('criado_em', desde)
     .order('criado_em', { ascending: false })
     .limit(80);
-
-  const { data: linhasAntigas, error: err2 } = await db
-    .from('signals')
-    .select('id,symbol,timeframe,direction,entry_price,stop_loss,targets,max_r_multiple,confidence,narrative,generated_at,created_at')
-    .in('symbol', portfolio)
-    .in('timeframe', timeframes)
-    .eq('kind', 'entry')
-    .gte('created_at', desde)
-    .order('created_at', { ascending: false })
-    .limit(80);
-
-  if (err1 || err2) {
-    return NextResponse.json({ erro: err1?.message ?? err2?.message }, { status: 500 });
+  if (error) {
+    return NextResponse.json({ erro: error.message }, { status: 500 });
   }
 
-  // Normalizar os antigos para o formato dos novos
-  const unificados = [
-    ...(linhasNovas ?? []),
-    ...(linhasAntigas ?? []).map(a => ({
-      id: a.id,
-      simbolo: a.symbol,
-      timeframe: a.timeframe,
-      estrategia: 'mmxm', // O motor antigo é o institucional MMXM
-      direccao: a.direction,
-      entrada: a.entry_price,
-      stop: a.stop_loss,
-      alvos: a.targets,
-      r_maximo: a.max_r_multiple,
-      conviccao: a.confidence,
-      razao: a.narrative,
-      gerado_em: a.generated_at,
-      criado_em: a.created_at
-    }))
-  ].sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()).slice(0, 80);
-
-  const sinais: SinalDaConta[] = unificados
+  const sinais: SinalDaConta[] = (linhas ?? [])
     // Só estratégias activas (validadas ou em teste): as que saíram não voltam a aparecer.
-    .filter((l) => !ocultos.has(l.id) && (l.estrategia === 'mmxm' || estrategiaActiva(l.estrategia as string) !== undefined))
+    .filter((l) => !ocultos.has(l.id) && estrategiaActiva(l.estrategia as string) !== undefined)
     .map((l) => ({
       id: l.id,
       simbolo: l.simbolo,
@@ -220,7 +182,6 @@ export async function GET() {
       ultimoEvento: null,
       stopActual: null,
       emTeste: estrategiaEmTeste(l.estrategia as string) !== undefined,
-      semMedida: estrategiaActiva(l.estrategia as string) === undefined,
     }));
 
   // Estado: um pedido de velas por instrumento/timeframe, desde o sinal mais antigo.

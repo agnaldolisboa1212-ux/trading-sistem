@@ -38,8 +38,9 @@ const ABERTOS_SEMPRE = [
   '/manifest.webmanifest',
   '/favicon.ico',
   '/robots.txt',
-  // Autenticado pelo segredo do motor, não por sessão.
+  // Autenticados pelo segredo do motor, não por sessão.
   '/api/push/enviar',
+  '/api/automacao/ordem',
   // O motor pergunta por aqui se o painel já responde.
   '/api/saude',
   // Links dos emails de confirmação e de recuperação.

@@ -59,7 +59,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
-  { id: 'tendencia-cripto', nome: 'Tendência 55 dias (cripto e ouro)', curto: 'Tendência' },
+  { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
   { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
@@ -81,6 +81,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'connors-rsi2-indices': 'connors-rsi2-indices',
   'tendencia-cripto': 'tendencia-cripto',
   'tendencia-ouro': 'tendencia-cripto',
+  'tendencia-indices': 'tendencia-cripto',
   'tendencia-baixa-cripto': 'tendencia-cripto',
   // O VWAP no forex/ouro partilha a mesma visão (bandas); o SMT ainda não tem
   // desenho próprio no gráfico — precisa das velas de outros instrumentos, que
@@ -552,7 +553,11 @@ export function analisarVisoes(
   };
 
   // --- tendência de 55 dias ----------------------------------------------------
-  const tc = sinalDe('tendencia-cripto') ?? sinalDe('tendencia-ouro') ?? sinalDe('tendencia-baixa-cripto');
+  const tc =
+    sinalDe('tendencia-cripto') ??
+    sinalDe('tendencia-ouro') ??
+    sinalDe('tendencia-indices') ??
+    sinalDe('tendencia-baixa-cripto');
   const maximo55 = lista.map((_, i) => {
     if (i < 55) return Number.NaN;
     let m = -Infinity;
@@ -579,7 +584,7 @@ export function analisarVisoes(
     return m;
   });
   const estrategiasTendencia = estrategiasPara(simbolo, timeframe).filter((e) =>
-    ['tendencia-cripto', 'tendencia-ouro', 'tendencia-baixa-cripto'].includes(e.id),
+    ['tendencia-cripto', 'tendencia-ouro', 'tendencia-indices', 'tendencia-baixa-cripto'].includes(e.id),
   );
   const tendenciaValida = estrategiasTendencia.some((e) => !('emTeste' in e));
   const baixaEmTeste = estrategiasTendencia.some((e) => e.id === 'tendencia-baixa-cripto');

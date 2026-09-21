@@ -63,10 +63,11 @@ export type EstrategiaValidadaId =
   | 'compra-vwap-indices'
   | 'connors-rsi2-indices'
   | 'tendencia-cripto'
-  | 'tendencia-ouro';
+  | 'tendencia-ouro'
+  | 'tendencia-indices';
 
 /** Estratégias de tendência de 55 dias (mesma regra, instrumentos diferentes). */
-export const TENDENCIA_55D: readonly string[] = ['tendencia-cripto', 'tendencia-ouro'];
+export const TENDENCIA_55D: readonly string[] = ['tendencia-cripto', 'tendencia-ouro', 'tendencia-indices'];
 
 export interface EstatisticaValidada {
   /** O que foi medido, em linguagem simples. */
@@ -92,9 +93,19 @@ export interface EstrategiaValidada {
   estatistica: EstatisticaValidada;
 }
 
+/**
+ * Cada estratégia tem a SUA lista: um instrumento só entra onde foi medido.
+ * O VWAP intradiário e o Connors diário partilhavam a mesma lista, e assim um
+ * instrumento aprovado no diário entrava sem querer no intradiário, onde nunca
+ * foi testado.
+ */
 export const INDICES_VALIDADOS: readonly string[] = ['US100', 'SP500', 'US30', 'GER30'];
+/** Connors: os mesmos índices, mais o Nikkei e o bitcoin (medidos em 15 anos de diário). */
+export const CONNORS_VALIDADO: readonly string[] = [...INDICES_VALIDADOS, 'JP225', 'BTCUSD'];
 export const CRIPTO_VALIDADA: readonly string[] = ['BTCUSD', 'ETHUSD'];
 export const OURO_VALIDADO: readonly string[] = ['XAUUSD'];
+/** Tendência de 55 dias em índices: só o Nikkei passou. */
+export const INDICES_TENDENCIA: readonly string[] = ['JP225'];
 
 export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
   {
@@ -117,20 +128,23 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
   },
   {
     id: 'connors-rsi2-indices',
-    nome: 'RSI(2) de Connors (índices)',
+    nome: 'RSI(2) de Connors',
     descricao:
-      'Comprar a correcção curta de um índice que está acima da média de 200 dias. Documentada por Connors e Alvarez; vale em todas as variantes de parâmetros testadas.',
-    instrumentos: INDICES_VALIDADOS,
+      'Comprar a correcção curta de um mercado que está acima da média de 200 dias. Documentada por Connors e Alvarez; vale em todas as variantes de parâmetros testadas.',
+    instrumentos: CONNORS_VALIDADO,
     timeframes: ['1d'],
     entrada: 'Fecho acima da média de 200 dias com RSI(2) < 10. Compra ao fecho.',
     saida: 'Sai no primeiro fecho acima da média de 5 dias (ou ao fim de 10 dias). Stop de protecção a 2 ATR.',
     estatistica: {
       resumo: '70% das operações fecharam a ganhar',
-      operacoes: 502,
+      operacoes: 730,
       acerto: 0.7,
       expectativaR: 0.12,
-      foraDaAmostra: { periodo: '2021–2026', operacoes: 215, acerto: 0.71, expectativaR: 0.18 },
-      dados: 'Diário, 2011–2026 (15 anos), US100, SP500, US30 e DAX, com spread e financiamento overnight.',
+      foraDaAmostra: { periodo: '2021–2026', operacoes: 317, acerto: 0.72, expectativaR: 0.19 },
+      dados:
+        'Diário, 2011–2026 (15 anos), US100, SP500, US30, DAX, Nikkei e bitcoin, com spread e financiamento ' +
+        'overnight. Nikkei: 68% em 110 operações, +0,16R (t=2,3), positivo nas duas metades. Bitcoin: 71% em ' +
+        '118, +0,10R (t=1,7). UK100, CAC, SMI e Hang Seng foram testados e ficaram de fora.',
     },
   },
   {
@@ -168,6 +182,27 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
       foraDaAmostra: { periodo: '2016–2025', operacoes: 24, acerto: 0.5, expectativaR: 0.7 },
       dados:
         'Diário Dukascopy 2006–2025 com spread e financiamento; confirmado no ouro do Yahoo 2011–2026. Amostra pequena: poucas operações por ano.',
+    },
+  },
+  {
+    id: 'tendencia-indices',
+    nome: 'Tendência (máximo de 55 dias) no Nikkei',
+    descricao:
+      'A mesma regra de seguimento de tendência da cripto e do ouro. De todos os índices testados, só o Nikkei a aguentou nos dois períodos — o Japão saiu de trinta anos de lado e passou a ter tendências longas.',
+    instrumentos: INDICES_TENDENCIA,
+    timeframes: ['1d'],
+    entrada: 'Fecho acima do máximo dos 55 dias anteriores. Compra ao fecho.',
+    saida: 'Stop inicial a 2 ATR; depois sai quando o preço perde o mínimo dos últimos 20 dias. Sem alvo fixo.',
+    estatistica: {
+      resumo: '37% das operações fecharam a ganhar, mas as que ganham são muito maiores',
+      operacoes: 35,
+      acerto: 0.37,
+      expectativaR: 1.07,
+      foraDaAmostra: { periodo: '2021–2026', operacoes: 11, acerto: 0.36, expectativaR: 1.37 },
+      dados:
+        'Diário Yahoo 2011–2026 com spread e financiamento overnight, t=1,5, 9 de 15 anos positivos. Amostra ' +
+        'pequena (2 a 3 operações por ano) e acerto baixo: a média vem de poucas tendências grandes. CAC, ' +
+        'AUS200, SMI, NL25 e EU50 foram testados com a mesma regra e perderam dinheiro.',
     },
   },
 ];
@@ -361,10 +396,15 @@ export function planTendenciaOuro(velas: readonly Candle[], ctx: Contexto): Stra
   return planTendencia55d(velas, ctx, 'tendencia-ouro', 0.48);
 }
 
+/** A mesma tendência de 55 dias, no Nikkei. */
+export function planTendenciaIndices(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+  return planTendencia55d(velas, ctx, 'tendencia-indices', 0.37);
+}
+
 function planTendencia55d(
   velas: readonly Candle[],
   ctx: Contexto,
-  id: 'tendencia-cripto' | 'tendencia-ouro',
+  id: 'tendencia-cripto' | 'tendencia-ouro' | 'tendencia-indices',
   conviccao: number,
 ): StrategySignal[] {
   const lista = velas as Candle[];
@@ -427,6 +467,7 @@ export function executarEstrategiasValidadas(
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
+    if (e.id === 'tendencia-indices') out.push(...planTendenciaIndices(velas, ctx));
     if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
     if (e.id === 'smt-teste') out.push(...planSmtTeste(velas, ctx, extra));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));

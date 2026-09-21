@@ -478,6 +478,49 @@ async function inserir(
   return (data?.length ?? 0) > 0 ? 'novo' : 'repetido';
 }
 
+/**
+ * Pede ao painel que execute este sinal, se a automação estiver ligada.
+ *
+ * O motor NÃO fala com a corretora: manda o sinal ao painel, que tem as
+ * definições, os limites e a sessão cTrader autorizada. Assim há um só sítio
+ * onde a decisão de enviar dinheiro é tomada — o mesmo que o painel já usa.
+ *
+ * Sem `PAINEL_URL` ou `MOTOR_SEGREDO` não faz nada e não se queixa: quem não
+ * ligou a automação não precisa de ver erros por causa dela.
+ */
+async function pedirOrdemAutomatica(sinal: SinalTempoReal): Promise<string | null> {
+  const base = process.env['PAINEL_URL'] ?? process.env['NEXT_PUBLIC_URL'];
+  const segredo = process.env['MOTOR_SEGREDO'];
+  if (!base || !segredo) return null;
+  try {
+    const r = await fetch(new URL('/api/automacao/ordem', base), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Motor-Segredo': segredo },
+      body: JSON.stringify({
+        id: sinal.id,
+        simbolo: sinal.simbolo,
+        timeframe: sinal.timeframe,
+        estrategia: sinal.estrategia,
+        direccao: sinal.direccao,
+        entrada: sinal.entrada,
+        stop: sinal.stop,
+        alvos: sinal.alvos,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const j = (await r.json()) as { executada?: boolean; lotes?: number; motivo?: string; erro?: string };
+    if (j.executada) {
+      console.log(`[automacao] ${sinal.simbolo} ${sinal.direccao}: ${j.lotes} lotes enviados`);
+      return `ordem automática: ${j.lotes} lotes`;
+    }
+    if (j.motivo) console.log(`[automacao] ${sinal.simbolo}: ${j.motivo}`);
+    return j.erro ? `automação: ${j.erro}` : null;
+  } catch (err) {
+    console.warn('[automacao] o painel não respondeu:', msg(err));
+    return null;
+  }
+}
+
 function paraSinal(
   sig: StrategySignal,
   simbolo: { codigo: string; nome: string; casas: number },
@@ -821,6 +864,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           if (db && persistencia === 'supabase' && saidas.some((o) => o.ok)) {
             await db.from('sinais_tempo_real').update({ notificado: true }).eq('id', sinal.id);
           }
+          const auto = await pedirOrdemAutomatica(sinal);
+          if (auto) analise.nota = auto;
         }
 
         analises.push(analise);

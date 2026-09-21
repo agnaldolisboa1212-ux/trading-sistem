@@ -25,10 +25,23 @@ const vela = (time, open, high, low, close) => ({ time, open, high, low, close, 
 test('só índices e cripto validados, nos timeframes medidos', () => {
   assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices']);
   assert.deepEqual(estrategiasPara('SP500', '1d').map((e) => e.id), ['connors-rsi2-indices']);
-  // BTCUSD 1d: a compra validada, mais a venda em teste (tendencia-baixa-cripto).
+  // BTCUSD 1d: duas compras validadas (tendência de 55 dias e Connors), mais a
+  // venda em teste (tendencia-baixa-cripto).
   const btc1d = estrategiasPara('BTCUSD', '1d');
-  assert.ok(btc1d.some((e) => e.id === 'tendencia-cripto' && !('emTeste' in e)));
-  assert.ok(btc1d.filter((e) => e.id !== 'tendencia-cripto').every((e) => 'emTeste' in e));
+  const validadasBtc = btc1d.filter((e) => !('emTeste' in e)).map((e) => e.id);
+  assert.deepEqual(validadasBtc.sort(), ['connors-rsi2-indices', 'tendencia-cripto']);
+  assert.ok(btc1d.filter((e) => validadasBtc.includes(e.id) === false).every((e) => 'emTeste' in e));
+  // O Nikkei entrou no catálogo diário (15 anos de dados), mas NÃO no VWAP
+  // intradiário, onde nunca foi medido.
+  assert.deepEqual(
+    estrategiasPara('JP225', '1d').map((e) => e.id).sort(),
+    ['connors-rsi2-indices', 'tendencia-indices'],
+  );
+  assert.equal(estrategiasPara('JP225', '1h').length, 0);
+  // Testados e recusados: ficam sem estratégia nenhuma.
+  for (const s of ['UK100', 'FRA40', 'SWI20', 'NL25', 'AUS200', 'HK50']) {
+    assert.equal(estrategiasPara(s, '1d').length, 0, s);
+  }
   assert.equal(estrategiasPara('US100', '15m').length, 0);
   // Forex e ouro intradiário só têm estratégias EM TESTE (em-teste.test.mjs).
   assert.ok(estrategiasPara('EURUSD', '1h').every((e) => 'emTeste' in e));

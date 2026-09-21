@@ -2170,8 +2170,7 @@ body:has(.terminal--cheio) .bottomnav {
 }
 
 /* Estratégia em teste ao vivo: sem taxa de acerto medida ainda. */
-.selo-em-teste,
-.selo-antiga {
+.selo-em-teste {
   display: inline-block;
   font-size: 10px;
   font-weight: 800;
@@ -2181,13 +2180,6 @@ body:has(.terminal--cheio) .bottomnav {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
   color: var(--warn);
   white-space: nowrap;
-}
-
-/* Estrategia retirada: o numero que traz nao e acerto medido. Cinzento, sem
-   o amarelo do "em teste" — nao esta em avaliacao, esta so a ser mostrada. */
-.selo-antiga {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-  color: var(--text-dim);
 }
 
 .lado-pill.compra {
@@ -2358,6 +2350,31 @@ body:has(.terminal--cheio) .bottomnav {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s2);
   margin-top: var(--s3);
+}
+
+/* Fichas de escolha (instrumentos da automação): carregar liga e desliga. */
+.fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s3);
+}
+
+.ficha {
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ficha--on {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent-strong);
 }
 
 .estrategia-chip {

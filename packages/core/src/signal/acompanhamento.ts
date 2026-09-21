@@ -89,7 +89,12 @@ const EXPIRA_VELAS = 20;
 const GESTAO_PARCIAL = new Set(['compra-vwap-indices', 'vwap-forex-teste']);
 
 /** Sem alvo fixo: o stop segue o extremo das últimas 20 velas (mínimo numa compra, máximo numa venda). */
-const TENDENCIA_ATR = new Set(['tendencia-cripto', 'tendencia-ouro', 'tendencia-baixa-cripto']);
+const TENDENCIA_ATR = new Set([
+  'tendencia-cripto',
+  'tendencia-ouro',
+  'tendencia-indices',
+  'tendencia-baixa-cripto',
+]);
 
 const HORA = 3_600_000;
 const DIA = 86_400_000;

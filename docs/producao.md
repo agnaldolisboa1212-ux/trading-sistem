@@ -43,8 +43,9 @@ Cria, por esta ordem (e pode correr-se de novo sem estragar nada):
 | 0009 | `saldo_manual` | Pontos de saldo introduzidos à mão, para a curva de capital do Financeiro |
 | 0010 | `contas`, `entradas_pessoais`, coluna `conta_id` em `saldo_manual` | Várias contas por pessoa, e marcar que sinais foram mesmo negociados |
 | 0011 | coluna `sessoes_sinais` em `perfis_utilizador` | Sessão (Sydney/Tóquio/Londres/Nova Iorque) em que os avisos push chegam |
+| 0012 | `automacao`, `ordens_automaticas` | Regras da automação e registo do que o motor executou (ver `docs/automacao.md`) |
 
-As migrações 0006 a 0011 estão em `supabase/migrations/` — colar cada ficheiro
+As migrações 0006 a 0012 estão em `supabase/migrations/` — colar cada ficheiro
 no SQL Editor e carregar em **Run**.
 
 Sem isto os motores funcionam na mesma — gravam em `data/*.json` —, mas o
@@ -229,12 +230,14 @@ Definem-se no painel da Hostinger — nunca no repositório. Todas as de `.env.e
 | `COFRE_CHAVE` | nova, 32+ caracteres aleatórios — não reutilize a do computador |
 | `DERIV_DONO_EMAIL` | o seu email de login na plataforma |
 | `ADMIN_EMAILS` | opcional; quem vê o estado do servidor nas Definições (por omissão, `DERIV_DONO_EMAIL`) |
-| `DERIV_TOKEN_NO_PAINEL` | **não definir**. Em produção cada pessoa, o dono incluído, entra com a própria conta Deriv; o `DERIV_TOKEN` fica só para os motores |
+| `DERIV_TOKEN_NO_PAINEL` | por omissão **não definir**: cada pessoa, o dono incluído, entra com a própria conta Deriv. Com `true`, o dono (e só ele: o email tem de estar em `DERIV_DONO_EMAIL`, com sessão iniciada na plataforma) usa o `DERIV_TOKEN` do servidor sem passar pelo OAuth da Deriv |
 | `DASHBOARD_URL` | **deixar vazio** — o motor usa a porta de `PORT` |
 | `CTRADER_CLIENT_ID` | Client ID da aplicação cTrader Open API (negociação CFD) |
 | `CTRADER_CLIENT_SECRET` | Client Secret da mesma aplicação — só no painel da Hostinger |
 | `CTRADER_REDIRECT` | `https://trivohub.io/api/ctrader/oauth/retorno` (obrigatória em produção) |
-| `CTRADER_LIMITE_LOTES` | opcional; volume máximo por ordem, em lotes (por omissão `1`) |
+| `CTRADER_LIMITE_LOTES` | opcional; volume máximo por ordem, em lotes (por omissão `1`). Vale também para as ordens automáticas |
+| `AUTOMACAO_UTILIZADOR_ID` | **só se quiser automação**: o id da conta da plataforma em nome de quem o motor negoceia. Sem ela, nenhuma ordem automática sai. Ver `docs/automacao.md` |
+| `PAINEL_URL` | endereço público do painel (`https://trivohub.io`), para o motor lhe pedir as ordens automáticas |
 
 **As `NEXT_PUBLIC_*` têm de existir antes do build.** O Next copia-as para o código
 do browser durante a compilação; se forem definidas depois, o painel fica sem
