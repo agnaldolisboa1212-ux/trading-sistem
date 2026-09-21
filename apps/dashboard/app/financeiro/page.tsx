@@ -19,7 +19,7 @@
 
 import Link from 'next/link';
 import { FinanceiroContas } from '@/components/FinanceiroContas';
-import { HistoricoDeriv } from '@/components/HistoricoDeriv';
+import { HistoricoContaConectada } from '@/components/HistoricoContaConectada';
 import { EstatisticasCard } from '@/components/EstatisticasCard';
 import { calcularEstatisticas } from '@/lib/desempenho';
 import { estrategiaActiva, estrategiaEmTeste } from '@trading/core';
@@ -162,15 +162,15 @@ export default async function Page() {
             </svg>
           </div>
           <div>
-            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Conta Deriv conectada</h2>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Conta conectada</h2>
           </div>
         </div>
         <p className="section-cap" style={{ marginLeft: '46px' }}>
-          Histórico de negociações reais da conta Deriv ligada ao sistema. Os trades são
-          automaticamente cruzados com os sinais gerados pelas estratégias — os que casam aparecem
-          com a estratégia correspondente.
+          Histórico de negociações reais da conta ligada ao sistema (cTrader ou Deriv standard). 
+          Os trades são automaticamente cruzados com os sinais gerados pelas estratégias — os que 
+          casam aparecem com a estratégia correspondente.
         </p>
-        <HistoricoDeriv sinais={sinais} />
+        <HistoricoContaConectada sinais={sinais} />
       </section>
 
       {/* Secção: Estratégias validadas */}

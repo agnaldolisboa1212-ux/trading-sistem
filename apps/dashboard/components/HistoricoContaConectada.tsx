@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Histórico da conta Deriv conectada — mostra no Financeiro.
+ * Histórico da conta conectada (cTrader ou Deriv standard) — mostra no Financeiro.
  *
  * Três fontes de dados, três camadas:
  *
- *   1. DERIV — trades reais da corretora (via /api/deriv/historico)
+ *   1. CORRETORA — trades reais (via /api/ctrader/historico ou /api/deriv/historico)
  *   2. SISTEMA — sinais gerados pelas estratégias (props `sinais`)
  *   3. MANUAL — trades inseridos à mão (prop firms, outras corretoras)
  *
@@ -48,6 +48,7 @@ interface ContaInfo {
   id: string;
   tipo: string;
   moeda: string;
+  corretora?: string;
 }
 
 interface SaldoInfo {
@@ -96,7 +97,7 @@ function nomeEstrategia(id: string): string {
 // Componente principal
 // ---------------------------------------------------------------------------
 
-export function HistoricoDeriv({ sinais }: { sinais: SinalTempoRealRow[] }) {
+export function HistoricoContaConectada({ sinais }: { sinais: SinalTempoRealRow[] }) {
   const [trades, setTrades] = useState<TradeDeriv[] | null>(null);
   const [transaccoes, setTransaccoes] = useState<Transaccao[]>([]);
   const [resumo, setResumo] = useState<EstatisticasDeriv | null>(null);
@@ -109,8 +110,15 @@ export function HistoricoDeriv({ sinais }: { sinais: SinalTempoRealRow[] }) {
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch('/api/deriv/historico', { cache: 'no-store' });
-      const j = (await r.json()) as Record<string, unknown>;
+      // Tentar a cTrader primeiro
+      let r = await fetch('/api/ctrader/historico', { cache: 'no-store' });
+      let j = (await r.json()) as Record<string, unknown>;
+
+      // Se a cTrader não estiver ligada, tentar a Deriv standard
+      if (!j['ligada']) {
+        r = await fetch('/api/deriv/historico', { cache: 'no-store' });
+        j = (await r.json()) as Record<string, unknown>;
+      }
 
       if (!j['ligada']) {
         setLigada(false);
@@ -172,9 +180,9 @@ export function HistoricoDeriv({ sinais }: { sinais: SinalTempoRealRow[] }) {
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
         <div>
-          <strong>Conta Deriv não conectada</strong>
+          <strong>Nenhuma conta conectada</strong>
           <span style={{ display: 'block', fontSize: '12px', color: 'var(--text-faint)', marginTop: '2px' }}>
-            {erro ?? 'Ligue a sua conta Deriv nas definições para ver o histórico de negociação real.'}
+            {erro ?? 'Ligue a sua conta cTrader ou Deriv nas definições para ver o histórico de negociação real.'}
           </span>
         </div>
       </div>
@@ -187,6 +195,7 @@ export function HistoricoDeriv({ sinais }: { sinais: SinalTempoRealRow[] }) {
 
   const real = conta?.tipo === 'real';
   const matchados = tradesFiltrados.filter((m) => m.confianca !== null).length;
+  const corretora = conta?.corretora ?? 'Deriv';
 
   return (
     <div>
@@ -424,7 +433,7 @@ export function HistoricoDeriv({ sinais }: { sinais: SinalTempoRealRow[] }) {
       {/* Avisos */}
       {resumo && resumo.totalTrades > 0 && resumo.totalTrades < 20 && (
         <div className="notice" style={{ marginTop: '16px' }}>
-          <strong>Amostra pequena.</strong> {resumo.totalTrades} operação(ões) na conta Deriv.
+          <strong>Amostra pequena.</strong> {resumo.totalTrades} operação(ões) na conta {corretora}.
           As métricas ainda não distinguem estratégia de ruído com esta dimensão.
         </div>
       )}

@@ -461,3 +461,104 @@ export async function cancelarOrdemCtrader(token: string, contaId: number, order
   const { ambiente } = await contaDoToken(token, contaId);
   falhouSeRejeitada(await ligacao(ambiente).pedir(PT.CANCEL_ORDER_REQ, { ctidTraderAccountId: contaId, orderId }));
 }
+
+// ---------------------------------------------------------------------------
+// Histórico
+// ---------------------------------------------------------------------------
+
+export interface TradeCtraderFechado {
+  id: number;
+  simbolo: string;
+  tipo: string;
+  compra: number;
+  venda: number;
+  lucro: number;
+  abertoEm: number;
+  fechadoEm: number;
+  descricao: string;
+}
+
+export interface HistoricoCtrader {
+  trades: TradeCtraderFechado[];
+  conta: ContaCtrader;
+  saldo: number;
+  moeda: string;
+}
+
+/**
+ * Histórico de operações fechadas da cTrader (deals).
+ * Pede os negócios dos últimos `dias` dias (por omissão 90 dias).
+ */
+export async function historicoCompletoCtrader(token: string, contaId: number, dias = 90): Promise<HistoricoCtrader> {
+  const { conta, ambiente } = await contaDoToken(token, contaId);
+  const l = ligacao(ambiente);
+  
+  const toTimestamp = Date.now();
+  const fromTimestamp = toTimestamp - (dias * 24 * 60 * 60 * 1000);
+  
+  // O retrato vai-nos dar a moeda e saldo actual
+  const retrato = await retratoCtrader(token, contaId);
+
+  // Pedir o histórico de deals
+  const r = await l.pedir(PT.DEAL_LIST_REQ, {
+    ctidTraderAccountId: contaId,
+    fromTimestamp,
+    toTimestamp,
+    maxRows: 1000
+  });
+
+  const deals = (r.payload['deal'] as Array<Record<string, unknown>> | undefined) ?? [];
+  
+  // Precisamos dos símbolos para saber os nomes e digitos.
+  // Procuramos todos os IDs únicos mencionados nos deals.
+  const symbolIds = [...new Set(deals.map(d => n(d['symbolId'])))];
+  const det = await detalhes(ambiente, contaId, symbolIds);
+  const listaSimbolos = await simbolos(ambiente, contaId);
+  const nomes = new Map(listaSimbolos.map((s) => [s.symbolId, s.symbolName]));
+
+  const trades: TradeCtraderFechado[] = [];
+  
+  for (const deal of deals) {
+    // Na cTrader, deals fechados têm closingOrder = true ou positionId em deals correspondentes.
+    // dealStatus: 2 = FILLED, 3 = PARTIALLY_FILLED
+    if (n(deal['dealStatus']) !== 2 && n(deal['dealStatus']) !== 3) continue;
+    
+    // Ignorar depositos e levantamentos, e focar em execuções de mercado
+    // que fecham posições (fecho tem positionCloseDetails ou não tem).
+    // O lucro vem nos deals que fecham posições.
+    // Na verdade, apenas deals de fecho ou reversão geram lucro consolidado.
+    
+    // O GrossProfit só costuma estar preenchido nos deals que fecham.
+    const lucroSt = deal['grossProfit'];
+    if (lucroSt === undefined) continue; 
+    
+    const sId = n(deal['symbolId']);
+    const d = det.get(sId);
+    if (!d) continue;
+
+    // Digitos da moeda da conta
+    const dig = 2; // Poderiamos ir buscar ao trader, assumimos 2 como default para conversão de dinheiro
+
+    // Se é venda para fechar compra, ou compra para fechar venda.
+    const lado = n(deal['tradeSide']);
+    
+    trades.push({
+      id: n(deal['dealId']),
+      simbolo: nomes.get(sId) ?? String(sId),
+      tipo: lado === LADO.BUY ? 'BUY' : 'SELL', // O lado do trade, call/put no caso de CFDs não se aplica da mesma forma
+      compra: ou(deal['executionPrice']) ?? 0, // preço de execução
+      venda: ou(deal['executionPrice']) ?? 0, // simplificação para cTrader (só um preço de fecho visível no deal de fecho)
+      lucro: dinheiro(n(lucroSt), dig),
+      abertoEm: ou(deal['createTimestamp']) ?? 0,
+      fechadoEm: ou(deal['executionTimestamp']) ?? 0,
+      descricao: `Deal ${deal['dealId']}`
+    });
+  }
+
+  return {
+    trades,
+    conta,
+    saldo: retrato.saldo,
+    moeda: retrato.moeda,
+  };
+}
