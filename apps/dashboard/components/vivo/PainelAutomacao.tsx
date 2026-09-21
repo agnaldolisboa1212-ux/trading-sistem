@@ -1,7 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ESTRATEGIAS_VALIDADAS } from '@trading/core';
+
+interface AutoPrefs {
+  activa: boolean;
+  estrategias: string[];
+  modoLote: 'fixo' | 'risco';
+  loteFixo: string;
+  riscoPct: string;
+  limiteDiario: string;
+  limiteTotal: string;
+  modoLimite: 'usd' | 'pct';
+}
 
 export function PainelAutomacao() {
   const [activa, setActiva] = useState(false);
@@ -14,12 +25,49 @@ export function PainelAutomacao() {
   const [limiteDiario, setLimiteDiario] = useState('5.0');
   const [limiteTotal, setLimiteTotal] = useState('20.0');
   const [modoLimite, setModoLimite] = useState<'usd' | 'pct'>('pct');
+  
+  const [salvo, setSalvo] = useState(false);
+
+  useEffect(() => {
+    const salva = localStorage.getItem('prefs_automacao');
+    if (salva) {
+      try {
+        const p = JSON.parse(salva) as AutoPrefs;
+        setActiva(p.activa);
+        setEstrategias(new Set(p.estrategias));
+        setModoLote(p.modoLote);
+        setLoteFixo(p.loteFixo);
+        setRiscoPct(p.riscoPct);
+        setLimiteDiario(p.limiteDiario);
+        setLimiteTotal(p.limiteTotal);
+        setModoLimite(p.modoLimite);
+      } catch (e) {
+        // Ignorar
+      }
+    }
+  }, []);
 
   const alternarEstrategia = (id: string) => {
     const novas = new Set(estrategias);
     if (novas.has(id)) novas.delete(id);
     else novas.add(id);
     setEstrategias(novas);
+  };
+
+  const guardar = () => {
+    const prefs: AutoPrefs = {
+      activa,
+      estrategias: Array.from(estrategias),
+      modoLote,
+      loteFixo,
+      riscoPct,
+      limiteDiario,
+      limiteTotal,
+      modoLimite
+    };
+    localStorage.setItem('prefs_automacao', JSON.stringify(prefs));
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 2000);
   };
 
   return (
@@ -154,10 +202,11 @@ export function PainelAutomacao() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-            <button className="btn primary">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
+            <button type="button" className="btn primary" onClick={guardar}>
               Guardar definições
             </button>
+            {salvo && <span style={{ color: 'var(--bull)', fontSize: '13px', fontWeight: 600 }}>✓ Guardado com sucesso!</span>}
           </div>
         </>
       )}

@@ -23,6 +23,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMedida } from './useMedida';
 
 export interface SmtDivergenceMark {
   /** Índice na série alinhada onde a divergência se formou. */
@@ -67,27 +68,15 @@ export function SmtChart({
   marks = [],
   height = 300,
 }: Props) {
-  const H = height;
+  const [wrapperRef, { w: W, h: containerH }] = useMedida<HTMLDivElement>();
   const svgRef = useRef<SVGSVGElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const [W, setW] = useState(1000); // default fallback
 
-  useEffect(() => {
-    if (!wrapperRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.contentRect.width > 0) {
-          setW(entry.contentRect.width);
-        }
-      }
-    });
-    observer.observe(wrapperRef.current);
-    return () => observer.disconnect();
-  }, []);
+  // Fallback to provided height or calculated height from useMedida
+  const H = containerH > 0 ? containerH : height;
 
-  const plotW = W - PAD.left - PAD.right;
-  const plotH = H - PAD.top - PAD.bottom;
+  const plotW = Math.max(0, W - PAD.left - PAD.right);
+  const plotH = Math.max(0, H - PAD.top - PAD.bottom);
 
   const { min, max } = useMemo(() => {
     const all = [...primary, ...reference].filter(Number.isFinite);
@@ -134,7 +123,7 @@ export function SmtChart({
   const lastR = reference[reference.length - 1];
 
   return (
-    <div className="chart-wrap">
+    <div className="chart-wrap" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Legenda sempre presente para 2 séries. */}
       <div className="legend">
         <span>
@@ -148,7 +137,7 @@ export function SmtChart({
         </span>
       </div>
 
-      <div className="chart-scroll" ref={wrapperRef} style={{ width: '100%', height: H, overflow: 'hidden' }}>
+      <div className="chart-scroll" ref={wrapperRef} style={{ width: '100%', flex: 1, minHeight: height, overflow: 'hidden' }}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
