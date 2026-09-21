@@ -317,16 +317,22 @@ dentro, varredura só de pavio (fechar fora é rompimento, não manipulação), 
 regresso ≥ 0,3 ou 0,5 ATR, desequilíbrio (FVG) no regresso, ásia estreita (≤3 ATR) e tendência
 de 4h a favor.
 
-**Resultado — EURUSD e GBPUSD, 2016–2026, com spread:**
+**Resultado — EURUSD, GBPUSD, USDJPY, GBPJPY e XAUUSD, 2016–2026, com spread** (alvo 2R, stop
+mínimo de 1 ATR; com o alvo no lado oposto do intervalo é pior):
 
-| Filtros | Operações | Acerto | R/operação | t |
-|---|---|---|---|---|
-| Só o regresso ao intervalo | 3690 | 36% | **−0,136R** | −5,8 |
-| + só pavio | 2265 | 36% | −0,156R | −5,2 |
-| + corpo ≥ 0,3 ATR | 2129 | 35% | −0,160R | −5,2 |
-| **+ desequilíbrio (FVG)** | 600 | 39% | **+0,005R** | 0,1 |
-| + corpo + FVG | 426 | 36% | −0,061R | −0,9 |
-| + tendência de 4h | 1019 | 36% | −0,128R | −2,8 |
+| Filtros | Operações | Acerto | R/operação | t | Até 2021 | 2022+ |
+|---|---|---|---|---|---|---|
+| Só o regresso ao intervalo | 8476 | 34% | **−0,172R** | −11,2 | −0,189 | −0,151 |
+| + só pavio | 5280 | 34% | −0,195R | −9,9 | −0,218 | −0,165 |
+| + corpo ≥ 0,3 ATR | 4914 | 34% | −0,182R | −9,0 | −0,201 | −0,158 |
+| **+ desequilíbrio (FVG)** | 1274 | 37% | **−0,062R** | −1,6 | −0,079 | −0,043 |
+| + corpo + FVG | 872 | 36% | −0,097R | −2,1 | −0,157 | −0,028 |
+| + ásia estreita | 129 | 35% | −0,191R | −1,5 | −0,360 | +0,060 |
+| + tendência de 4h | 2412 | 35% | −0,156R | −5,4 | −0,168 | −0,141 |
+
+**Nenhuma combinação chega sequer a zero**, e todas são negativas nas duas metades. Nos dois
+pares principais sozinhos (EURUSD e GBPUSD) o filtro de FVG chegava a +0,005R; com o ouro e os
+pares de iene incluídos cai para −0,062R.
 
 E o controlo, a operar **a favor** da varredura (ou seja, tratá-la como rompimento em vez de
 manipulação): também negativo, −0,20R a −0,27R. Não é o sentido que está trocado — é o setup que
@@ -338,8 +344,9 @@ Mas um filtro só pode tirar operações más; não inventa vantagem onde não e
 colados à varredura (o que a regra pede) o spread come ~15% de R por operação em 15m, e é isso
 que enterra o setup — o mesmo que a fase 1b da procura intradiária já tinha mostrado.
 
-**Não foi acrescentado ao sistema.** Falta medir no ouro e nos pares de iene; se lá mudar de
-sinal, este documento é actualizado.
+**Não foi acrescentado ao sistema.** Medido nos cinco pares, incluindo o ouro e os pares de
+iene, com 8476 operações em 10,7 anos — a amostra é grande o suficiente para a conclusão não ser
+falta de dados.
 
 ## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
 

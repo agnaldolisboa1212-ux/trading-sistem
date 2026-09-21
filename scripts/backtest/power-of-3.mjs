@@ -29,11 +29,12 @@
  *
  * ── O QUE DEU (22/09/2026) ─────────────────────────────────────────────────
  *
- * EURUSD e GBPUSD, 2016–2026, 3690 operações: NEGATIVO em todas as
- * combinações de filtros, alvos e tamanhos de stop (−0,14R a −0,35R, t até
- * −16). Com o filtro de FVG fica exactamente em zero: o filtro faz o que deve
- * (tira as varreduras que não são manipulação) mas não cria vantagem onde não
- * há. Operar A FAVOR da varredura também perde. Não entrou no sistema.
+ * Cinco pares (EURUSD, GBPUSD, USDJPY, GBPJPY, XAUUSD), 2016–2026, 8476
+ * operações: NEGATIVO em todas as combinações de filtros, alvos e tamanhos de
+ * stop, e nas duas metades. A melhor (com FVG) fica em −0,062R. O filtro de
+ * FVG faz o que deve — leva de −0,17R para −0,06R, cortando as varreduras que
+ * não eram manipulação — mas não cria vantagem onde não há. Operar A FAVOR da
+ * varredura também perde. Não entrou no sistema.
  *
  * Uso: node power-of-3.mjs [alvo]   (alvo: 'oposto', '1', '2', '3')
  *      STOP_MIN=1 node ...          (stop mínimo em ATR)
