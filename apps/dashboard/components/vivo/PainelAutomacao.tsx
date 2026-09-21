@@ -12,6 +12,7 @@ interface AutoPrefs {
   limiteDiario: string;
   limiteTotal: string;
   modoLimite: 'usd' | 'pct';
+  maxOrdensAbertas: string;
 }
 
 export function PainelAutomacao() {
@@ -25,6 +26,7 @@ export function PainelAutomacao() {
   const [limiteDiario, setLimiteDiario] = useState('5.0');
   const [limiteTotal, setLimiteTotal] = useState('20.0');
   const [modoLimite, setModoLimite] = useState<'usd' | 'pct'>('pct');
+  const [maxOrdensAbertas, setMaxOrdensAbertas] = useState('2');
   
   const [salvo, setSalvo] = useState(false);
 
@@ -41,6 +43,7 @@ export function PainelAutomacao() {
         setLimiteDiario(p.limiteDiario);
         setLimiteTotal(p.limiteTotal);
         setModoLimite(p.modoLimite);
+        if (p.maxOrdensAbertas !== undefined) setMaxOrdensAbertas(p.maxOrdensAbertas);
       } catch (e) {
         // Ignorar
       }
@@ -63,7 +66,8 @@ export function PainelAutomacao() {
       riscoPct,
       limiteDiario,
       limiteTotal,
-      modoLimite
+      modoLimite,
+      maxOrdensAbertas
     };
     localStorage.setItem('prefs_automacao', JSON.stringify(prefs));
     setSalvo(true);
@@ -192,12 +196,26 @@ export function PainelAutomacao() {
                 <span className="faint">{modoLimite === 'pct' ? '%' : 'USD'}</span>
               </span>
             </div>
+            <div>
+              <span className="k">Máx. posições simultâneas</span>
+              <span className="v" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="number" 
+                  step="1"
+                  min="1"
+                  value={maxOrdensAbertas} 
+                  onChange={(e) => setMaxOrdensAbertas(e.target.value)} 
+                  style={{ width: '80px', padding: '6px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}
+                />
+                <span className="faint">posições</span>
+              </span>
+            </div>
           </div>
           
           <div className="notice" style={{ marginTop: '24px' }}>
             <strong>Preview da Automação</strong>
             <div style={{ marginTop: 6, lineHeight: 1.55 }}>
-              Se surgir um sinal hoje, o sistema abrirá <strong>{modoLote === 'risco' ? `${riscoPct}% de risco` : `${loteFixo} lotes`}</strong>. 
+              Se surgir um sinal hoje, o sistema abrirá <strong>{modoLote === 'risco' ? `${riscoPct}% de risco` : `${loteFixo} lotes`}</strong> (máximo de <strong>{maxOrdensAbertas}</strong> posições em simultâneo). 
               A automação será suspensa para o dia se perder <strong>{limiteDiario}{modoLimite === 'pct' ? '%' : ' USD'}</strong>, e desligada completamente se a conta cair <strong>{limiteTotal}{modoLimite === 'pct' ? '%' : ' USD'}</strong>.
             </div>
           </div>
