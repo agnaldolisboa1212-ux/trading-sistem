@@ -67,8 +67,8 @@ const ATRAS_DO_LITESPEED = typeof http.Server.prototype.realListen === 'function
  * produção em apps/dashboard/next.config.mjs.
  */
 const COMPILACAO = [
-  'apps/dashboard/compilado/BUILD_ID',
-  'apps/dashboard/compilado/prerender-manifest.json',
+  'apps/dashboard/saida/BUILD_ID',
+  'apps/dashboard/saida/prerender-manifest.json',
   'apps/engine/dist/index.js',
   'packages/core/dist/index.js',
   'packages/data/dist/index.js',
@@ -228,7 +228,7 @@ async function prepararCompilacao() {
     if (completa(SAIDA)) {
       log(`a repor a compilação a partir de ${SAIDA}`);
       // Restos de uma compilação interrompida não se misturam com a boa.
-      fs.rmSync(join(PAINEL, 'compilado'), { recursive: true, force: true });
+      fs.rmSync(join(PAINEL, 'saida'), { recursive: true, force: true });
       fs.cpSync(SAIDA, RAIZ, { recursive: true, force: true });
       if (completa(RAIZ)) {
         log('compilação reposta');

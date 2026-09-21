@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SAIDA = join(RAIZ, 'saida');
-const CACHE_NEXT = join(RAIZ, 'apps', 'dashboard', 'compilado', 'cache');
+const CACHE_NEXT = join(RAIZ, 'apps', 'dashboard', 'saida', 'cache');
 
 const pacotes = readdirSync(join(RAIZ, 'packages')).flatMap((p) => [
   `packages/${p}/package.json`,
@@ -38,7 +38,7 @@ const ITENS = [
   'apps/dashboard/package.json',
   'apps/dashboard/next.config.mjs',
   'apps/dashboard/public',
-  'apps/dashboard/compilado',
+  'apps/dashboard/saida',
   'apps/engine/package.json',
   'apps/engine/dist',
   ...pacotes,

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/radar/[symbol]": {
+      "maxDuration": 60
+    }
+  }
+}

@@ -10,9 +10,10 @@ const nextConfig = {
      * estáticas). Por omissão são tantos quantos os CPUs da máquina menos um — num
      * alojamento partilhado a máquina anuncia dezenas, a conta tem um limite de
      * processos, e o build morria com `spawn node EAGAIN`. Com 10 páginas
-     * estáticas um só chega.
+     * estáticas um só chega. O workerThreads desativa por completo as novas threads para builds pesados.
      */
     cpus: 1,
+    workerThreads: false,
   },
   /*
    * Os pacotes do monorepo sao ESM ja compilados, mas o Next precisa de saber
@@ -61,7 +62,7 @@ const nextConfig = {
  * O `server.js` da raiz procura `compilado/BUILD_ID` — mudar aqui obriga a
  * mudar la.
  */
-const PASTA_PRODUCAO = 'compilado';
+const PASTA_PRODUCAO = 'saida';
 
 // A constante e PHASE_DEVELOPMENT_SERVER de `next/constants`; comparada como
 // texto para nao depender da interoperabilidade CommonJS desse modulo.

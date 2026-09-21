@@ -1,0 +1,195 @@
+{
+  "version": 3,
+  "pages404": true,
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/:caminho*",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        }
+      ],
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))?(?:/)?$"
+    }
+  ],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/api/preco/[symbol]",
+      "regex": "^/api/preco/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPsymbol": "nxtPsymbol"
+      },
+      "namedRegex": "^/api/preco/(?<nxtPsymbol>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/api/radar/[symbol]",
+      "regex": "^/api/radar/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPsymbol": "nxtPsymbol"
+      },
+      "namedRegex": "^/api/radar/(?<nxtPsymbol>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/instrumento/[symbol]",
+      "regex": "^/instrumento/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPsymbol": "nxtPsymbol"
+      },
+      "namedRegex": "^/instrumento/(?<nxtPsymbol>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/auth/confirmar",
+      "regex": "^/auth/confirmar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/auth/confirmar(?:/)?$"
+    },
+    {
+      "page": "/definicoes",
+      "regex": "^/definicoes(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/definicoes(?:/)?$"
+    },
+    {
+      "page": "/entrar",
+      "regex": "^/entrar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/entrar(?:/)?$"
+    },
+    {
+      "page": "/entrar/verificar",
+      "regex": "^/entrar/verificar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/entrar/verificar(?:/)?$"
+    },
+    {
+      "page": "/financeiro",
+      "regex": "^/financeiro(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/financeiro(?:/)?$"
+    },
+    {
+      "page": "/grafico",
+      "regex": "^/grafico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/grafico(?:/)?$"
+    },
+    {
+      "page": "/manifest.webmanifest",
+      "regex": "^/manifest\\.webmanifest(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/manifest\\.webmanifest(?:/)?$"
+    },
+    {
+      "page": "/mercados",
+      "regex": "^/mercados(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/mercados(?:/)?$"
+    },
+    {
+      "page": "/noticias",
+      "regex": "^/noticias(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/noticias(?:/)?$"
+    },
+    {
+      "page": "/onboarding",
+      "regex": "^/onboarding(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/onboarding(?:/)?$"
+    },
+    {
+      "page": "/perfil",
+      "regex": "^/perfil(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/perfil(?:/)?$"
+    },
+    {
+      "page": "/portfolio",
+      "regex": "^/portfolio(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/portfolio(?:/)?$"
+    },
+    {
+      "page": "/recuperar",
+      "regex": "^/recuperar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recuperar(?:/)?$"
+    },
+    {
+      "page": "/recuperar/nova",
+      "regex": "^/recuperar/nova(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/recuperar/nova(?:/)?$"
+    },
+    {
+      "page": "/registar",
+      "regex": "^/registar(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/registar(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSuffix": ".prefetch.rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments"
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}
