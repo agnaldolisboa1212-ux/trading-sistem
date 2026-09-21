@@ -174,9 +174,14 @@ export interface TradeComMatch {
  *   2. Direcção compatível (CALL ↔ bullish, PUT ↔ bearish)
  *   3. Proximidade temporal: o trade foi aberto dentro de uma janela do sinal
  *
- * Janela por omissão: ±4 horas. Razão: o sinal pode ser gerado no fecho da
- * vela de 4h e a pessoa só comprar na vela seguinte.
+ * Janela por omissão: 4 horas DEPOIS do sinal. Razão: o sinal pode ser gerado
+ * no fecho da vela de 4h e a pessoa só comprar na vela seguinte. Um trade
+ * aberto ANTES do sinal existir não veio dele — daí a tolerância de 5 minutos
+ * para trás, que só cobre o relógio e quem entra mesmo antes do fecho da vela.
  */
+/** Quanto tempo antes do sinal um trade ainda pode ser considerado dele. */
+const TOLERANCIA_ANTES_MS = 5 * 60 * 1000;
+
 export function matchTradesSinais(
   trades: Array<TradeDeriv & { id: number; compra: number; venda: number; descricao: string }>,
   sinais: readonly SinalTempoRealRow[],
@@ -205,9 +210,11 @@ export function matchTradesSinais(
           : null;
       if (tradeDir && tradeDir !== s.direccao) continue;
 
-      // Proximidade temporal
+      // Proximidade temporal — o trade tem de vir DEPOIS do sinal.
       const sinalTs = new Date(s.gerado_em).getTime();
-      const dist = Math.abs(trade.abertoEm - sinalTs);
+      const desdeOSinal = trade.abertoEm - sinalTs;
+      if (desdeOSinal < -TOLERANCIA_ANTES_MS) continue;
+      const dist = Math.abs(desdeOSinal);
       if (dist <= janelaMs && dist < melhorDist) {
         melhorDist = dist;
         melhorSinal = s;

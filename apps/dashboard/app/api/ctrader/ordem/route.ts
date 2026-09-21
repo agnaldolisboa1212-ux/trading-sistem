@@ -88,12 +88,25 @@ export async function POST(pedido: Request) {
         }
 
         if (contaInternaId) {
-          // Marcar como negociado
-          await db.from('entradas_pessoais').upsert({
-            utilizador_id: a.utilizador.id,
-            conta_id: contaInternaId,
-            sinal_id: sinalId
-          }, { onConflict: 'conta_id,sinal_id' });
+          /*
+           * Marcar como negociado. `ignoreDuplicates` faz um ON CONFLICT DO
+           * NOTHING: a migracao 0010 da a esta tabela select/insert/delete mas
+           * NAO update, e um upsert normal (ON CONFLICT DO UPDATE) seria
+           * recusado por falta de permissao.
+           *
+           * O sinal_id tem chave estrangeira para `sinais_tempo_real`: um id
+           * do motor antigo (tabela `signals`) falha aqui, e e por isso que o
+           * erro se regista em vez de se engolir — a ordem ja foi enviada.
+           */
+          const { error } = await db.from('entradas_pessoais').upsert(
+            {
+              utilizador_id: a.utilizador.id,
+              conta_id: contaInternaId,
+              sinal_id: sinalId,
+            },
+            { onConflict: 'conta_id,sinal_id', ignoreDuplicates: true },
+          );
+          if (error) console.warn('[ctrader/ordem] nao marcou a entrada pessoal:', error.message);
         }
       }
     }

@@ -18,10 +18,8 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { estrategiaActiva } from '@trading/core';
+import { nomeDeEstrategia } from '@trading/core';
 
-/** Nome legível de uma estratégia — fonte única: @trading/core. */
-const nomeEstrategia = (id: string) => estrategiaActiva(id)?.nome ?? id;
 
 export interface NotifyResult {
   channel: string;
@@ -540,7 +538,7 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
       ? ['', `agora   \`${n(s.precoActual)}\` · ${escapeMarkdown(agora)}`]
       : []),
     '',
-    `*${s.emTeste ? 'EM TESTE, sem acerto medido' : `${Math.round(s.conviccao * 100)}% de acerto medido`}* · ${escapeMarkdown((nomeEstrategia(s.estrategia)) + acordo)}`,
+    `*${s.emTeste ? 'EM TESTE, sem acerto medido' : `${Math.round(s.conviccao * 100)}% de acerto medido`}* · ${escapeMarkdown((nomeDeEstrategia(s.estrategia)) + acordo)}`,
     '',
     `_${escapeMarkdown(razao)}_`,
   ];
@@ -551,7 +549,7 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
 /** Difunde um sinal de tempo real por Telegram, n8n e push. */
 export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyResult[]> {
   const compra = s.direccao === 'bullish';
-  const estrategia = nomeEstrategia(s.estrategia);
+  const estrategia = nomeDeEstrategia(s.estrategia);
   return Promise.all([
     sendTelegram(formatarSinalTempoReal(s)),
     sendToN8n('signal.realtime', {
@@ -672,7 +670,7 @@ export interface AvisoOperacao {
  * timeframe do sinal, como o proprio sinal.
  */
 export async function difundirAvisoOperacao(a: AvisoOperacao): Promise<NotifyResult[]> {
-  const nome = nomeEstrategia(a.estrategia);
+  const nome = nomeDeEstrategia(a.estrategia);
   const nl = String.fromCharCode(10);
   return Promise.all([
     sendTelegram(

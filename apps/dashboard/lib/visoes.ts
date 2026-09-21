@@ -250,7 +250,7 @@ function maisRecente(sinais: readonly StrategySignal[], candles: readonly Candle
   return { sinal: s, velasAtras: ultimo - s.index, estado: estadoDoSinal(s, candles) };
 }
 
-function linhasDoSinal(sv: SinalVisao, nome: string): Desenho {
+export function linhasDoSinal(sv: SinalVisao, nome: string): Desenho {
   const s = sv.sinal;
   return {
     zonas: [

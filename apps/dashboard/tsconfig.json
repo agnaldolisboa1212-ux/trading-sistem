@@ -32,7 +32,6 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "compilado/types/**/*.ts",
     "next-env.d.ts",
     "saida/types/**/*.ts"
   ],

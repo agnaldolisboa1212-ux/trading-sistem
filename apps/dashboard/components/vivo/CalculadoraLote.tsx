@@ -31,6 +31,7 @@ export function FolhaCalculadoraLote({
   let lotesSugeridos: number | null = null;
   let riscoDinheiro: number | null = null;
   let erro = '';
+  let avisos: string[] = [];
 
   if (p > 0 && s > 0 && saldoNum > 0 && riscoNum > 0 && contratoNum > 0) {
     const r = calculatePositionSize(p, s, {
@@ -43,6 +44,9 @@ export function FolhaCalculadoraLote({
     if (r.units > 0) {
       riscoDinheiro = r.riskAmount;
       lotesSugeridos = r.units / contratoNum;
+      // Os avisos (risco acima de 2%, alavancagem) valem sobretudo quando a
+      // conta DÁ resultado — era aí que estavam a ser deitados fora.
+      avisos = r.warnings;
     } else {
       erro = r.warnings[0] ?? 'Valores inválidos.';
     }
@@ -92,6 +96,15 @@ export function FolhaCalculadoraLote({
           <div className="notice" style={{ marginTop: '16px' }}>
             <div>Risco planeado: <strong>{riscoDinheiro.toFixed(2)}</strong></div>
             <div>Lotes calculados: <strong className="bull-t">{lotesSugeridos.toFixed(2)}</strong></div>
+            <small className="dim">
+              Conta feita na moeda em que o par está cotado. Num par que não acabe na moeda da conta
+              (USDJPY, EURGBP…), converta antes de usar.
+            </small>
+            {avisos.map((a) => (
+              <div key={a} className="nt-aviso" style={{ marginTop: '8px' }}>
+                {a}
+              </div>
+            ))}
           </div>
         ) : erro ? (
           <div className="nt-erro" style={{ marginTop: '16px' }}>{erro}</div>

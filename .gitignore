@@ -7,6 +7,8 @@ dist/
 /.next
 # Compilacao de producao do painel (distDir em apps/dashboard/next.config.mjs).
 apps/dashboard/saida
+# Nome antigo da mesma pasta, antes de passar a 'saida' — nunca vai para o repositorio.
+apps/dashboard/compilado
 # O que o build junta para a Output directory da Hostinger (scripts/preparar-saida.mjs).
 /saida
 # Trincos entre processos da aplicacao (server.js).

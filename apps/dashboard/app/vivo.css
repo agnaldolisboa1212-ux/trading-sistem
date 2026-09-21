@@ -3119,6 +3119,7 @@ body:has(.terminal--cheio) .bottomnav {
 }
 
 .nt-erro,
+.nt-aviso,
 .nt-ok {
   padding: var(--s2) var(--s3);
   border-radius: var(--radius-sm);
@@ -3135,6 +3136,12 @@ body:has(.terminal--cheio) .bottomnav {
 .nt-ok {
   background: color-mix(in srgb, var(--bull) 10%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--bull) 36%, transparent);
+}
+
+/* Avisos que não impedem a conta — risco acima de 2%, alavancagem alta. */
+.nt-aviso {
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
 .folha .nt-erro,

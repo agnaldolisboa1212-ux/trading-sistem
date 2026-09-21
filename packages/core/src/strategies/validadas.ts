@@ -186,6 +186,25 @@ export function estrategiaActiva(id: string): EstrategiaActiva | undefined {
   return ESTRATEGIAS_ACTIVAS.find((e) => e.id === id);
 }
 
+/**
+ * Estratégias que já não geram sinais, mas cujos sinais antigos ainda aparecem
+ * (ficaram na base de dados, ou o motor antigo ainda os anuncia). Sem estes
+ * nomes, a interface mostrava o identificador cru — "volume-profile" a uma
+ * pessoa que só quer saber o que é aquilo.
+ */
+const NOMES_ANTIGOS: Readonly<Record<string, string>> = {
+  mmxm: 'MMXM institucional (antiga)',
+  'supply-demand': 'Oferta e procura (antiga)',
+  'support-resistance': 'Suporte/resistência (antiga)',
+  'vwap-bands': 'Bandas de VWAP (antiga)',
+  'volume-profile': 'Perfil de volume (antiga)',
+};
+
+/** Nome legível de uma estratégia, activa ou já retirada. Fonte única. */
+export function nomeDeEstrategia(id: string): string {
+  return estrategiaActiva(id)?.nome ?? NOMES_ANTIGOS[id] ?? id;
+}
+
 /** Estratégias que geram sinais neste instrumento e timeframe (validadas e em teste). */
 export function estrategiasPara(simbolo: string, timeframe: string): EstrategiaActiva[] {
   const s = simbolo.toUpperCase();

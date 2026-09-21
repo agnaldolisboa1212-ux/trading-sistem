@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
 import { planoInvalidado, planoVivo, ROTULO_PLANO, type EstadoPlano } from '@/lib/estado-sinal';
-import { estrategiaActiva } from '@trading/core';
+import { nomeDeEstrategia } from '@trading/core';
 
 interface Sinal {
   id: string;
@@ -41,8 +41,6 @@ interface Sinal {
   emTeste?: boolean;
 }
 
-/** Nome legível de uma estratégia — fonte única: @trading/core. */
-const nomeEstrategia = (id: string) => estrategiaActiva(id)?.nome ?? id;
 
 function ha(iso: string, agora: number): string {
   const s = Math.max(0, Math.round((agora - Date.parse(iso)) / 1000));
@@ -240,7 +238,7 @@ function LinhaSinal({
             entrada {formatarPreco(s.entrada, casas)} · stop{' '}
             {formatarPreco(s.stopActual ?? s.stop, casas)}
             {s.stopActual !== null && s.stopActual !== undefined && s.stopActual !== s.stop ? ' (subiu)' : ''} ·{' '}
-            {nomeEstrategia(s.estrategia)}
+            {nomeDeEstrategia(s.estrategia)}
             {s.ultimoEvento ? ` · ${s.ultimoEvento}` : ''}
           </em>
         </span>

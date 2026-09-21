@@ -33,6 +33,8 @@ import { estrategiaEmTeste } from '@trading/core';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
+  estadoDoSinal,
+  linhasDoSinal,
   nomeVisao,
   NOTA_CONTEXTO,
   RECENTE_VELAS,
@@ -136,10 +138,8 @@ export function AnaliseAoVivo({
    */
   const chave = `${codigo}|${tf}|${nFechadas}|${ultimaFechada?.t ?? 0}`;
 
-  const analise = useMemo(() => {
-    const fechadas = velas.slice(0, nFechadas);
-    if (fechadas.length < MIN_VELAS) return { pronta: false as const, velas: fechadas.length };
-    const candles: Candle[] = fechadas.map((v) => ({
+  const candles = useMemo(() => {
+    return velas.slice(0, nFechadas).map((v) => ({
       time: v.t,
       open: v.o,
       high: v.h,
@@ -147,6 +147,10 @@ export function AnaliseAoVivo({
       close: v.c,
       volume: 0,
     }));
+  }, [velas, nFechadas]);
+
+  const analise = useMemo(() => {
+    if (candles.length < MIN_VELAS) return { pronta: false as const, velas: candles.length };
     return {
       pronta: true as const,
       calculadaEm: Date.now(),
@@ -154,13 +158,40 @@ export function AnaliseAoVivo({
     };
     // `chave` resume velas/nFechadas: recalcular ao tick seria o erro a evitar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chave]);
+  }, [chave, candles]);
 
+  const sinaisServidor = usarSinaisServidor(codigo, tf, analise.pronta ? candles : []);
   const mmxmServidor = usarMmxm(codigo, visao === 'mmxm' && mmxm === undefined);
   const mmxmActivo = mmxm ?? mmxmServidor;
 
+  // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
+  // (ex: smt-teste que precisa de dados de outros instrumentos).
+  const visoesComServidor = useMemo(() => {
+    if (!analise.pronta) return null;
+    const v = { ...analise.visoes };
+    for (const [id, sv] of Object.entries(sinaisServidor)) {
+      const k = id as keyof typeof v;
+      if (v[k]) {
+        const visaoAntiga = v[k]!;
+        // Só substitui se o cliente não tiver um sinal, ou se o do servidor for mais recente
+        if (!visaoAntiga.sinal || sv.sinal.sinal.generatedAt > visaoAntiga.sinal.sinal.generatedAt) {
+          v[k] = {
+            ...visaoAntiga,
+            sinal: sv.sinal,
+            desenho: {
+              zonas: [...visaoAntiga.desenho.zonas, ...sv.desenho.zonas],
+              linhas: [...visaoAntiga.desenho.linhas, ...sv.desenho.linhas],
+              curvas: [...visaoAntiga.desenho.curvas, ...sv.desenho.curvas],
+            },
+          };
+        }
+      }
+    }
+    return v;
+  }, [analise, sinaisServidor]);
+
   const actual: Visao | null =
-    analise.pronta && visao !== 'mmxm' ? analise.visoes[visao] : null;
+    visoesComServidor && visao !== 'mmxm' ? visoesComServidor[visao] : null;
 
   // Desenha a visão escolhida — ou limpa.
   const assinatura =
@@ -181,8 +212,8 @@ export function AnaliseAoVivo({
 
   /** Ponto de cor no botão: há um plano vivo nesta estratégia? */
   const marca = (id: VisaoId): string => {
-    if (!analise.pronta || id === 'mmxm') return '';
-    const sv = analise.visoes[id as keyof typeof analise.visoes]?.sinal;
+    if (!visoesComServidor || id === 'mmxm') return '';
+    const sv = visoesComServidor[id as keyof typeof visoesComServidor]?.sinal;
     if (!sv || !sinalVivo(sv.estado)) return '';
     return sv.sinal.direction === 'bullish' ? 'compra' : 'venda';
   };
@@ -649,4 +680,87 @@ function NoticiasDoInstrumento({ codigo, agora }: { codigo: string; agora: numbe
       </a>
     </div>
   );
+}
+
+/**
+ * Sinais que o servidor anunciou para este instrumento, para as visões que o
+ * cliente não consegue calcular sozinho (o SMT precisa de velas de outros
+ * instrumentos, a abertura do DAX precisa das diárias).
+ */
+function usarSinaisServidor(codigo: string, tf: string, candles: readonly Candle[]) {
+  const [sinais, setSinais] = useState<Record<string, { sinal: SinalVisao; desenho: Desenho }>>({});
+
+  useEffect(() => {
+    if (candles.length === 0) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const r = await fetch('/api/sinais', { cache: 'no-store' });
+        const j = (await r.json()) as { sinais?: Array<any> };
+        if (cancelado || !j.sinais) return;
+
+        // Só deste instrumento E deste timeframe: um sinal de 4h desenhado
+        // num gráfico de 15m aponta para uma vela que não é a dele.
+        const puros = j.sinais.filter(
+          (s) => s.simbolo.toUpperCase() === codigo && s.timeframe === tf && s.estrategia !== 'mmxm',
+        );
+        const mapa: Record<string, { sinal: SinalVisao; desenho: Desenho }> = {};
+
+        for (const s of puros) {
+          if (mapa[s.estrategia]) continue; // Só queremos o mais recente de cada estratégia
+
+          const geradoEm = new Date(s.geradoEm).getTime();
+          // A vela MAIS PRÓXIMA do sinal. Com `findIndex` e uma janela de 24h
+          // apanhava-se a primeira vela dentro do dia — em 15m, 96 velas ao lado.
+          let index = -1;
+          let melhor = Infinity;
+          for (let k = candles.length - 1; k >= 0; k--) {
+            const d = Math.abs((candles[k]?.time ?? 0) - geradoEm);
+            if (d < melhor) {
+              melhor = d;
+              index = k;
+            } else if (d > melhor) {
+              break; // as velas estão ordenadas: a partir daqui só se afasta
+            }
+          }
+          
+          const rawSignal: any = {
+            strategy: s.estrategia,
+            direction: s.direccao,
+            entryPrice: s.entrada,
+            stopLoss: s.stop,
+            targets: s.alvos.map((a: any) => ({ price: a.preco, rMultiple: a.r })),
+            entryZoneLow: s.direccao === 'bullish' ? s.stop : s.entrada,
+            entryZoneHigh: s.direccao === 'bullish' ? s.entrada : s.stop,
+            maxRMultiple: s.rMaximo,
+            conviction: s.conviccao,
+            index: index >= 0 ? index : candles.length - 1,
+            generatedAt: geradoEm,
+            rationale: s.razao,
+            assumptions: [],
+            warnings: [],
+            symbol: s.simbolo,
+            timeframe: s.timeframe,
+            regime: 'range',
+            referencePrice: s.entrada
+          };
+
+          const estado = estadoDoSinal(rawSignal, candles);
+          const velasAtras = candles.length - 1 - rawSignal.index;
+          
+          const sv = { sinal: rawSignal, velasAtras: Math.max(0, velasAtras), estado };
+          mapa[s.estrategia] = { sinal: sv, desenho: linhasDoSinal(sv, nomeVisao(s.estrategia)) };
+        }
+
+        setSinais(mapa);
+      } catch (e) {
+        // Silencioso, falha graciosamente mantendo os client-side
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [codigo, candles.length > 0]); // Re-fetch apenas quando mudamos de instrumento ou temos velas iniciais
+
+  return sinais;
 }

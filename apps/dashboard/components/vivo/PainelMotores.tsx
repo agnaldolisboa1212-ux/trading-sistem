@@ -15,7 +15,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
-import { estrategiaActiva, ESTRATEGIAS_ACTIVAS } from '@trading/core';
+import { ESTRATEGIAS_ACTIVAS, nomeDeEstrategia } from '@trading/core';
 
 interface Execucao {
   iniciadoEm: string;
@@ -56,8 +56,6 @@ interface Sinal {
   geradoEm: string;
 }
 
-/** Nome legível de uma estratégia — fonte única: @trading/core. */
-const nomeEstrategia = (id: string) => estrategiaActiva(id)?.nome ?? id;
 
 function ha(iso: string | null, agora: number): string {
   if (!iso) return '—';
@@ -148,7 +146,7 @@ export function PainelMotores({ compacto = false }: { compacto?: boolean }) {
         />
         <LinhaMotor
           nome="Tempo real"
-          sub={`${ESTRATEGIAS_ACTIVAS.length} estratégias activas · 15m, 1h e 4h`}
+          sub={`${ESTRATEGIAS_ACTIVAS.length} estratégias activas · 15m a 4h`}
           exec={e.tempoReal}
           aCorrer={e.aCorrer.includes('tempoReal')}
           agora={agora}
@@ -257,7 +255,7 @@ function SinaisTempoReal({
                   </strong>
                   <em>
                     entrada {formatarPreco(s.entrada, casas)} · stop {formatarPreco(s.stop, casas)} ·{' '}
-                    {nomeEstrategia(s.estrategia)}
+                    {nomeDeEstrategia(s.estrategia)}
                   </em>
                 </span>
                 <span className="sinal-tr__r">
