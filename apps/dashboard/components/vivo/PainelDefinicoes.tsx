@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from 'react';
 import {
+  ESTRATEGIAS_ACTIVAS,
   estrategiaEmTeste,
   estrategiasPara,
   ROTULO_SESSAO,
@@ -232,23 +233,14 @@ function Corretora() {
 
 // ---------------------------------------------------------------------------
 
-/** Instrumentos de referência para dizer que estratégias existem em cada timeframe. */
-const CATALOGO_VALIDADO = [
-  'US100',
-  'SP500',
-  'US30',
-  'GER30',
-  'BTCUSD',
-  'ETHUSD',
-  'XAUUSD',
-  'JP225',
-  // O USDJPY tem o rompimento de 4h validado; os outros só estratégias em teste.
-  'USDJPY',
-  'EURUSD',
-  'GBPUSD',
-  'GBPJPY',
-  'XAGUSD',
-];
+/**
+ * Instrumentos de referência para dizer que estratégias existem em cada
+ * timeframe. Sai das PRÓPRIAS estratégias: quando uma regra ganha um
+ * instrumento novo (o paládio no Connors, por exemplo), ele aparece aqui
+ * sozinho — a lista fixa que havia antes ficava para trás sem ninguém dar
+ * por isso.
+ */
+const CATALOGO_VALIDADO = [...new Set(ESTRATEGIAS_ACTIVAS.flatMap((e) => e.instrumentos))].sort();
 
 /**
  * Em que timeframes a pessoa quer receber sinais.

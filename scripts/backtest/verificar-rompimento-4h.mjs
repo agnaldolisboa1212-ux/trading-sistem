@@ -19,11 +19,21 @@ const DIR = (process.env.HISTDATA ?? RAIZ + 'data/backtest/histdata') + '/';
 const { planRompimento4h, acompanharOperacao, ROMPIMENTO_VALIDADO } = await import(
   pathToFileURL(RAIZ + 'packages/core/dist/index.js').href
 );
+/*
+ * Por omissão mede os instrumentos do catálogo. PARES=AUDUSD,NZDUSD testa
+ * CANDIDATOS: a regra corre à mesma (não olha ao instrumento), e é assim que se
+ * vê se um mercado novo merece entrar.
+ */
+const PARES = process.env.PARES ? process.env.PARES.split(',') : ROMPIMENTO_VALIDADO;
 
 const HORA = 3_600_000;
 const CORTE = Date.UTC(2024, 6, 1);
 /** Spread + deslize, em unidades de preço. */
-const CUSTO = { XAUUSD: 0.35, USDJPY: 0.012, EURUSD: 0.00012, GBPUSD: 0.00018, GBPJPY: 0.03, XAGUSD: 0.03 };
+const CUSTO = {
+  XAUUSD: 0.35, XAGUSD: 0.03, USDJPY: 0.012, GBPJPY: 0.03,
+  EURUSD: 0.00012, GBPUSD: 0.00018, AUDUSD: 0.0002, NZDUSD: 0.0003,
+  EURGBP: 0.00022, EURJPY: 0.018, USDCAD: 0.00018, USDCHF: 0.00018,
+};
 
 function velas4h(par) {
   const v = JSON.parse(readFileSync(`${DIR}${par}_1h.json`, 'utf8'));
@@ -56,7 +66,7 @@ const mostra = (rot, s) =>
 
 console.log('Rompimento de 4h, medido com o código de produção\n');
 const todas = [];
-for (const par of ROMPIMENTO_VALIDADO) {
+for (const par of PARES) {
   let v;
   try {
     v = velas4h(par);
