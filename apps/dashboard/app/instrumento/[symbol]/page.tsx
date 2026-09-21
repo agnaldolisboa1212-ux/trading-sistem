@@ -468,13 +468,27 @@ function SmtSection({ analysis }: { analysis: NonNullable<Awaited<ReturnType<typ
         .filter((m): m is SmtDivergenceMark => m !== null)
         .slice(-6);
 
+      const primaryVelas = aligned.aRaw.map(c => ({
+        t: c.time,
+        o: c.open,
+        h: c.high,
+        l: c.low,
+        c: c.close,
+      }));
+
+      const startBase = primaryVelas[0]!.c;
+      const startRef = aligned.b[0]!;
+      const referenceScaled = aligned.b.map(c => 
+        pair.correlation === 'inverse' 
+          ? startBase * (2 - c / startRef)
+          : startBase * (c / startRef)
+      );
+
       return {
         pair,
         times: aligned.times,
-        primary: reindex(aligned.a),
-        reference: reindex(aligned.b),
-        primaryRaw: aligned.a,
-        referenceRaw: aligned.b,
+        primaryVelas,
+        referenceScaled,
         marks,
       };
     })
@@ -494,10 +508,8 @@ function SmtSection({ analysis }: { analysis: NonNullable<Awaited<ReturnType<typ
               primarySymbol={symbol}
               referenceSymbol={c.pair.reference}
               correlation={c.pair.correlation}
-              primary={c.primary}
-              reference={c.reference}
-              primaryRaw={c.primaryRaw}
-              referenceRaw={c.referenceRaw}
+              primaryVelas={c.primaryVelas}
+              referenceScaled={c.referenceScaled}
               marks={c.marks}
             />
           </div>

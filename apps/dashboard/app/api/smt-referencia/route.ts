@@ -74,16 +74,22 @@ export async function GET(req: Request) {
       { minDegree: 'short' } // Usamos short para ter marcações suficientes no gráfico
     );
 
-    // Reindexar a 100 no início para o gráfico
+    // Escalar a referência para o preço do instrumento principal
     const startBase = primaryAligned[0]!.close;
     const startRef = refAligned[0]!.close;
     
     // Inverter a referência se a correlação for inversa para que o gráfico os coloque no mesmo sentido
-    const primarySeries = primaryAligned.map(c => (c.close / startBase) * 100);
+    const primarySeries = primaryAligned.map(c => ({
+      t: c.time,
+      o: c.open,
+      h: c.high,
+      l: c.low,
+      c: c.close
+    }));
     const referenceSeries = refAligned.map(c => 
       par.correlation === 'inverse' 
-        ? 200 - ((c.close / startRef) * 100) 
-        : (c.close / startRef) * 100
+        ? startBase * (2 - c.close / startRef)
+        : startBase * (c.close / startRef)
     );
 
     const primaryRaw = primaryAligned.map(c => c.close);

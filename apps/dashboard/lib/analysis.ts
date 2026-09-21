@@ -243,12 +243,13 @@ export function alignByTime(
   b: Candle[],
   bars: number,
   timeframe: Timeframe = '1d',
-): { times: number[]; a: number[]; b: number[] } {
+): { times: number[]; a: number[]; b: number[]; aRaw: Candle[] } {
   const key = keyFor(timeframe);
   const mapB = new Map(b.map((c) => [key(c.time), c.close]));
   const times: number[] = [];
   const va: number[] = [];
   const vb: number[] = [];
+  const aRaw: Candle[] = [];
 
   for (const candle of a.slice(-bars)) {
     const match = mapB.get(key(candle.time));
@@ -256,8 +257,9 @@ export function alignByTime(
     times.push(candle.time);
     va.push(candle.close);
     vb.push(match);
+    aRaw.push(candle);
   }
-  return { times, a: va, b: vb };
+  return { times, a: va, b: vb, aRaw };
 }
 
 /**

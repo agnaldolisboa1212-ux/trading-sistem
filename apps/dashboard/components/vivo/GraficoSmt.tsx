@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { SmtChart, type SmtDivergenceMark } from '../SmtChart';
-import { TIMEFRAMES, type Timeframe } from '@/lib/deriv/simbolos';
+import { useEffect, useState, useMemo } from 'react';
+import { GraficoVivo } from './GraficoVivo';
+import { TIMEFRAMES, type Timeframe, acharSimbolo } from '@/lib/deriv/simbolos';
+import type { Vela } from '@/lib/deriv/live';
 
 interface Props {
   codigo: string;
@@ -13,12 +14,21 @@ interface Props {
   aoAlternarCheio?: () => void;
 }
 
+export interface SmtDivergenceMark {
+  index: number;
+  prevIndex: number;
+  at: 'high' | 'low';
+  direction: 'bullish' | 'bearish';
+  description: string;
+  strength: number;
+}
+
 interface SmtData {
   times: number[];
   primarySymbol: string;
   referenceSymbol: string;
   correlation: 'positive' | 'inverse';
-  primary: number[];
+  primary: Vela[];
   reference: number[];
   primaryRaw: number[];
   referenceRaw: number[];
@@ -52,64 +62,78 @@ export function GraficoSmt({ codigo, tf, altura, aoMudarTimeframe, cheio, aoAlte
     return () => { vivo = false; };
   }, [codigo, tf]);
 
-  return (
-    <div className={`grafico ${cheio ? 'grafico--cheio' : ''}`}>
-      <div className="grafico__barra">
-        <div className="segmentos grafico__tfs">
-          {TIMEFRAMES.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={t.id === tf}
-              onClick={() => aoMudarTimeframe?.(t.id)}
-              disabled={!aoMudarTimeframe}
-            >
-              {t.rotulo}
-            </button>
-          ))}
-        </div>
-        <div className="grafico__accoes">
-          {aoAlternarCheio && (
-            <button
-              type="button"
-              onClick={aoAlternarCheio}
-              aria-label={cheio ? 'Sair do ecrã inteiro' : 'Ecrã inteiro'}
-              title={cheio ? 'Sair (Esc)' : 'Ecrã inteiro'}
-            >
-              {cheio ? '✕' : '⛶'}
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="grafico__leitura">
-        <strong className="grafico__titulo">{codigo} · Divergência SMT</strong>
-      </div>
-      <div className="grafico__tela" style={{ height: cheio ? undefined : altura, display: 'flex', flexDirection: 'column' }}>
-        {loading ? (
+  const graficoProps = useMemo(() => {
+    if (!data || data.erro || data.primary.length === 0) return null;
+
+    const curvas = [{
+      tipo: 'banda1', // Usamos banda1 por ter uma cor visível
+      rotulo: data.referenceSymbol,
+      pontos: data.reference.map((val, idx) => ({ t: data.times[idx]!, p: val }))
+    }];
+
+    // Para gerar faixas verticais, usamos a funcionalidade "zonas"
+    // Como o GraficoVivo requer `topo` e `base`, extraímos o min/max da série
+    const pRaw = data.primaryRaw;
+    const maxP = Math.max(...pRaw) + (Math.max(...pRaw) * 0.1);
+    const minP = Math.min(...pRaw) - (Math.min(...pRaw) * 0.1);
+
+    const zonas = data.marks.map(m => {
+      const idx1 = Math.min(m.index, m.prevIndex);
+      const idx2 = Math.max(m.index, m.prevIndex);
+      return {
+        de: data.times[idx1]!,
+        ate: data.times[idx2]!,
+        topo: maxP,
+        base: minP,
+        tipo: m.direction === 'bullish' ? 'bull' : 'bear',
+        rotulo: `SMT ${m.at === 'high' ? '▲' : '▼'}`
+      };
+    });
+
+    return { curvas, zonas };
+  }, [data]);
+
+  const simboloInfo = acharSimbolo(codigo);
+  const casas = simboloInfo?.casas ?? 4;
+
+  if (loading) {
+    return (
+      <div className={`grafico ${cheio ? 'grafico--cheio' : ''}`}>
+        <div className="grafico__tela" style={{ height: cheio ? undefined : altura, display: 'flex', flexDirection: 'column' }}>
           <div className="empty" style={{ height: '100%', justifyContent: 'center' }}>
             <strong>A calcular Divergências SMT...</strong>
             A alinhar as duas séries temporais ({codigo} e o seu par)
           </div>
-        ) : !data || data.erro ? (
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.erro || !graficoProps) {
+    return (
+      <div className={`grafico ${cheio ? 'grafico--cheio' : ''}`}>
+        <div className="grafico__tela" style={{ height: cheio ? undefined : altura, display: 'flex', flexDirection: 'column' }}>
           <div className="empty" style={{ height: '100%', justifyContent: 'center' }}>
             <strong>Não foi possível mostrar o SMT</strong>
             {data?.erro ?? 'Sem dados disponíveis'}
           </div>
-        ) : (
-          <SmtChart
-            times={data.times}
-            primarySymbol={data.primarySymbol}
-            referenceSymbol={data.referenceSymbol}
-            correlation={data.correlation}
-            primary={data.primary}
-            reference={data.reference}
-            primaryRaw={data.primaryRaw}
-            referenceRaw={data.referenceRaw}
-            marks={data.marks}
-            height={altura}
-          />
-        )}
+        </div>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <GraficoVivo
+      velas={data.primary}
+      casas={casas}
+      timeframe={tf}
+      curvas={graficoProps.curvas}
+      zonas={graficoProps.zonas}
+      titulo={`${codigo} · Divergência SMT com ${data.referenceSymbol}`}
+      altura={altura}
+      cheio={cheio}
+      aoAlternarCheio={aoAlternarCheio}
+      aoMudarTimeframe={aoMudarTimeframe}
+    />
   );
 }
