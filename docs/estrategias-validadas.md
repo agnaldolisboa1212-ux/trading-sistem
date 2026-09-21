@@ -53,7 +53,8 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 - **Saída:** stop 1σ abaixo da entrada. Metade fecha em +1R; o resto vai a +2R, com o
   stop na entrada depois do primeiro alvo.
 - **Medido (Deriv, set/2025–set/2026):** 135 operações, **68% chegaram a +1R antes do
-  stop**, +0,41R por operação com a gestão parcial.
+  stop**, +0,41R por operação com a gestão parcial. **Atenção: em 4,7 anos de HistData a
+  mesma regra dá ≈0R — ver o aviso mais abaixo.**
 - **Fora da amostra (20/07–16/09/2026):** 31 operações, 68%, +0,36R.
 - **Diário, 15 anos:** a mesma compra dá +0,15R por operação nas duas metades do período.
 - **O filtro de RSI ou σ:** sem nenhuma das duas condições, o resultado caía para 54% e
@@ -191,6 +192,36 @@ regra vive em 1h e 4h e nunca foi medida nestes mercados. As listas de instrumen
 uma por estratégia, exactamente para impedir que um mercado aprovado no diário entre sem querer
 no intradiário.
 
+## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
+
+Os números da secção 1 vêm de **um ano** de dados da Deriv (out/2025–set/2026): 135 operações,
+68% a chegar a +1R, +0,41R por operação. Ao alargar o catálogo, a mesma regra foi medida com
+**4,7 anos** de HistData (jan/2022–ago/2026), com o mesmo código de produção e a mesma simulação:
+
+| Índice | 4,7 anos | Até jun/2024 | Depois | Sinais/ano |
+|---|---|---|---|---|
+| Nikkei (JP225) | +0,097R (t=1,3) | +0,062R | +0,142R | 48 |
+| DAX (GER30) | +0,063R (t=0,9) | −0,003R | +0,133R | 50 |
+| S&P 500 | −0,012R | −0,078R | +0,062R | 61 |
+| Nasdaq (US100) | −0,021R | −0,101R | +0,069R | 59 |
+| FTSE (UK100) | −0,068R | −0,114R | +0,011R | 57 |
+| CAC (FRA40) | −0,065R | −0,067R | −0,063R | 40 |
+
+**O controlo foi feito primeiro:** o mesmo script, nos dados da Deriv, reproduz os números
+publicados (GER30 +0,36R, SP500 +0,55R, US100 +0,29R, US30 +0,47R, 135 operações no total). O
+script não é o problema. As duas fontes não são idênticas — a Deriv dá cerca de metade dos sinais
+por ano (27 contra 50 no DAX), porque tem menos velas por dia — mas isso não explica a diferença
+de resultado.
+
+O que muda é o **período**. O padrão repete-se em todos os índices: ≈0 ou negativo de 2022 a
+meados de 2024, positivo depois. É o mesmo padrão da abertura do DAX em 30m. A leitura honesta é
+que esta regra vive de mercados em subida, e que o ano medido na Deriv foi um ano excepcionalmente
+bom — não que a regra tenha 68% de acerto em geral.
+
+**Pela barra deste projecto** (positivo nas duas metades, t≥1,5), o VWAP −2σ **não passaria hoje**
+em nenhum índice numa janela de 4,7 anos. Fica registado aqui; a decisão de o manter como validado,
+de o passar a "em teste" ou de o retirar é de quem opera.
+
 ## GER30 (DAX) em 30m na abertura de Londres — o que se testou
 
 A abertura de Londres (08:00 em Londres) e a do DAX à vista (09:00 em Frankfurt) caem sempre à
@@ -306,6 +337,12 @@ diária, e no teste em 15m/1h/4h. O forex só recebe sinais em teste.**
 npm run build
 node scripts/backtest/baixar.mjs
 node scripts/backtest/verificar-validadas.mjs
+# alargar o catálogo: as mesmas regras noutros mercados
+node scripts/backtest/alargar-catalogo-diario.mjs
+# VWAP em 4,7 anos (precisa de velas de 1 min da HistData agregadas em 1h)
+HISTDATA=<pasta> node scripts/backtest/alargar-catalogo-vwap.mjs GER30 SP500 US100 JP225
+# o controlo, nos dados da Deriv: reproduz os números publicados
+FONTE=deriv node scripts/backtest/alargar-catalogo-vwap.mjs GER30 SP500 US100 US30
 ```
 
 O último script corre o código de produção (`packages/core/src/strategies/validadas.ts`)
