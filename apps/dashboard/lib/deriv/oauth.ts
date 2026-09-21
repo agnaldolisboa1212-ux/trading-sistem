@@ -59,11 +59,12 @@ export interface PedidoPkce {
 /**
  * Em produção exige-se sempre sessão iniciada na plataforma.
  *
- * Sem isto, `credencial.ts` entrega o `DERIV_TOKEN` do servidor — a conta do
- * dono — a QUALQUER visitante anónimo de trivohub.io, que passaria a ver o
- * saldo e a poder enviar ordens nessa conta. Para o dono usar o token local
- * sem passar pelo OAuth da Deriv: `DERIV_TOKEN_NO_PAINEL=true` e o seu email
- * em `DERIV_DONO_EMAIL` — continua a ser preciso entrar na plataforma.
+ * Sem isto, `decidirCredencial` cai no ramo `ehDono || !exigirLogin` e entrega
+ * o `DERIV_TOKEN` do servidor — a conta do dono — a QUALQUER pessoa com conta
+ * na plataforma (o middleware exige sessão nas rotas `/api`, mas o registo é
+ * aberto): veria o saldo e poderia enviar ordens nessa conta. Para o dono usar
+ * o token local sem passar pelo OAuth da Deriv: `DERIV_TOKEN_NO_PAINEL=true` e
+ * o seu email em `DERIV_DONO_EMAIL`.
  *
  * `DERIV_EXIGIR_LOGIN=true` liga a mesma exigência fora de produção.
  */
