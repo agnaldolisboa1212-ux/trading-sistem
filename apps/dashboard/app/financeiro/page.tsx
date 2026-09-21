@@ -1,31 +1,25 @@
 /**
  * Financeiro: o que as estratégias ACTIVAS realmente produziram.
  *
- * ── PORQUE MUDOU ───────────────────────────────────────────────────────────
+ * Três camadas:
  *
- * Esta página simulava uma conta de papel a partir dos sinais do motor MMXM
- * diário — posições, preenchimentos e uma curva de capital que nunca
- * corresponderam a dinheiro nenhum, e que já não tinham ligação com o que o
- * sistema realmente anuncia (`sinais_tempo_real`, as estratégias validadas e
- * em teste).
- *
- * Duas camadas, agora:
- *
- *   1. SISTEMA — "Resultado acumulado" mede TODOS os sinais gerados, como
+ *   1. DERIV — histórico real da conta conectada: trades fechados, curva de
+ *      capital em dinheiro, métricas de desempenho. Com matching automático
+ *      contra os sinais do sistema para saber quais trades vieram de cá.
+ *   2. SISTEMA — "Resultado acumulado" mede TODOS os sinais gerados, como
  *      referência macro de como as estratégias activas estão a sair.
- *   2. PESSOAL — `FinanceiroContas` deixa marcar, sinal a sinal, quais foram
+ *   3. PESSOAL — `FinanceiroContas` deixa marcar, sinal a sinal, quais foram
  *      REALMENTE negociados (a pessoa só entra nalguns, com o toque manual no
  *      terminal), por conta — uma pessoa pode ter várias, uma por corretora.
- *      Só o marcado entra no desempenho pessoal e na curva de capital dessa
- *      conta (migrações 0009 e 0010).
+ *      Também aceita trades manuais de prop firms e corretoras externas.
  *
- * As métricas continuam expostas em **R** (múltiplos de risco), não em euros:
- * é a unidade correcta para avaliar uma estratégia, independente do tamanho
- * da conta.
+ * As métricas do sistema continuam em **R** (múltiplos de risco); as da
+ * conta Deriv estão em dinheiro real.
  */
 
 import Link from 'next/link';
 import { FinanceiroContas } from '@/components/FinanceiroContas';
+import { HistoricoDeriv } from '@/components/HistoricoDeriv';
 import { EstatisticasCard } from '@/components/EstatisticasCard';
 import { calcularEstatisticas } from '@/lib/desempenho';
 import { estrategiaActiva, estrategiaEmTeste } from '@trading/core';
@@ -140,6 +134,44 @@ export default async function Page() {
           </div>
         </div>
       </header>
+
+      {/* Secção: Conta Deriv conectada — histórico real */}
+      <section className="glass-panel" style={{
+        padding: '28px',
+        borderRadius: '20px',
+        marginBottom: '28px',
+        animation: 'fadeSlideIn 0.5s ease-out 0.05s both',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        {/* Barra decorativa */}
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+          background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
+          animation: 'shimmerBar 3s ease-in-out infinite',
+        }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div style={{
+            width: '36px', height: '36px', borderRadius: '10px',
+            background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), color-mix(in srgb, var(--accent) 8%, transparent))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontSize: '18px', margin: 0, fontWeight: 700 }}>Conta Deriv conectada</h2>
+          </div>
+        </div>
+        <p className="section-cap" style={{ marginLeft: '46px' }}>
+          Histórico de negociações reais da conta Deriv ligada ao sistema. Os trades são
+          automaticamente cruzados com os sinais gerados pelas estratégias — os que casam aparecem
+          com a estratégia correspondente.
+        </p>
+        <HistoricoDeriv sinais={sinais} />
+      </section>
 
       {/* Secção: Estratégias validadas */}
       <section className="glass-panel" style={{

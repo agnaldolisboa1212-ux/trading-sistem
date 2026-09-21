@@ -333,6 +333,84 @@ export async function retratoConta(c: ConfigDeriv, conta: ContaDeriv): Promise<R
   });
 }
 
+// ---------------------------------------------------------------------------
+// Historico completo — para o Financeiro
+// ---------------------------------------------------------------------------
+
+export interface TradeDerivFechado {
+  readonly id: number;
+  readonly simbolo: string;
+  readonly tipo: string;
+  readonly compra: number;
+  readonly venda: number;
+  readonly lucro: number;
+  readonly abertoEm: number;
+  readonly fechadoEm: number;
+  readonly descricao: string;
+}
+
+export interface HistoricoDeriv {
+  readonly trades: TradeDerivFechado[];
+  readonly transaccoes: Transaccao[];
+  readonly saldo: Saldo;
+}
+
+/**
+ * Historico completo da conta — trades fechados e transaccoes.
+ *
+ * Usado pelo Financeiro para mostrar o desempenho real da conta Deriv.
+ * Pede profit_table com 500 registos (suficiente para analise sem paginacao)
+ * e statement com 200 (depositos, levantamentos, compras/vendas).
+ */
+export async function historicoCompleto(c: ConfigDeriv, conta: ContaDeriv): Promise<HistoricoDeriv> {
+  return comSessao(c, conta.account_id, async (pedir) => {
+    const [bal, lucro, ext] = await Promise.all([
+      pedir({ balance: 1 }),
+      pedir({ profit_table: 1, limit: 500 }),
+      pedir({ statement: 1, limit: 200 }),
+    ]);
+
+    const b = bal['balance'] as { balance: number; currency: string; loginid: string };
+
+    const fechadas =
+      ((lucro['profit_table'] as { transactions?: unknown[] } | undefined)?.transactions as
+        | Array<Record<string, unknown>>
+        | undefined) ?? [];
+
+    const trades: TradeDerivFechado[] = fechadas.map((f) => ({
+      id: Number(f['contract_id'] ?? f['transaction_id'] ?? 0),
+      simbolo: String(f['underlying_symbol'] ?? f['shortcode']?.toString().split('_')[1] ?? ''),
+      tipo: String(f['contract_type'] ?? ''),
+      compra: Number(f['buy_price'] ?? 0),
+      venda: Number(f['sell_price'] ?? 0),
+      lucro: Number(f['sell_price'] ?? 0) - Number(f['buy_price'] ?? 0),
+      abertoEm: Number(f['purchase_time'] ?? 0) * 1000,
+      fechadoEm: Number(f['sell_time'] ?? 0) * 1000,
+      descricao: String(f['longcode'] ?? ''),
+    }));
+
+    const trans =
+      ((ext['statement'] as { transactions?: unknown[] } | undefined)?.transactions as
+        | Array<Record<string, unknown>>
+        | undefined) ?? [];
+
+    const transaccoes: Transaccao[] = trans.map((t) => ({
+      id: Number(t['transaction_id']),
+      tipo: String(t['action_type'] ?? ''),
+      montante: Number(t['amount'] ?? 0),
+      saldoDepois: Number(t['balance_after'] ?? 0),
+      em: Number(t['transaction_time'] ?? 0) * 1000,
+      contrato: t['contract_id'] ? Number(t['contract_id']) : null,
+    }));
+
+    return {
+      trades,
+      transaccoes,
+      saldo: { saldo: Number(b.balance), moeda: b.currency, loginid: b.loginid },
+    };
+  });
+}
+
 export interface PedidoProposta {
   readonly accountId: string;
   readonly derivSymbol: string;
