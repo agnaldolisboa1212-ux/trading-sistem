@@ -20,9 +20,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const { executarEstrategiasValidadas, saidaDinamica } = await import(
-  pathToFileURL(join(RAIZ, 'packages/core/dist/index.js')).href
-);
+const core = await import(pathToFileURL(join(RAIZ, 'packages/core/dist/index.js')).href);
+const { executarEstrategiasValidadas, saidaDinamica } = core;
 const ler = (f) => JSON.parse(readFileSync(join(RAIZ, 'data', 'backtest', f), 'utf8'));
 if (!existsSync(join(RAIZ, 'data', 'backtest', 'deriv'))) {
   console.log('Falta o histórico: node scripts/backtest/baixar.mjs');
@@ -30,7 +29,10 @@ if (!existsSync(join(RAIZ, 'data', 'backtest', 'deriv'))) {
 }
 
 const SPREAD_PONTOS = { US100: 1.8, SP500: 0.6, US30: 3.5, GER30: 2.0 };
-const SPREAD_REL = { US100: 0.0001, SP500: 0.0001, US30: 0.0001, GER30: 0.0001, BTCUSD: 0.0006, ETHUSD: 0.001, XAUUSD: 0.0002 };
+const SPREAD_REL = {
+  US100: 0.0001, SP500: 0.0001, US30: 0.0001, GER30: 0.0001, JP225: 0.0002,
+  BTCUSD: 0.0006, ETHUSD: 0.001, XAUUSD: 0.0002, XPDUSD: 0.0012,
+};
 const SWAP_DIA = 0.0002;
 const CORTE_VWAP = Date.UTC(2026, 6, 20);
 
@@ -47,7 +49,7 @@ function resumo(rs) {
 {
   const dentro = { f1: [], parcial: [] };
   const fora = { f1: [], parcial: [] };
-  for (const s of ['US100', 'SP500', 'US30', 'GER30']) {
+  for (const s of core.INDICES_VALIDADOS) {
     for (const tf of ['1h', '4h']) {
       const v = ler(`deriv/${s}_${tf}.json`);
       let livre = -1;
@@ -88,10 +90,12 @@ function resumo(rs) {
 }
 
 // --- connors-rsi2-indices e tendencia-cripto: diário, 15 anos ---------------------
+// As listas vêm do CATÁLOGO: se um instrumento entrar lá, entra aqui também.
 for (const [id, simbolos] of [
-  ['connors-rsi2-indices', ['US100', 'SP500', 'US30', 'GER30']],
-  ['tendencia-cripto', ['BTCUSD', 'ETHUSD']],
-  ['tendencia-ouro', ['XAUUSD']],
+  ['connors-rsi2-indices', core.CONNORS_VALIDADO],
+  ['tendencia-cripto', core.CRIPTO_VALIDADA],
+  ['tendencia-ouro', core.OURO_VALIDADO],
+  ['tendencia-indices', core.INDICES_TENDENCIA],
 ]) {
   const ate2020 = [];
   const desde2021 = [];
@@ -120,7 +124,11 @@ for (const [id, simbolos] of [
         }
         continue;
       }
-      const g = executarEstrategiasValidadas(janela, { symbol: s, timeframe: '1d' })[0];
+      // Filtrar pela ESTRATEGIA: o Nikkei e o bitcoin têm duas regras diárias, e
+      // apanhar "a primeira" misturava os resultados de uma com os da outra.
+      const g = executarEstrategiasValidadas(janela, { symbol: s, timeframe: '1d' }).find(
+        (x) => x.strategy === id,
+      );
       if (g) pos = { i, e: g.entryPrice, stop: g.stopLoss, risco: g.entryPrice - g.stopLoss };
     }
   }

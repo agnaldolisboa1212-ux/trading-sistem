@@ -40,8 +40,11 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
     ['connors-rsi2-indices', 'tendencia-indices'],
   );
   assert.equal(estrategiasPara('JP225', '1h').length, 0);
+  // O paládio entrou no Connors (22/09/2026); a platina foi testada e recusada.
+  assert.deepEqual(estrategiasPara('XPDUSD', '1d').map((e) => e.id), ['connors-rsi2-indices']);
+  assert.equal(estrategiasPara('XPTUSD', '1d').length, 0);
   // Testados e recusados: ficam sem estratégia nenhuma.
-  for (const s of ['UK100', 'FRA40', 'SWI20', 'NL25', 'AUS200', 'HK50']) {
+  for (const s of ['UK100', 'FRA40', 'SWI20', 'NL25', 'AUS200', 'HK50', 'AUDUSD', 'NZDUSD', 'EURGBP']) {
     assert.equal(estrategiasPara(s, '1d').length, 0, s);
   }
   assert.equal(estrategiasPara('US100', '15m').length, 0);

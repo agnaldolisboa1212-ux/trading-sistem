@@ -71,8 +71,8 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
 
   | Período | Operações | A ganhar | Por operação |
   |---|---|---|---|
-  | Até 2020 | 287 | 68% | +0,08R |
-  | 2021 em diante | 215 | 71% | +0,18R |
+  | Até 2020 | 469 | 67% | +0,09R (t=2,7) |
+  | 2021 em diante | 335 | 72% | +0,18R (t=5,0) |
 
 - **Robustez:** positiva nas 24 variantes testadas (RSI < 5/10/15/20, saída na média de
   3/5/10, stop 2/3 ATR).
@@ -200,6 +200,23 @@ operações.
 | Hang Seng (HK50) | +0,24R, t=1,0, positivo nas duas metades | fora (t<1,5) |
 | Prata | +0,52R, t=0,7 | fora |
 | CAC, AUS200, SMI, NL25, EU50, UK100 | negativos, alguns muito (−0,38R a −0,50R) | fora |
+
+**Segunda passagem (22/09/2026): todo o universo negociável.** Com 15 anos de diário para os 28
+instrumentos que a corretora oferece — índices, metais, cripto e os dez pares de forex — só
+apareceu mais um:
+
+| Mercado | Connors | Decisão |
+|---|---|---|
+| **Paládio (XPDUSD)** | 74 ops, 68%, **+0,16R**, t=1,5 · +0,17R até 2020 e +0,11R depois · 8/12 anos+ | **entra, na fronteira** |
+| Platina (XPTUSD) | −0,08R, primeira metade −0,29R | fora |
+| EURJPY, EURGBP | +0,04R, t<1 | fora |
+| USDJPY | +0,00R | fora |
+| AUDUSD, NZDUSD, USDCHF, USDCAD, EURUSD, GBPUSD | negativos | fora |
+
+O paládio passa por pouco: com o spread a dobrar cai para +0,11R (t=1,1) e a triplicar para
++0,07R, embora continue positivo nas duas metades em todos os casos. É um mercado fino —
+**confirme o spread no cTrader antes de o operar**. Nenhum par de forex passou no Connors, e na
+tendência de 55 dias não apareceu nada de novo em todo o universo.
 
 O Nikkei entrou nas duas, o bitcoin no Connors. **Nenhum deles entrou no VWAP intradiário**: essa
 regra vive em 1h e 4h e nunca foi medida nestes mercados. As listas de instrumentos passaram a ser

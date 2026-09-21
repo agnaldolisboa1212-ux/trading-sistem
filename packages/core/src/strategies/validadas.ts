@@ -107,8 +107,8 @@ export interface EstrategiaValidada {
  * foi testado.
  */
 export const INDICES_VALIDADOS: readonly string[] = ['US100', 'SP500', 'US30', 'GER30'];
-/** Connors: os mesmos índices, mais o Nikkei e o bitcoin (medidos em 15 anos de diário). */
-export const CONNORS_VALIDADO: readonly string[] = [...INDICES_VALIDADOS, 'JP225', 'BTCUSD'];
+/** Connors: os mesmos índices, mais o Nikkei, o bitcoin e o paládio (15 anos de diário). */
+export const CONNORS_VALIDADO: readonly string[] = [...INDICES_VALIDADOS, 'JP225', 'BTCUSD', 'XPDUSD'];
 export const CRIPTO_VALIDADA: readonly string[] = ['BTCUSD', 'ETHUSD'];
 export const OURO_VALIDADO: readonly string[] = ['XAUUSD'];
 /** Tendência de 55 dias em índices: só o Nikkei passou. */
@@ -149,15 +149,18 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
     entrada: 'Fecho acima da média de 200 dias com RSI(2) < 10. Compra ao fecho.',
     saida: 'Sai no primeiro fecho acima da média de 5 dias (ou ao fim de 10 dias). Stop de protecção a 2 ATR.',
     estatistica: {
-      resumo: '70% das operações fecharam a ganhar',
-      operacoes: 730,
-      acerto: 0.7,
-      expectativaR: 0.12,
-      foraDaAmostra: { periodo: '2021–2026', operacoes: 317, acerto: 0.72, expectativaR: 0.19 },
+      resumo: '69% das operações fecharam a ganhar',
+      operacoes: 804,
+      acerto: 0.69,
+      expectativaR: 0.13,
+      foraDaAmostra: { periodo: '2021–2026', operacoes: 335, acerto: 0.72, expectativaR: 0.18 },
       dados:
-        'Diário, 2011–2026 (15 anos), US100, SP500, US30, DAX, Nikkei e bitcoin, com spread e financiamento ' +
-        'overnight. Nikkei: 68% em 110 operações, +0,16R (t=2,3), positivo nas duas metades. Bitcoin: 71% em ' +
-        '118, +0,10R (t=1,7). UK100, CAC, SMI e Hang Seng foram testados e ficaram de fora.',
+        'Diário, 2011–2026 (15 anos), US100, SP500, US30, DAX, Nikkei, bitcoin e paládio, com spread e ' +
+        'financiamento overnight (verificar-validadas.mjs): +0,09R até 2020 e +0,18R de 2021 em diante. ' +
+        'Nikkei: 68% em 110 operações, +0,16R (t=2,3). Bitcoin: 71% em 118, +0,10R (t=1,7). Paládio: 68% em ' +
+        '74, +0,16R (t=1,5) — passa na barra por pouco e com o spread a dobrar cai para +0,11R (t=1,1), por ' +
+        'isso confirme o spread antes de o operar. Todo o universo negociável foi testado; os outros 21 ' +
+        'instrumentos ficaram de fora.',
     },
   },
   {

@@ -20,25 +20,29 @@ const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..', '..') + '/';
 const core = await import(pathToFileURL(RAIZ + 'packages/core/dist/index.js').href);
 const { planConnorsIndices, planTendenciaCripto, saidaDinamica } = core;
 
-const SIMBOLOS = [
-  'US100', 'SP500', 'US30', 'GER30', // já no catálogo (controlo)
-  'UK100', 'FRA40', 'EU50', 'JP225', 'AUS200', 'HK50', 'NL25', 'SWI20',
-  'BTCUSD', 'ETHUSD', 'XAUUSD', 'XAGUSD', 'EURUSD', 'GBPUSD',
-];
+/* Todo o universo negociável na corretora — quem não é testado não entra. */
+const { CRIPTO, FOREX, INDICES, METAIS } = await import(pathToFileURL(RAIZ + 'packages/data/dist/deriv-simbolos.js').href);
+const SIMBOLOS = [...INDICES, ...METAIS, ...CRIPTO, ...FOREX].map((x) => x.codigo);
 const NO_CATALOGO = {
-  'connors-rsi2-indices': new Set(['US100', 'SP500', 'US30', 'GER30']),
-  'tendencia-55d': new Set(['BTCUSD', 'ETHUSD', 'XAUUSD']),
+  'connors-rsi2-indices': new Set(core.CONNORS_VALIDADO),
+  'tendencia-55d': new Set([...core.CRIPTO_VALIDADA, ...core.OURO_VALIDADO, ...core.INDICES_TENDENCIA]),
 };
-// Spread relativo por operação. Índices e metais como no verificar-validadas;
-// forex com o spread típico do par; índices menos líquidos com o dobro.
+/*
+ * Spread relativo por operação. Índices e metais como no verificar-validadas;
+ * forex com o spread típico do par; os menos líquidos com o dobro.
+ */
 const SPREAD_REL = {
   US100: 0.0001, SP500: 0.0001, US30: 0.0001, GER30: 0.0001,
   UK100: 0.0002, FRA40: 0.0002, EU50: 0.0002, JP225: 0.0002,
   AUS200: 0.0002, HK50: 0.0003, NL25: 0.0003, SWI20: 0.0003,
-  BTCUSD: 0.0006, ETHUSD: 0.001, XAUUSD: 0.0002, XAGUSD: 0.0006,
-  EURUSD: 0.00012, GBPUSD: 0.00018,
+  BTCUSD: 0.0006, ETHUSD: 0.001,
+  XAUUSD: 0.0002, XAGUSD: 0.0006, XPTUSD: 0.0008, XPDUSD: 0.0012,
+  EURUSD: 0.00012, GBPUSD: 0.00018, AUDUSD: 0.0002, NZDUSD: 0.0003, USDJPY: 0.0001,
+  USDCHF: 0.00018, USDCAD: 0.00018, EURGBP: 0.00022, EURJPY: 0.00018, GBPJPY: 0.00025,
 };
 const SWAP_DIA = 0.0002;
+/** CUSTO=2 dobra o spread — o teste de quem sobrevive a uma corretora pior. */
+const CUSTO_MULT = Number(process.env.CUSTO ?? 1);
 const ler = (s) => JSON.parse(readFileSync(`${RAIZ}data/backtest/diario/${s}.json`, 'utf8'));
 
 function estatistica(rs) {
@@ -55,7 +59,7 @@ const linha = (rotulo, st) =>
 /** Simula uma estratégia diária num instrumento. Devolve as operações por período. */
 function simular(estrategia, simbolo) {
   const v = ler(simbolo);
-  const espalhar = SPREAD_REL[simbolo] ?? 0.0003;
+  const espalhar = (SPREAD_REL[simbolo] ?? 0.0003) * CUSTO_MULT;
   const ctx = { symbol: simbolo, timeframe: '1d' };
   const ate2020 = [];
   const desde2021 = [];

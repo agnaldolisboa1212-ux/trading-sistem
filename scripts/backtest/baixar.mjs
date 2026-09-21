@@ -67,9 +67,19 @@ for (const codigo of SIMBOLOS) {
 }
 ws.close();
 
+/*
+ * Diário de 15 anos para TODO o universo negociável na corretora — índices,
+ * metais, cripto e os dez pares de forex. É a base das estratégias diárias, e
+ * de onde saem os candidatos a entrar no catálogo: um instrumento que não
+ * esteja aqui nunca é testado, e por isso nunca entra.
+ */
 const YAHOO = {
   US100: '^NDX', SP500: '^GSPC', US30: '^DJI', GER30: '^GDAXI', UK100: '^FTSE', FRA40: '^FCHI', EU50: '^STOXX50E',
-  JP225: '^N225', HK50: '^HSI', AUS200: '^AXJO', NL25: '^AEX', SWI20: '^SSMI', XAUUSD: 'GC=F', BTCUSD: 'BTC-USD', ETHUSD: 'ETH-USD',
+  JP225: '^N225', HK50: '^HSI', AUS200: '^AXJO', NL25: '^AEX', SWI20: '^SSMI',
+  XAUUSD: 'GC=F', XAGUSD: 'SI=F', XPTUSD: 'PL=F', XPDUSD: 'PA=F',
+  BTCUSD: 'BTC-USD', ETHUSD: 'ETH-USD',
+  EURUSD: 'EURUSD=X', GBPUSD: 'GBPUSD=X', AUDUSD: 'AUDUSD=X', NZDUSD: 'NZDUSD=X', USDJPY: 'USDJPY=X',
+  USDCHF: 'USDCHF=X', USDCAD: 'USDCAD=X', EURGBP: 'EURGBP=X', EURJPY: 'EURJPY=X', GBPJPY: 'GBPJPY=X',
 };
 for (const [codigo, y] of Object.entries(YAHOO)) {
   const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(y)}?interval=1d&range=15y`, {
