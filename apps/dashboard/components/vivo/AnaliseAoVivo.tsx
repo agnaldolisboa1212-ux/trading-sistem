@@ -165,7 +165,7 @@ export function AnaliseAoVivo({
   const mmxmActivo = mmxm ?? mmxmServidor;
 
   // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
-  // (ex: smt-teste que precisa de dados de outros instrumentos).
+  // (ex: a abertura do DAX, que precisa das velas diárias).
   const visoesComServidor = useMemo(() => {
     if (!analise.pronta) return null;
     const v = { ...analise.visoes };

@@ -52,7 +52,7 @@ import {
   type Timeframe,
 } from '@trading/core';
 
-export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto' | 'smt-teste';
+export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto' | 'smt';
 export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
@@ -64,7 +64,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
   { id: 'mmxm', nome: 'MMXM + SMT', curto: 'MMXM', contexto: true },
-  { id: 'smt-teste', nome: 'SMT Divergence (em teste)', curto: 'SMT' },
+  { id: 'smt', nome: 'Divergência SMT (análise)', curto: 'SMT', contexto: true },
 ];
 
 /** Aviso das visões que só mostram contexto. */
@@ -83,11 +83,9 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'tendencia-ouro': 'tendencia-cripto',
   'tendencia-indices': 'tendencia-cripto',
   'tendencia-baixa-cripto': 'tendencia-cripto',
-  // O VWAP no forex/ouro partilha a mesma visão (bandas); o SMT ainda não tem
-  // desenho próprio no gráfico — precisa das velas de outros instrumentos, que
-  // esta página não pede. Os avisos de push abrem o Resumo nesse caso.
+  // O VWAP no forex/ouro partilha a mesma visão (bandas).
   'vwap-forex-teste': 'vwap-bands',
-  'smt-teste': 'smt-teste',
+  'rompimento-4h': 'resumo',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {
@@ -656,13 +654,21 @@ export function analisarVisoes(
         : undefined,
   };
 
+  /*
+   * Divergência SMT: análise, já não estratégia.
+   *
+   * A regra `smt-teste` foi retirada em 22/09/2026 — no backtest de 2022–2026 o
+   * SMT isolado não teve vantagem em nenhum par intradiário. A LEITURA fica:
+   * é uma das peças do MMXM e ajuda a ver quando um par varre liquidez e o
+   * correlacionado não acompanha. Não gera sinais.
+   */
   const smtVisao: Visao = {
-    id: 'smt-teste',
-    nome: nomeVisao('smt-teste'),
-    sinal: sinalDe('smt-teste'),
-    desenho: DESENHO_VAZIO, // O SMT tem um componente próprio de desenho (GraficoSmt)
+    id: 'smt',
+    nome: nomeVisao('smt'),
+    sinal: null,
+    desenho: DESENHO_VAZIO, // tem um componente próprio de desenho (GraficoSmt)
     estruturas: [],
-    nota: 'O gráfico do SMT desenha-se numa vista própria em baixo.',
+    nota: NOTA_CONTEXTO + ' O gráfico da divergência desenha-se na vista própria em baixo.',
   };
 
   return {
@@ -675,7 +681,7 @@ export function analisarVisoes(
       'volume-profile': perfilVisao,
       'connors-rsi2-indices': connorsVisao,
       'tendencia-cripto': tendenciaVisao,
-      'smt-teste': smtVisao,
+      smt: smtVisao,
     },
     comSinais,
     confluencia,

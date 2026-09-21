@@ -59,7 +59,6 @@ import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import {
   ESTRATEGIAS_EM_TESTE,
   planAberturaDaxTeste,
-  planSmtTeste,
   planTendenciaBaixaCripto,
   planVwapForexTeste,
   type DadosExtra,
@@ -590,7 +589,6 @@ export function executarEstrategiasValidadas(
     if (e.id === 'tendencia-indices') out.push(...planTendenciaIndices(velas, ctx));
     if (e.id === 'rompimento-4h') out.push(...planRompimento4h(velas, ctx));
     if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
-    if (e.id === 'smt-teste') out.push(...planSmtTeste(velas, ctx, extra));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));
     if (e.id === 'abertura-dax-teste') out.push(...planAberturaDaxTeste(velas, ctx, extra));
   }

@@ -15,7 +15,6 @@
  *   tendencia-cripto/ouro   stop móvel no mínimo das últimas 20 velas (a compra)
  *   tendencia-baixa-cripto  o mesmo espelhado: stop móvel no MÁXIMO das últimas 20 velas
  *   vwap-forex-teste        como a compra do VWAP, nos dois sentidos
- *   smt-teste               alvo a +2R; sai às 20:00 UTC (15m/1h) ou ao fim de 12 velas (4h)
  *   abertura-dax-teste      stop no meio da faixa; sem alvo, sai no fecho do DAX à vista
  *   (outras)                primeiro alvo ou stop
  *
@@ -255,19 +254,6 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
       const r = rDe(alvo1);
       ev('alvo1', v.time, alvo1, r);
       return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
-    } else if (plano.estrategia === 'smt-teste') {
-      // Day trade: em 15m e 1h fecha na vela que acaba às 20:00 UTC do dia do sinal; em 4h, 12 velas.
-      const passo = passoDasVelas(velas, iSinal);
-      const fechoSinal = velas[iSinal]!.time + passo;
-      const fim =
-        passo >= 4 * HORA
-          ? i - iEntrada >= 12
-          : v.time + passo >= Math.floor(fechoSinal / DIA) * DIA + 20 * HORA;
-      if (fim) {
-        const r = rDe(v.close);
-        ev('saida-tempo', v.time, v.close, r);
-        return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
-      }
     } else if (plano.estrategia === 'abertura-dax-teste') {
       // Day trade: sai no fecho da vela que acaba no fecho do DAX à vista do dia do sinal.
       const passo = passoDasVelas(velas, iSinal);
@@ -320,9 +306,7 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
         ? { titulo: `sair agora ${r}`, corpo: `Fechou acima da média de 5 (${p}): é a saída da regra.` }
         : { titulo: `saída ${r}`, corpo: `Perdeu o stop móvel (${p}): a tendência terminou para esta operação.` };
     case 'saida-tempo':
-      return estrategia === 'smt-teste'
-        ? { titulo: `sair: fim do day trade ${r}`, corpo: `Não chegou ao alvo nem ao stop no tempo da regra. Fecho a ${p}.` }
-        : estrategia === 'abertura-dax-teste'
+      return estrategia === 'abertura-dax-teste'
           ? { titulo: `sair: fecho do DAX ${r}`, corpo: `O DAX à vista fechou e o stop não foi tocado. Fecho a ${p}.` }
           : estrategia === 'rompimento-4h'
             ? { titulo: `sair: 24 horas ${r}`, corpo: `A operação de 4h chegou ao fim do tempo sem tocar no alvo. Fecho a ${p}.` }

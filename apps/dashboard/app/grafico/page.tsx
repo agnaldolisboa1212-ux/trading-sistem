@@ -206,7 +206,7 @@ function Terminal() {
     return [...(desenho.linhas ?? []), ...extraLinhas];
   }, [desenho.linhas, posicoes, codigo]);
 
-  const grafico = visao === 'smt-teste' ? (
+  const grafico = visao === 'smt' ? (
     <GraficoSmt
       codigo={codigo}
       tf={tf}

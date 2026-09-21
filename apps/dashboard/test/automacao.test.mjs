@@ -74,7 +74,7 @@ test('conta REAL exige autorização explícita', () => {
 });
 
 test('só as estratégias e os instrumentos escolhidos', () => {
-  assert.equal(decidirAutomacao(factos({ sinal: { estrategia: 'smt-teste' } })).ok, false);
+  assert.equal(decidirAutomacao(factos({ sinal: { estrategia: 'rompimento-4h' } })).ok, false);
   assert.equal(decidirAutomacao(factos({ sinal: { simbolo: 'SP500' } })).ok, false);
 });
 

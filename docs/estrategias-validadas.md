@@ -358,23 +358,20 @@ em conta demo (ver abaixo).
 
 ## Em teste ao vivo (sem vantagem medida com confiança)
 
-O utilizador continua a achar que o SMT funciona nestes pares, pediu para procurar o lado da
-venda em vez de só comprar, e para operar o DAX na abertura de Londres. Quatro regras
-(`packages/core/src/strategies/em-teste.ts`) correm ao vivo, marcadas em todo o lado como
-"EM TESTE" — badge amarela em vez de percentagem, convicção 0, aviso no texto do sinal.
+Regras que correm ao vivo marcadas em todo o lado como "EM TESTE" — badge amarela em vez de
+percentagem, convicção 0, aviso no texto do sinal.
+
+**O SMT isolado (`smt-teste`) foi RETIRADO em 22/09/2026.** Esteve cinco dias ao vivo e não
+chegou a fechar operações; o que o condenou foi o backtest: em 2022–2026 não teve vantagem em
+nenhum par intradiário, e a única variante que parecia passar (ouro × DXY em 1h) era uma entre
+dezenas testadas. A LEITURA da divergência fica como análise, no separador SMT do gráfico e
+dentro do MMXM — deixou só de gerar sinais.
 
 - **VWAP ±2σ no forex** (`vwap-forex-teste`) — EURUSD, GBPUSD, GBPJPY, USDJPY · 1h e 4h. Desde
   17/09/2026, revisão a 24/09/2026 (uma semana — sinal frequente).
   A mesma regra dos índices, mas nos dois sentidos (o forex não tem a deriva de subida dos
   índices). Compra 2σ abaixo do VWAP do mês, vende 2σ acima, com RSI(14) em extremo ou o mês
   deslocado mais de 2 ATR. Nunca foi medida nesta forma.
-- **SMT sem MMXM** (`smt-teste`) — EURUSD, GBPUSD, XAUUSD, XAGUSD · 15m, 1h e 4h. Desde
-  17/09/2026, revisão a 24/09/2026.
-  Divergência entre pares correlacionados (EURUSD↔GBPUSD, prata↔ouro) ou contra o DXY sintético,
-  só a favor da tendência de 4h (EMA 50 a subir ou a descer). Alvo a +2R; em 15m/1h sai às 20:00
-  UTC do dia do sinal (day trade), em 4h ao fim de 12 velas. No backtest 2022–2026: ouro contra
-  o DXY em 1h deu **+0,15R por operação, positivo nos dois períodos** — a variante escolhida
-  aqui; EURUSD e GBPUSD ficaram em ≈0R ou negativos em todos os tamanhos de swing.
 - **Tendência de baixa — cripto** (`tendencia-baixa-cripto`) — BTCUSD, ETHUSD · 1d. Desde
   18/09/2026, revisão a 18/12/2026 (trimestral — a compra teve só 57 sinais em 10–12 anos, uma
   semana não chega para ver um sinal sequer).

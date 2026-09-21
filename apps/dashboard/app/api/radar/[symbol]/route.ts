@@ -32,7 +32,6 @@ import {
   estrategiaEmTeste,
   estrategiasPara,
   executarEstrategiasValidadas,
-  velasNecessariasSmt,
   type Candle,
   type DadosExtra,
   type Timeframe,
@@ -128,17 +127,6 @@ export async function GET(
     // a mesma lógica de `tempo-real.ts`, sem o cache entre passagens (aqui é
     // um pedido isolado).
     let extra: DadosExtra = {};
-    if (estrategias.some((e) => e.id === 'smt-teste')) {
-      const referencias: Record<string, Candle[]> = {};
-      for (const codigo of velasNecessariasSmt(s.codigo)) {
-        const ref = acharSimbolo(codigo);
-        if (!ref) continue;
-        const v = await velasFechadas(ref.deriv, gran);
-        if (v.length > 0) referencias[codigo] = v;
-      }
-      const velas4h = tf === '4h' ? fechadas : await velasFechadas(s.deriv, GRANULARIDADE_S['4h']!);
-      extra = { referencias, velas4h };
-    }
     if (estrategias.some((e) => e.id === 'abertura-dax-teste')) {
       extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
     }

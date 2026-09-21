@@ -6,9 +6,9 @@
  * que as pessoas escolheram, e só com as ESTRATÉGIAS VALIDADAS
  * (`@trading/core`, `strategies/validadas.ts`): as que mostraram vantagem
  * medida, dentro e fora da amostra, com custos — mais as EM TESTE
- * (`strategies/em-teste.ts`), que correm ao vivo marcadas como tal. O SMT em
- * teste precisa das velas das referências (GBPUSD, prata, os cinco pares do
- * DXY) e de 4h do próprio instrumento; pedem-se só quando fecha uma vela.
+ * (`strategies/em-teste.ts`), que correm ao vivo marcadas como tal. Algumas
+ * precisam de velas de OUTRO timeframe (a abertura do DAX precisa das diárias);
+ * pedem-se só quando fecha uma vela, com `referenciasCache`.
  *
  * As quatro institucionais antigas continuam no gráfico como contexto, mas
  * deixaram de gerar sinais — no backtest perdiam dinheiro depois do spread.
@@ -43,7 +43,6 @@ import {
   planoVivo,
   riscoDeNoticias,
   timeframesDoPerfil,
-  velasNecessariasSmt,
   VELAS_ATE_EXPIRAR,
   type Candle,
   type DadosExtra,
@@ -102,15 +101,13 @@ const MIN_VELAS = 60;
 const ultimaFechadaVista = new Map<string, number>();
 
 /**
- * Velas de referência do SMT em teste (GBPUSD, prata, os cinco pares do DXY),
+ * Velas de outro timeframe do mesmo instrumento (as diárias da abertura do DAX),
  * por `código|granularidade`, entre passagens.
  *
- * As referências não mudam até a vela seguinte fechar. Sem isto, cada
- * instrumento com `smt-teste` pedia de novo GBPUSD, prata e os cinco pares do
- * DXY em TODAS as passagens ao minuto — dezenas de pedidos extra por minuto à
- * mesma ligação, que arriscam o limite da Deriv também para os OUTROS
- * instrumentos dessa passagem (índices incluídos). Guarda-se com a mesma
- * chave `esperada` da vela: uma entrada só é válida até o período seguinte.
+ * Não mudam até a vela seguinte fechar. Sem isto pedia-se o mesmo histórico em
+ * TODAS as passagens ao minuto — pedidos extra que arriscam o limite da Deriv
+ * também para os OUTROS instrumentos dessa passagem. Guarda-se com a chave
+ * `esperada` da vela: uma entrada só é válida até o período seguinte.
  */
 const referenciasCache = new Map<string, { esperada: number; velas: Candle[] | null }>();
 
@@ -614,8 +611,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
   };
 
   /**
-   * Velas de uma referência do SMT, ou de outro timeframe do próprio
-   * instrumento (4h do SMT, diário da abertura do DAX), com `referenciasCache`.
+   * Velas de outro timeframe do próprio
+   * instrumento (o diário da abertura do DAX), com `referenciasCache`.
    * Válidas até à vela seguinte: o EURUSD já pedido para si mesmo serve de referência ao
    * GBPUSD na mesma passagem, e nenhuma delas volta a pedir-se nas passagens
    * seguintes enquanto o período não mudar.
@@ -731,15 +728,6 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // convicção a aplicar por cima — a regra da estratégia já é o filtro.
         let extra: DadosExtra = {};
         const aplicaveis = estrategiasPara(s.codigo, tf);
-        if (aplicaveis.some((e) => e.id === 'smt-teste')) {
-          const referencias: Record<string, Candle[]> = {};
-          for (const c of velasNecessariasSmt(s.codigo)) {
-            const v = await fechadasDe(c, gran);
-            if (v) referencias[c] = v;
-          }
-          const velas4h = tf === '4h' ? fechadas : await fechadasDe(s.codigo, GRANULARIDADE_S['4h']!);
-          extra = { referencias, velas4h: velas4h ?? undefined };
-        }
         if (aplicaveis.some((e) => e.id === 'abertura-dax-teste')) {
           // EMA 20 diária do próprio GER30 — com o cache, pede-se uma vez por dia.
           const velas1d = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);
