@@ -22,7 +22,7 @@
  * direto na ponta, além da legenda.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 export interface SmtDivergenceMark {
   /** Índice na série alinhada onde a divergência se formou. */
