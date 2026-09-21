@@ -39,6 +39,8 @@ interface Sinal {
   stopActual?: number | null;
   conviccao?: number;
   emTeste?: boolean;
+  /** Estratégia já retirada: a percentagem que traz não é acerto medido. */
+  semMedida?: boolean;
 }
 
 
@@ -250,6 +252,10 @@ function LinhaSinal({
             </b>
           ) : s.emTeste ? (
             <span className="selo-em-teste">EM TESTE</span>
+          ) : s.semMedida ? (
+            <span className="selo-antiga" title="Estratégia retirada: sem taxa de acerto medida">
+              SEM MEDIDA
+            </span>
           ) : s.conviccao !== undefined ? (
             <>{Math.round(s.conviccao * 100)}%</>
           ) : (

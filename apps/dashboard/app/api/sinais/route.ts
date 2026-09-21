@@ -66,6 +66,13 @@ export interface SinalDaConta {
   stopActual: number | null;
   /** Estratégia em teste ao vivo: sem taxa de acerto medida. */
   emTeste: boolean;
+  /**
+   * Estratégia já retirada (o MMXM do motor diário, por exemplo). A `conviccao`
+   * destes sinais é a confiança do modelo antigo, NÃO uma taxa de acerto
+   * medida — mostrá-la como percentagem seria dizer um número que ninguém
+   * mediu.
+   */
+  semMedida: boolean;
 }
 
 /** O estado do acompanhamento na linguagem da lista. */
@@ -213,6 +220,7 @@ export async function GET() {
       ultimoEvento: null,
       stopActual: null,
       emTeste: estrategiaEmTeste(l.estrategia as string) !== undefined,
+      semMedida: estrategiaActiva(l.estrategia as string) === undefined,
     }));
 
   // Estado: um pedido de velas por instrumento/timeframe, desde o sinal mais antigo.
