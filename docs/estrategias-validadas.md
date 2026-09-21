@@ -81,6 +81,20 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
   negativos depois; CAC, Hang Seng, AUS200, NL25 e EU50 ficaram abaixo da barra. Ver a secção
   "Alargar o catálogo".
 
+### 3b. Rompimento de 20 velas a favor da tendência — ouro e USDJPY, 4h
+
+- **Instrumentos:** XAUUSD e USDJPY. **Timeframe:** 4h. **Day trade:** a operação vive 24 horas.
+- **Entrada:** fecho acima do máximo das 20 velas anteriores, com a EMA 50 acima da EMA 200.
+  Compra ao fecho. Não há segundo sinal enquanto não passarem 6 velas.
+- **Saída:** stop a 1,5 ATR; alvo a +2R; se em 6 velas não tocar em nenhum, sai ao fecho.
+- **Medido (HistData de 1 minuto agregada em 4h, 2012–2026, com o código de produção):**
+  734 operações, **53% fecharam a ganhar**, **+0,16R por operação**, t=4,0, 11 de 15 anos
+  positivos. Fora da amostra (jul/2024 em diante): 138 operações, 64%, +0,42R.
+- **Por instrumento:** o ouro é que carrega (+0,25R, t=4,4, aguenta o spread a TRIPLICAR); o
+  USDJPY dá +0,07R (t=1,3).
+- **Frequência:** cerca de 1 sinal por semana nos dois instrumentos.
+- Reproduzir: `node scripts/backtest/verificar-rompimento-4h.mjs`.
+
 ### 3. Tendência de 55 dias — cripto, ouro e Nikkei, diário
 
 - **Instrumentos:** BTCUSD e ETHUSD (cripto), XAUUSD (ouro) e JP225 (Nikkei, acrescentado em
@@ -192,6 +206,95 @@ regra vive em 1h e 4h e nunca foi medida nestes mercados. As listas de instrumen
 uma por estratégia, exactamente para impedir que um mercado aprovado no diário entre sem querer
 no intradiário.
 
+## Procurar um sistema de day trade: onde está, matematicamente, o RR alto (21/09/2026)
+
+O pedido foi directo: um sistema de day trade em 1h–4h, com sinais toda a semana, não um
+swing trade que dá um sinal por mês. A procura foi feita em quatro fases, e cada fase decidiu a
+seguinte.
+
+### Fase 1 — a geometria do payoff, sem regra nenhuma
+
+Antes de inventar regras, mede-se o que o mercado oferece: entra-se em TODAS as velas, stop a
+1 ATR, e conta-se quantas vezes o preço chega a +kR antes de −1R em 24 horas. A referência é
+matemática: num passeio aleatório, isso acontece 1/(1+k) das vezes.
+
+| Alvo | Precisa de | Índices (compra) | Forex | O que sobra depois do custo |
+|---|---|---|---|---|
+| 1R | 50,0% | 49–52% | 48–50% | −0,03R a −0,12R |
+| 2R | 33,3% | 33–35% | 32% | −0,02R a −0,11R |
+| 3R | 25,0% | 22–25% | 22% | +0,06R (só GER30) a −0,11R |
+
+**A 1h–4h o mercado é quase um jogo justo.** A vantagem incondicional é de 0 a 2 pontos
+percentuais, e só do lado da compra em índices — a deriva de longo prazo das acções. Tudo o
+resto fica negativo depois de custos.
+
+A excursão contrária mediana é de **1,18 ATR** em 24 horas. Um stop de 1 ATR está DENTRO do
+ruído: é stopado mais de metade das vezes independentemente da direcção que o preço acabe por
+tomar.
+
+### Fase 1b — o plano stop × alvo
+
+Varrendo stops de 0,5 a 3 ATR contra alvos de 1R a 3R, o que aparece é o peso do custo:
+
+| Stop | Custo em R (índices, 1h) | Custo em R (metais, 1h) |
+|---|---|---|
+| 0,5 ATR | 22% de R | 53% de R |
+| 1 ATR | 7% | 25% |
+| 1,5 ATR | 4% | 16% |
+
+**Qualquer sistema de day trade com stops apertados morre do spread antes de chegar ao mercado.**
+Daí as escolhas da fase seguinte: stop de 1,5 ATR e 4h, onde o ATR é grande o suficiente para o
+custo pesar ~4%.
+
+### Fase 2 — que condição de entrada bate o jogo justo
+
+Oito famílias de entrada × três alvos × três timeframes, agregadas por GRUPO de mercados (nunca
+por mercado, para não escolher o vencedor no ruído de um só), em 1h, 2h e 4h:
+
+| Família | Melhor resultado | Veredicto |
+|---|---|---|
+| **Rompimento de 20 velas a favor da tendência (só compras)** | **4h: +0,05R forex (t=2,0), +0,11R metais (t=2,9)** | **passa nas duas metades** |
+| Compressão de volatilidade + rompimento | 2h índices +0,19R (t=1,7) | primeira metade +0,54R, segunda +0,03R — a decair |
+| Rompimento nos dois sentidos | 4h forex +0,03R (t=1,6) | o lado da venda dilui |
+| Recuo à EMA 20 em tendência | ≈0R | fora |
+| RSI(2) em tendência, 2σ, engolfo | ≈0R ou negativo | fora |
+
+### Fase 3 — robustez
+
+Todos os vizinhos do vencedor continuam positivos: N de 10 a 50, stop de 1 a 2,5 ATR, alvo de
+1,5R a 4R, horizonte de 12h a 96h, EMA curta de 20 a 100 e longa de 100 a 300. Mas:
+
+- **em 1h a regra é NEGATIVA** (−0,03R, t=−1,7) e em 2h é marginal (+0,02R, t=1,2). A vantagem
+  vive em **4h**;
+- **em índices é negativa** (−0,04R): o rompimento intradiário não funciona lá;
+- **com o lado da venda incluído, piora** (+0,025R em vez de +0,05R).
+
+### Fase 4 — o teste que matou metade do resultado
+
+Dois pares que NÃO participaram na escolha (USDCAD e USDCHF) deram **negativo**: −0,01R e
+−0,08R. E por instrumento, dos seis que escolheram a regra:
+
+| Instrumento | Por operação | t |
+|---|---|---|
+| **XAUUSD (ouro)** | **+0,24R** | **4,1** |
+| USDJPY | +0,09R | 1,8 |
+| GBPJPY, XAGUSD | +0,04R | <1 |
+| EURUSD, GBPUSD | ≈0R | ≈0 |
+
+A vantagem do grupo era quase toda do ouro. **Por isso a estratégia entra só com ouro e USDJPY** —
+e o catálogo di-lo em vez de o esconder atrás da média do grupo.
+
+Detalhe que mudou o resultado a meio: no backtest só há uma operação de cada vez, e a regra
+escrita no código tem de fazer o mesmo. Sem o arrefecimento de 6 velas entram operações
+sobrepostas no mesmo movimento e a vantagem cai para metade (+0,035R em vez de +0,076R).
+
+### O que isto dá, em concreto
+
+**1 sinal por semana**, cada um a durar no máximo 24 horas. Não é o "toda a semana em várias
+operações" que se pediu — é o que os dados sustentam. Para mais frequência sem perder honestidade
+seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
+foi medida e falhou.
+
 ## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
 
 Os números da secção 1 vêm de **um ano** de dados da Deriv (out/2025–set/2026): 135 operações,
@@ -294,6 +397,7 @@ Se as operações reais forem positivas depois da revisão, cada regra sobe a va
 | Objetivo no onboarding | Timeframes | Estratégias que podem dar sinal |
 |---|---|---|
 | Day trading | 15m | SMT no forex/ouro (em teste) |
+| Day trading / Intradiário | 4h | Rompimento de 20 velas no ouro e no USDJPY |
 | (escolha nas Definições) | 30m | Abertura de Londres no GER30 (em teste) |
 | Intradiário | 1h | VWAP em índices; VWAP e SMT no forex/ouro (em teste) |
 | Swing | 4h, 1d | VWAP em índices (4h); VWAP e SMT no forex/ouro (4h, em teste); Connors (1d); tendência cripto, ouro e Nikkei (1d) |
@@ -346,6 +450,10 @@ node scripts/backtest/alargar-catalogo-diario.mjs
 HISTDATA=<pasta> node scripts/backtest/alargar-catalogo-vwap.mjs GER30 SP500 US100 JP225
 # o controlo, nos dados da Deriv: reproduz os números publicados
 FONTE=deriv node scripts/backtest/alargar-catalogo-vwap.mjs GER30 SP500 US100 US30
+# a procura do sistema de day trade (precisa das velas da HistData em 1h)
+node scripts/backtest/geometria-intradiaria.mjs 24   # fase 1: o que o mercado oferece
+node scripts/backtest/procurar-intradiario.mjs 24 1.5 # fase 2: que entrada bate o jogo justo
+node scripts/backtest/verificar-rompimento-4h.mjs     # a regra final, com o código de produção
 ```
 
 O último script corre o código de produção (`packages/core/src/strategies/validadas.ts`)

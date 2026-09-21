@@ -238,6 +238,19 @@ export function acompanharOperacao(plano: PlanoAcompanhado, velas: readonly Cand
           ev('stop-movel', v.time, nivel, undefined, `@${v.time}`);
         }
       }
+    } else if (plano.estrategia === 'rompimento-4h') {
+      // Day trade de 4h: alvo a +2R, e se não o tocar em 6 velas (24 horas) sai
+      // ao fecho. Sem alvo parcial e sem stop móvel — foi assim que se mediu.
+      if (alvo1 !== null && tocaAcima(v, alvo1)) {
+        const r = rDe(alvo1);
+        ev('alvo1', v.time, alvo1, r);
+        return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
+      }
+      if (i - iEntrada >= 6) {
+        const r = rDe(v.close);
+        ev('saida-tempo', v.time, v.close, r);
+        return { estado: 'fechada', eventos, stopActual: stop, resultadoR: r };
+      }
     } else if (alvo1 !== null && tocaAcima(v, alvo1)) {
       const r = rDe(alvo1);
       ev('alvo1', v.time, alvo1, r);
@@ -311,7 +324,9 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
         ? { titulo: `sair: fim do day trade ${r}`, corpo: `Não chegou ao alvo nem ao stop no tempo da regra. Fecho a ${p}.` }
         : estrategia === 'abertura-dax-teste'
           ? { titulo: `sair: fecho do DAX ${r}`, corpo: `O DAX à vista fechou e o stop não foi tocado. Fecho a ${p}.` }
-          : { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
+          : estrategia === 'rompimento-4h'
+            ? { titulo: `sair: 24 horas ${r}`, corpo: `A operação de 4h chegou ao fim do tempo sem tocar no alvo. Fecho a ${p}.` }
+            : { titulo: `sair: 10 velas ${r}`, corpo: `Passaram 10 velas sem sinal de saída. Fecho a ${p}.` };
     case 'stop-movel':
       return estrategia === 'tendencia-baixa-cripto'
         ? { titulo: 'stop móvel desceu', corpo: `Novo stop: ${p} (máximo das últimas 20 velas).` }

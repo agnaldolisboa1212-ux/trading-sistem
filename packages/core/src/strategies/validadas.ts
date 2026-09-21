@@ -27,9 +27,16 @@
  * ou sem confluência extra (ver docs/estrategias-validadas.md).
  *
  *   compra-vwap-indices    US100, SP500, US30, GER30 · 1h e 4h
- *   connors-rsi2-indices   US100, SP500, US30, GER30 · 1d
+ *   connors-rsi2-indices   US100, SP500, US30, GER30, JP225, BTCUSD · 1d
  *   tendencia-cripto       BTCUSD, ETHUSD · 1d
  *   tendencia-ouro         XAUUSD · 1d (a mesma regra, medida à parte)
+ *   tendencia-indices      JP225 · 1d (idem)
+ *   rompimento-4h          XAUUSD, USDJPY · 4h — day trade de 24 horas
+ *
+ * O `rompimento-4h` é a única intradiária que sobreviveu a uma procura sistemática
+ * (geometria do payoff → famílias de entrada → robustez → instrumentos de fora):
+ * 14,5 anos, t=4,0, 11 de 15 anos positivos. O `compra-vwap-indices` tem um aviso
+ * sério em docs/estrategias-validadas.md — os seus 68% vêm de UM ano de dados.
  *
  * Os números de cada uma estão em `ESTRATEGIAS_VALIDADAS` e seguem no texto do
  * sinal. Forex, prata e o ouro intradiário NÃO têm estratégia validada; recebem
@@ -47,7 +54,7 @@
 
 import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
-import { atrSerie, rsiSerie } from './contexto.js';
+import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import {
   ESTRATEGIAS_EM_TESTE,
@@ -64,7 +71,8 @@ export type EstrategiaValidadaId =
   | 'connors-rsi2-indices'
   | 'tendencia-cripto'
   | 'tendencia-ouro'
-  | 'tendencia-indices';
+  | 'tendencia-indices'
+  | 'rompimento-4h';
 
 /** Estratégias de tendência de 55 dias (mesma regra, instrumentos diferentes). */
 export const TENDENCIA_55D: readonly string[] = ['tendencia-cripto', 'tendencia-ouro', 'tendencia-indices'];
@@ -106,6 +114,12 @@ export const CRIPTO_VALIDADA: readonly string[] = ['BTCUSD', 'ETHUSD'];
 export const OURO_VALIDADO: readonly string[] = ['XAUUSD'];
 /** Tendência de 55 dias em índices: só o Nikkei passou. */
 export const INDICES_TENDENCIA: readonly string[] = ['JP225'];
+/**
+ * Rompimento de 4h: dos doze mercados medidos, só estes dois passaram sozinhos.
+ * EURUSD e GBPUSD deram ≈0R; USDCAD e USDCHF, que não participaram na escolha,
+ * deram NEGATIVO — é por isso que a lista é curta.
+ */
+export const ROMPIMENTO_VALIDADO: readonly string[] = ['XAUUSD', 'USDJPY'];
 
 export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
   {
@@ -182,6 +196,30 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
       foraDaAmostra: { periodo: '2016–2025', operacoes: 24, acerto: 0.5, expectativaR: 0.7 },
       dados:
         'Diário Dukascopy 2006–2025 com spread e financiamento; confirmado no ouro do Yahoo 2011–2026. Amostra pequena: poucas operações por ano.',
+    },
+  },
+  {
+    id: 'rompimento-4h',
+    nome: 'Rompimento de 20 velas a favor da tendência (4h)',
+    descricao:
+      'Day trade: compra o rompimento do máximo das 20 velas de 4h anteriores, só quando a EMA 50 está acima da EMA 200. A operação vive no máximo 24 horas.',
+    instrumentos: ROMPIMENTO_VALIDADO,
+    timeframes: ['4h'],
+    entrada:
+      'Fecho acima do máximo das 20 velas anteriores, com EMA 50 acima da EMA 200. Compra ao fecho. Não há segundo sinal enquanto não passarem 6 velas.',
+    saida: 'Stop a 1,5 ATR. Alvo a +2R. Se em 6 velas (24 horas) não tocar nenhum dos dois, sai ao fecho.',
+    estatistica: {
+      resumo: '53% das operações fecharam a ganhar, com +0,16R por operação',
+      operacoes: 734,
+      acerto: 0.53,
+      expectativaR: 0.16,
+      foraDaAmostra: { periodo: 'jul/2024–ago/2026', operacoes: 138, acerto: 0.64, expectativaR: 0.42 },
+      dados:
+        'HistData de 1 minuto agregada em 4h, 2012–2026 (14,5 anos), com spread, medido com o código de produção ' +
+        '(scripts/backtest/verificar-rompimento-4h.mjs): t=4,0 e 11 de 15 anos positivos. O OURO é que carrega ' +
+        '(+0,25R, t=4,4, aguenta o spread a triplicar); o USDJPY dá +0,07R (t=1,3). Nos outros dez mercados ' +
+        'testados: índices −0,04R, EURUSD e GBPUSD ≈0R, e USDCAD e USDCHF — que não participaram na escolha — ' +
+        'deram NEGATIVO. A vantagem não é universal: vive onde as tendências são fortes.',
     },
   },
   {
@@ -401,6 +439,88 @@ export function planTendenciaIndices(velas: readonly Candle[], ctx: Contexto): S
   return planTendencia55d(velas, ctx, 'tendencia-indices', 0.37);
 }
 
+// ---------------------------------------------------------------------------
+// Rompimento de 20 velas a favor da tendência — 4h, day trade
+// ---------------------------------------------------------------------------
+
+/** Velas de arrefecimento: depois de um sinal, não há outro enquanto durarem. */
+const ARREFECIMENTO_4H = 6;
+const VELAS_ROMPIMENTO = 20;
+const STOP_ATR_4H = 1.5;
+
+/** A entrada disparava nesta vela? Usa-se também para o arrefecimento. */
+function disparaRompimento4h(lista: readonly Candle[], i: number, ema50: readonly number[], ema200: readonly number[]): boolean {
+  const u = lista[i];
+  if (!u || i < VELAS_ROMPIMENTO) return false;
+  if (!((ema50[i] ?? Number.NaN) > (ema200[i] ?? Number.NaN))) return false;
+  let maximo = -Infinity;
+  for (let k = i - VELAS_ROMPIMENTO; k < i; k++) maximo = Math.max(maximo, lista[k]?.high ?? -Infinity);
+  return Number.isFinite(maximo) && u.close > maximo;
+}
+
+/**
+ * Compra o rompimento do máximo das 20 velas anteriores, em 4h, só a favor da
+ * tendência (EMA 50 acima da EMA 200). Stop a 1,5 ATR, alvo a +2R, e sai ao
+ * fim de 6 velas (24 horas) se não tocar nenhum dos dois — day trade.
+ *
+ * O arrefecimento de 6 velas é parte da regra, não um detalhe: sem ele entram
+ * operações sobrepostas no mesmo movimento e a vantagem medida cai para metade
+ * (+0,035R em vez de +0,076R no grupo onde foi escolhida).
+ */
+export function planRompimento4h(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+  if (ctx.timeframe !== '4h') return [];
+  const lista = velas as Candle[];
+  const i = lista.length - 1;
+  const u = lista[i];
+  if (!u || lista.length < 210) return [];
+  const fechos = lista.map((v) => v.close);
+  const ema50 = emaSerie(fechos, 50);
+  const ema200 = emaSerie(fechos, 200);
+  if (!disparaRompimento4h(lista, i, ema50, ema200)) return [];
+  for (let k = Math.max(0, i - ARREFECIMENTO_4H); k < i; k++) {
+    if (disparaRompimento4h(lista, k, ema50, ema200)) return [];
+  }
+  const atr = atrSerie(lista, 14)[i] ?? Number.NaN;
+  if (!(atr > 0)) return [];
+
+  const entrada = u.close;
+  const stop = entrada - STOP_ATR_4H * atr;
+  const risco = entrada - stop;
+  if (!(risco > 0)) return [];
+  const alvo = entrada + 2 * risco;
+  const e = ESTRATEGIAS_VALIDADAS.find((x) => x.id === 'rompimento-4h')!;
+  let maximo = -Infinity;
+  for (let k = i - VELAS_ROMPIMENTO; k < i; k++) maximo = Math.max(maximo, lista[k]?.high ?? -Infinity);
+
+  return [
+    {
+      strategy: 'rompimento-4h',
+      symbol: ctx.symbol,
+      timeframe: ctx.timeframe,
+      direction: 'bullish',
+      regime: 'continuation',
+      index: i,
+      generatedAt: u.time,
+      referencePrice: entrada,
+      entryZoneLow: entrada,
+      entryZoneHigh: entrada,
+      entryPrice: entrada,
+      stopLoss: stop,
+      targets: [
+        { price: alvo, rMultiple: 2, closeFraction: 1, rationale: '+2R: fecha tudo. Sem alvo parcial.' },
+      ],
+      maxRMultiple: 2,
+      conviction: e.estatistica.acerto,
+      rationale:
+        `Fecho acima do máximo das 20 velas anteriores (${maximo.toFixed(2)}), com a EMA 50 acima da EMA 200. ` +
+        `Stop a 1,5 ATR (${stop.toFixed(2)}), alvo a +2R (${alvo.toFixed(2)}); se em 24 horas não tocar nenhum, ` +
+        `sai ao fecho. ${texto(e)}`,
+      assumptions: [e.descricao, e.saida],
+      warnings: [],
+    },
+  ];
+}
+
 function planTendencia55d(
   velas: readonly Candle[],
   ctx: Contexto,
@@ -468,6 +588,7 @@ export function executarEstrategiasValidadas(
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
     if (e.id === 'tendencia-indices') out.push(...planTendenciaIndices(velas, ctx));
+    if (e.id === 'rompimento-4h') out.push(...planRompimento4h(velas, ctx));
     if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
     if (e.id === 'smt-teste') out.push(...planSmtTeste(velas, ctx, extra));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));

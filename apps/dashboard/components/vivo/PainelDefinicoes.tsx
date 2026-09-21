@@ -241,11 +241,12 @@ const CATALOGO_VALIDADO = [
   'BTCUSD',
   'ETHUSD',
   'XAUUSD',
-  // Em teste ao vivo (sem vantagem medida ainda): forex e a prata.
+  'JP225',
+  // O USDJPY tem o rompimento de 4h validado; os outros só estratégias em teste.
+  'USDJPY',
   'EURUSD',
   'GBPUSD',
   'GBPJPY',
-  'USDJPY',
   'XAGUSD',
 ];
 

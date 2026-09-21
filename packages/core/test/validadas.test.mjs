@@ -11,8 +11,10 @@ import {
   estrategiasPara,
   estrategiaValidada,
   executarEstrategiasValidadas,
+  acompanharOperacao,
   planCompraVwapIndices,
   planConnorsIndices,
+  planRompimento4h,
   planTendenciaCripto,
   saidaDinamica,
   temEstrategiaValidada,
@@ -142,4 +144,103 @@ test('Tendência no ouro: a mesma regra, com a taxa medida no ouro', () => {
   assert.equal(s[0].strategy, 'tendencia-ouro');
   assert.equal(s[0].conviction, 0.48);
   assert.equal(saidaDinamica('tendencia-ouro', rompe)?.tipo, 'stop-movel');
+});
+
+// --- Rompimento de 20 velas a favor da tendência (4h) ---------------------------
+
+const Q = 4 * H;
+
+/**
+ * 230 velas a subir (põem a EMA 50 acima da EMA 200), 30 de consolidação com o
+ * máximo em `tecto`, e uma última vela que fecha onde se pedir.
+ *
+ * A consolidação é essencial: numa série que sobe sempre, TODAS as velas rompem
+ * o seu próprio máximo de 20 e o arrefecimento da regra bloqueia o sinal — que
+ * é exactamente o que a regra deve fazer.
+ */
+function velas4h(fechoFinal, { tecto = 120 } = {}) {
+  const inicio = Date.UTC(2026, 0, 1);
+  const v = [];
+  for (let i = 0; i < 230; i++) {
+    const base = 100 + i * 0.08;
+    v.push(vela(inicio + i * Q, base, base + 0.5, base - 0.5, base));
+  }
+  // Consolidação: oscila abaixo do tecto, sem nunca o romper.
+  for (let i = 230; i < 260; i++) {
+    const c = tecto - 2 + Math.sin(i) * 0.5;
+    v.push(vela(inicio + i * Q, c, Math.min(c + 0.6, tecto), c - 0.6, c));
+  }
+  const t = inicio + 260 * Q;
+  return v.concat([vela(t, tecto - 1, Math.max(fechoFinal, tecto) + 0.5, tecto - 2, fechoFinal)]);
+}
+
+test('Rompimento 4h: compra o fecho acima do máximo das 20 velas, com a tendência a favor', () => {
+  const ctx = { symbol: 'XAUUSD', timeframe: '4h' };
+  // A subida põe o máximo das 20 anteriores em ~120,7; fechar acima disso dispara.
+  const v = velas4h(125);
+  const s = planRompimento4h(v, ctx);
+  assert.equal(s.length, 1);
+  assert.equal(s[0].strategy, 'rompimento-4h');
+  assert.equal(s[0].direction, 'bullish');
+  assert.equal(s[0].entryPrice, 125);
+  assert.ok(s[0].stopLoss < 125, 'o stop fica abaixo da entrada');
+  assert.equal(s[0].targets.length, 1);
+  assert.equal(s[0].targets[0].rMultiple, 2);
+  // O alvo está exactamente a +2R do risco.
+  const risco = s[0].entryPrice - s[0].stopLoss;
+  assert.ok(Math.abs(s[0].targets[0].price - (125 + 2 * risco)) < 1e-9);
+  assert.equal(s[0].conviction, estrategiaValidada('rompimento-4h').estatistica.acerto);
+
+  // Sem rompimento (fecha dentro da faixa): nada.
+  assert.equal(planRompimento4h(velas4h(118), ctx).length, 0);
+  // Noutro timeframe: nada, mesmo com a mesma forma de velas.
+  assert.equal(planRompimento4h(v, { symbol: 'XAUUSD', timeframe: '1h' }).length, 0);
+  // Só nos instrumentos medidos.
+  assert.deepEqual(estrategiasPara('XAUUSD', '4h').map((e) => e.id).includes('rompimento-4h'), true);
+  assert.equal(estrategiasPara('EURUSD', '4h').some((e) => e.id === 'rompimento-4h'), false);
+});
+
+test('Rompimento 4h: arrefecimento de 6 velas — um movimento não dá dois sinais', () => {
+  const ctx = { symbol: 'XAUUSD', timeframe: '4h' };
+  const v = velas4h(125);
+  // Acrescenta uma segunda vela que também rompe, logo a seguir: não deve dar sinal.
+  const seguinte = vela(v.at(-1).time + Q, 125, 130, 124.5, 129);
+  assert.equal(planRompimento4h([...v, seguinte], ctx).length, 0);
+  // Seis velas depois, calmas e abaixo do máximo, já pode voltar a disparar.
+  const calmas = [];
+  for (let i = 1; i <= 6; i++) {
+    const t = v.at(-1).time + i * Q;
+    calmas.push(vela(t, 124, 124.5, 123.5, 124));
+  }
+  const rompeOutra = vela(v.at(-1).time + 7 * Q, 124, 132, 123.8, 131);
+  assert.equal(planRompimento4h([...v, ...calmas, rompeOutra], ctx).length, 1);
+});
+
+test('Rompimento 4h: fecha no alvo de +2R, ou ao fim de 6 velas', () => {
+  const inicio = Date.UTC(2026, 5, 1);
+  const plano = {
+    estrategia: 'rompimento-4h',
+    direccao: 'bullish',
+    entrada: 100,
+    stop: 97,
+    alvos: [{ preco: 106, r: 2 }],
+    geradoEm: inicio,
+  };
+  // Toca o alvo na terceira vela.
+  const comAlvo = [vela(inicio, 100, 100.5, 99.5, 100)];
+  comAlvo.push(vela(inicio + Q, 100, 102, 99.5, 101));
+  comAlvo.push(vela(inicio + 2 * Q, 101, 103, 100.5, 102));
+  comAlvo.push(vela(inicio + 3 * Q, 102, 107, 101.5, 106.5));
+  const a = acompanharOperacao(plano, comAlvo);
+  assert.equal(a.estado, 'fechada');
+  assert.equal(a.eventos.at(-1).tipo, 'alvo1');
+  assert.equal(a.resultadoR, 2);
+
+  // Sem tocar em nada: sai ao fim de 6 velas, ao fecho.
+  const semNada = [vela(inicio, 100, 100.5, 99.5, 100)];
+  for (let i = 1; i <= 7; i++) semNada.push(vela(inicio + i * Q, 101, 102, 98.5, 101.5));
+  const b = acompanharOperacao(plano, semNada);
+  assert.equal(b.estado, 'fechada');
+  assert.equal(b.eventos.at(-1).tipo, 'saida-tempo');
+  assert.ok(Math.abs(b.resultadoR - 0.5) < 1e-9, '+1,5 pontos com 3 de risco = +0,5R');
 });
