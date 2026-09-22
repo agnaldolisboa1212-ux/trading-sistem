@@ -312,6 +312,40 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## O perfil de volume reforça os sinais? Não (22/09/2026)
+
+Ideia testada: juntar o perfil (POC, área de valor) à melhor regra intradiária para "fortalecer"
+os sinais. Uma nota primeiro, porque muda o que se pode dizer: **a Deriv e a HistData não dão
+volume negociado no forex** — o campo `volume` da HistData é a contagem de minutos com dados
+(60 em 80 540 das 86 615 velas de 1h do ouro). O que se pode construir é um perfil **TPO**, tempo
+passado em cada preço — o Market Profile original do Steidlmayer, não volume a sério.
+
+Nove filtros × duas janelas, sobre o rompimento de 4h no ouro e no USDJPY:
+
+| Filtro | Operações | R/operação | Descarta | As descartadas valiam |
+|---|---|---|---|---|
+| sem filtro | 750 | +0,161R | — | — |
+| **vácuo acima (<10% do tempo)** | 618 | **+0,203R** | 132 | **−0,036R** |
+| POC a 1+ ATR abaixo | 671 | +0,183R | 79 | −0,031R |
+| entrada acima da VAH | 606 | +0,170R | 144 | +0,120R |
+| perto do POC (±0,5 ATR) | 20 | −0,164R | 730 | +0,170R |
+
+Os dois primeiros pareciam reais: melhoravam o que ficava E descartavam operações negativas.
+**E depois o teste fora da amostra matou-os.** Nos quinze instrumentos que não participaram na
+escolha — os oito pares onde a regra falha, a prata e cinco índices — o filtro do vácuo dá:
+
+| | Sem filtro | Com filtro | Diferença |
+|---|---|---|---|
+| 15 instrumentos, 3637 operações | −0,024R | −0,022R | **+0,002R** |
+
+Nada. Oito instrumentos melhoram, sete pioram. Os +0,24R do ouro eram **ruído de selecção**:
+testaram-se 18 combinações e escolheu-se a melhor. É o erro clássico do backtest, e só o teste
+em dados que não participaram na escolha o apanha.
+
+**O perfil não entrou no sistema.** Continua a ser desenhado como contexto no gráfico, que é o
+que ele é: uma leitura de onde o preço passou tempo, não um preditor.
+Reproduzir: `node scripts/backtest/perfil-como-filtro.mjs`.
+
 ## Power of 3 (AMD) em 15m — testado e recusado (22/09/2026)
 
 Pedido: testar o Power of 3 (acumulação, manipulação, distribuição + POI) nos pares de forex em
