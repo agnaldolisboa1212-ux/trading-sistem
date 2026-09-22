@@ -28,9 +28,10 @@ import {
 } from '@/lib/deriv/simbolos';
 import { lerPreferenciasCliente } from '@/lib/preferencias';
 
-type Grupo = 'meus' | 'indices' | 'forex' | 'sinteticos' | 'outros';
+type Grupo = 'recomendados' | 'meus' | 'indices' | 'forex' | 'sinteticos' | 'outros';
 
 const GRUPOS: Array<{ id: Grupo; rotulo: string }> = [
+  { id: 'recomendados', rotulo: 'Recomendados' },
   { id: 'meus', rotulo: 'Os meus' },
   { id: 'indices', rotulo: 'Índices' },
   { id: 'forex', rotulo: 'Forex' },
@@ -42,12 +43,28 @@ export function SelectorMercado({
   actual,
   aoEscolher,
   aoFechar,
+  recomendados,
 }: {
   actual: string;
   aoEscolher: (codigo: string) => void;
   aoFechar: () => void;
+  /**
+   * Instrumentos a oferecer primeiro, quando a folha serve para ACRESCENTAR.
+   *
+   * Sem isto a folha abria em "Os meus" — os que a pessoa já tem. Tocar num
+   * deles não faz nada (já lá está) e parece que a aplicação não responde. Era
+   * o que acontecia no botão "adicionar" do portfólio.
+   */
+  recomendados?: readonly string[];
 }) {
-  const [grupo, setGrupo] = useState<Grupo>('meus');
+  const sugestoes = useMemo(
+    () =>
+      (recomendados ?? [])
+        .map((c) => TODOS.find((t) => t.codigo === c))
+        .filter((s): s is SimboloDeriv => Boolean(s)),
+    [recomendados],
+  );
+  const [grupo, setGrupo] = useState<Grupo>(sugestoes.length > 0 ? 'recomendados' : 'meus');
   const [procura, setProcura] = useState('');
   const campo = useRef<HTMLInputElement | null>(null);
 
@@ -83,6 +100,8 @@ export function SelectorMercado({
       );
     }
     switch (grupo) {
+      case 'recomendados':
+        return sugestoes;
       case 'meus':
         return meus;
       case 'indices':
@@ -94,7 +113,7 @@ export function SelectorMercado({
       case 'outros':
         return [...METAIS, ...CRIPTO];
     }
-  }, [grupo, procura, meus]);
+  }, [grupo, procura, meus, sugestoes]);
 
   return (
     <div className="folha" role="dialog" aria-modal="true" aria-label="Escolher mercado">
@@ -123,7 +142,7 @@ export function SelectorMercado({
 
         {!procura && (
           <div className="abas abas--folha" role="tablist" aria-label="Grupos">
-            {GRUPOS.map((g) => (
+            {GRUPOS.filter((g) => g.id !== 'recomendados' || sugestoes.length > 0).map((g) => (
               <button
                 key={g.id}
                 type="button"

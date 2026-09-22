@@ -52,7 +52,12 @@ import {
   type Timeframe,
 } from '@trading/core';
 
-export type VisaoInstitucional = StrategyId | 'connors-rsi2-indices' | 'tendencia-cripto' | 'smt';
+export type VisaoInstitucional =
+  | StrategyId
+  | 'connors-rsi2-indices'
+  | 'tendencia-cripto'
+  | 'rompimento-4h'
+  | 'smt';
 export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
@@ -60,6 +65,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
   { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
+  { id: 'rompimento-4h', nome: 'Rompimento de 20 velas (4h)', curto: 'Rompimento' },
   { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
@@ -85,7 +91,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'tendencia-baixa-cripto': 'tendencia-cripto',
   // O VWAP no forex/ouro partilha a mesma visão (bandas).
   'vwap-forex-teste': 'vwap-bands',
-  'rompimento-4h': 'resumo',
+  'rompimento-4h': 'rompimento-4h',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {
@@ -630,6 +636,52 @@ export function analisarVisoes(
         : 'Esta regra só está validada no diário (1D) de BTCUSD, ETHUSD e XAUUSD. Aqui é contexto.',
   };
 
+  // --- rompimento de 20 velas (4h) --------------------------------------------
+  const rp = sinalDe('rompimento-4h');
+  const maximo20Rompimento = lista.map((_, i) => {
+    if (i < 20) return Number.NaN;
+    let m = -Infinity;
+    for (let k = i - 20; k < i; k++) m = Math.max(m, lista[k]!.high);
+    return m;
+  });
+  const ema = (periodo: number) => {
+    const k = 2 / (periodo + 1);
+    let v = fechos[0] ?? Number.NaN;
+    return fechos.map((c, i) => {
+      v = i === 0 ? c : v + k * (c - v);
+      return i < periodo ? Number.NaN : v;
+    });
+  };
+  const ema50 = ema(50);
+  const ema200 = ema(200);
+  const rompimentoAqui = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'rompimento-4h');
+  const aFavor = Number.isFinite(ema50[ultimo]) && Number.isFinite(ema200[ultimo]) && ema50[ultimo]! > ema200[ultimo]!;
+  const rompimentoVisao: Visao = {
+    id: 'rompimento-4h',
+    nome: nomeVisao('rompimento-4h'),
+    sinal: rp,
+    desenho: juntar(
+      {
+        zonas: [],
+        linhas: [],
+        curvas: [
+          curvaDe(maximo20Rompimento, 'banda2', 'máximo 20', desde),
+          curvaDe(ema50, 'banda1', 'EMA 50', desde),
+          curvaDe(ema200, 'banda1', 'EMA 200', desde),
+        ],
+      },
+      desenhoDoSinal(rp, 'rompimento-4h'),
+    ),
+    estruturas: [
+      ...(Number.isFinite(maximo20Rompimento[ultimo])
+        ? [{ rotulo: 'Máximo de 20 — compra no fecho acima', baixo: maximo20Rompimento[ultimo]!, tipo: 'bull' as const }]
+        : []),
+    ],
+    nota: rompimentoAqui
+      ? `Compra no fecho acima do máximo das 20 velas anteriores, só com a EMA 50 acima da EMA 200 (agora ${aFavor ? 'está' : 'NÃO está'}). Stop a 1,5 ATR, alvo a +3R, e sai ao fim de 6 velas — só 4% chegam ao alvo, a maior parte fecha no tempo.`
+      : 'Esta regra está medida em 4h, no ouro, prata, USDJPY e EURJPY. Aqui é contexto.',
+  };
+
   // --- resumo ---------------------------------------------------------------
   const activos = historico.sinais.filter((s) => s.index === ultimo);
   const confluencia = assessConfluence(activos);
@@ -690,6 +742,7 @@ export function analisarVisoes(
       'volume-profile': perfilVisao,
       'connors-rsi2-indices': connorsVisao,
       'tendencia-cripto': tendenciaVisao,
+      'rompimento-4h': rompimentoVisao,
       smt: smtVisao,
     },
     comSinais,

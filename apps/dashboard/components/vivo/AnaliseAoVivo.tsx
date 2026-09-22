@@ -86,6 +86,28 @@ function relogio(ms: number): string {
   return h > 0 ? `${h}:${dois(m)}:${dois(seg)}` : `${dois(m)}:${dois(seg)}`;
 }
 
+/**
+ * A ordem das abas do gráfico.
+ *
+ * Primeiro o Resumo, depois as estratégias que REALMENTE se aplicam a este
+ * instrumento e timeframe, depois as outras medidas, e o contexto no fim.
+ * Antes era uma ordem fixa: num gráfico de ouro a 4h, a primeira aba depois do
+ * resumo era o VWAP dos índices, que ali não gera nada, e o rompimento — que é
+ * a regra daquele gráfico — nem sequer existia.
+ */
+function visoesOrdenadas(codigo: string, tf: string) {
+  const daqui = new Set<string>(estrategiasPara(codigo, tf).map((e) => e.id as string));
+  const peso = (v: (typeof VISOES)[number]) => {
+    if (v.id === 'resumo') return 0;
+    if (v.contexto) return 3;
+    const ids: string[] = [...daqui];
+    return ids.includes(v.id) || (v.id === 'tendencia-cripto' && ids.some((i) => i.startsWith('tendencia')))
+      ? 1
+      : 2;
+  };
+  return [...VISOES].sort((a, b) => peso(a) - peso(b));
+}
+
 export function AnaliseAoVivo({
   codigo,
   tf,
@@ -227,7 +249,7 @@ export function AnaliseAoVivo({
     return (
       <div className="analise-viva analise-viva--compacta">
         <div className="visoes" role="tablist" aria-label="Estratégia desenhada no gráfico">
-          {VISOES.map((v) => (
+          {visoesOrdenadas(codigo, tf).map((v) => (
             <button
               key={v.id}
               type="button"

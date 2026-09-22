@@ -31,8 +31,12 @@ const { planCompraVwapIndices } = await import(pathToFileURL(RAIZ + 'packages/co
 
 const HORA = 3_600_000;
 const CORTE = Date.UTC(2024, 6, 1);
-const CUSTO = { GER30: 2, SP500: 0.6, US100: 1.8, JP225: 12, UK100: 2, FRA40: 2 };
-const FICHEIRO = { GER30: 'GRXEUR', SP500: 'SPXUSD', US100: 'NSXUSD', JP225: 'JPXJPY', UK100: 'UKXGBP', FRA40: 'FRXEUR' };
+/** CUSTO=0.6 mede com o custo de uma conta raw. */
+const CUSTO_MULT = Number(process.env.CUSTO ?? 1);
+const CUSTO = { GER30: 2, SP500: 0.6, US100: 1.8, JP225: 12, UK100: 2, FRA40: 2,
+  EURUSD: 0.00012, GBPUSD: 0.00018, GBPJPY: 0.03, USDJPY: 0.012, EURJPY: 0.018, XAUUSD: 0.35 };
+const FICHEIRO = { GER30: 'GRXEUR', SP500: 'SPXUSD', US100: 'NSXUSD', JP225: 'JPXJPY', UK100: 'UKXGBP', FRA40: 'FRXEUR',
+  EURUSD: 'EURUSD', GBPUSD: 'GBPUSD', GBPJPY: 'GBPJPY', USDJPY: 'USDJPY', EURJPY: 'EURJPY', XAUUSD: 'XAUUSD' };
 
 function velas(simbolo, tf) {
   const v = JSON.parse(readFileSync(`${DIR}${FICHEIRO[simbolo]}_1h.json`, 'utf8'));
@@ -158,7 +162,7 @@ for (const s of SIMBOLOS) {
         rsiAntes: r[i - 1],
       };
       // Gestão parcial: metade a +1R, resto a +2R com o stop na entrada.
-      const custo = CUSTO[s] / risco;
+      const custo = (CUSTO[s] * CUSTO_MULT) / risco;
       let parcial = null;
       let armado = false;
       let k = i + 1;

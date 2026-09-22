@@ -25,7 +25,7 @@
  */
 
 import Link from 'next/link';
-import { temEstrategiaEmTeste, temEstrategiaValidada } from '@trading/core';
+import { ESTRATEGIAS_ACTIVAS, temEstrategiaEmTeste, temEstrategiaValidada } from '@trading/core';
 import { useState } from 'react';
 import { CartaoSaldo } from '@/components/vivo/CartaoSaldo';
 import { SelectorMercado } from '@/components/vivo/SelectorMercado';
@@ -67,6 +67,9 @@ const ABAS: Array<{ id: Aba; rotulo: string; icone: React.ReactNode }> = [
     ),
   },
 ];
+
+/** Os instrumentos que alguma estratégia cobre — os que vale a pena seguir. */
+const CATALOGO = [...new Set(ESTRATEGIAS_ACTIVAS.flatMap((e) => e.instrumentos))].sort();
 
 export default function Page() {
   const [aba, setAba] = useState<Aba>('indices');
@@ -370,6 +373,9 @@ function MeusInstrumentos() {
       {escolher && (
         <SelectorMercado
           actual=""
+          // Os instrumentos com estratégia que ainda não estão no portfólio:
+          // é isso que se quer ver ao tocar em "adicionar".
+          recomendados={CATALOGO.filter((c) => !(p.instrumentos ?? []).includes(c))}
           aoFechar={() => setEscolher(false)}
           aoEscolher={(c) => {
             setEscolher(false);
