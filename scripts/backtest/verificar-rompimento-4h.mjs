@@ -70,8 +70,10 @@ for (const par of PARES) {
   let v;
   try {
     v = velas4h(par);
-  } catch {
-    console.log(`${par}: sem dados em ${DIR}`);
+  } catch (e) {
+    // Diz PORQUE falhou: sem ficheiro é uma coisa, ficheiro corrompido (um
+    // download interrompido a meio) é outra — e essa cala-se se não se disser.
+    console.log(`${par}: ${String(e).includes('ENOENT') ? 'sem dados em ' + DIR : 'ficheiro ilegível — ' + String(e).slice(0, 80)}`);
     continue;
   }
   const ops = [];
@@ -98,6 +100,10 @@ for (const par of PARES) {
   todas.push(...ops);
 }
 
+if (todas.length === 0) {
+  console.log('sem operacoes — nada a medir.');
+  process.exit(0);
+}
 todas.sort((a, b) => a.t - b.t);
 console.log('');
 mostra('TUDO', st(todas.map((o) => o.r)));
@@ -112,5 +118,11 @@ const semanas = (todas.at(-1).t - todas[0].t) / (7 * 24 * 3600_000);
 console.log(
   `anos positivos ${[...anos.values()].filter((x) => x > 0).length}/${anos.size} · ` +
     `${(todas.length / semanas).toFixed(1)} sinais por semana`,
+);
+// O período MEDIDO, não o pretendido: os ficheiros no disco podem cobrir menos
+// anos do que a medição publicada, e sem isto a diferença passava despercebida.
+console.log(
+  `medido de ${new Date(todas[0].t).toISOString().slice(0, 10)} a ` +
+    `${new Date(todas.at(-1).t).toISOString().slice(0, 10)}`,
 );
 console.log('\nesperado da investigação: n≈750 · 53% · +0,161R · t≈4,2 · 12/15 anos · 1,0/semana');

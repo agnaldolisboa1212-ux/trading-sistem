@@ -365,6 +365,19 @@ que enterra o setup — o mesmo que a fase 1b da procura intradiária já tinha 
 iene, com 8476 operações em 10,7 anos — a amostra é grande o suficiente para a conclusão não ser
 falta de dados.
 
+## Alargar o rompimento de 4h aos pares que faltavam (22/09/2026)
+
+O rompimento de 4h entrou no catálogo com dois instrumentos (ouro e USDJPY), depois de doze
+mercados medidos. Restavam os quatro pares do universo negociável que ainda não tinham sido
+testados. A regra corre igual em qualquer mercado — `PARES=<lista>
+node scripts/backtest/verificar-rompimento-4h.mjs` mede um candidato sem o pôr no catálogo.
+
+| Par | Operações | R/operação | t | Anos positivos | Decisão |
+|---|---|---|---|---|---|
+| AUDUSD | 297 | **−0,117R** | −2,2 | 3/15 | fora |
+
+(NZDUSD, EURGBP e EURJPY seguem quando os dados estiverem prontos.)
+
 ## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
 
 Os números da secção 1 vêm de **um ano** de dados da Deriv (out/2025–set/2026): 135 operações,
