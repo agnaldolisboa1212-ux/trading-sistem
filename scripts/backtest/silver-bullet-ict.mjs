@@ -40,9 +40,17 @@ const HORA = 3_600_000;
 const M15 = 900_000;
 const CORTE = Date.UTC(2020, 0, 1);
 
+/**
+ * CUSTO=0.7 mede com 70% do spread assumido — é assim que se responde à
+ * pergunta "e numa conta raw?" sem adivinhar os números da corretora.
+ */
+const CUSTO_MULT = Number(process.env.CUSTO ?? 1);
+
 const PARES = [
   ['EURUSD', 0.00012], ['GBPUSD', 0.00018], ['USDJPY', 0.012], ['GBPJPY', 0.03],
   ['XAUUSD', 0.35], ['AUDUSD', 0.0002], ['EURJPY', 0.018],
+  // Estes dois não participaram na primeira medição: servem de controlo.
+  ['EURGBP', 0.00022], ['NZDUSD', 0.0003],
 ];
 
 /** Nova Iorque é UTC−5, ou UTC−4 no horário de verão (2.º domingo de março a 1.º de novembro). */
@@ -185,8 +193,11 @@ function operacoes(v, atr, sentido, custo, { horaAlvo = 10, alvo = '2R', comTend
   return ops;
 }
 
+/** PARES=XAUUSD,AUDUSD limita a medição a esses instrumentos. */
+const SO_ESTES = process.env.PARES ? new Set(process.env.PARES.split(',')) : null;
 const dados = new Map();
 for (const [par, custo] of PARES) {
+  if (SO_ESTES && !SO_ESTES.has(par)) continue;
   try {
     const v = ler(par);
     dados.set(par, { v, atr: atrSerie(v), sentido: tendencia4h(v), custo });
@@ -196,7 +207,7 @@ console.log(`Silver Bullet · ${TF} · ${dados.size} instrumentos · FVG na jane
 
 function mede(rot, cfg) {
   const todas = [];
-  for (const [, d] of dados) todas.push(...operacoes(d.v, d.atr, d.sentido, d.custo, cfg));
+  for (const [, d] of dados) todas.push(...operacoes(d.v, d.atr, d.sentido, d.custo * CUSTO_MULT, cfg));
   if (todas.length < 20) { console.log(rot.padEnd(32) + `${todas.length} operações (poucas)`); return; }
   todas.sort((a, b) => a.t - b.t);
   const s = st(todas.map((o) => o.r));
@@ -256,7 +267,7 @@ for (const smin of [1, 1.5]) {
 console.log('');
 console.log('── por instrumento (10h NY, alvo na liquidez) ──');
 for (const [par, d] of dados) {
-  const o = operacoes(d.v, d.atr, d.sentido, d.custo, { horaAlvo: 10, alvo: 'liquidez' });
+  const o = operacoes(d.v, d.atr, d.sentido, d.custo * CUSTO_MULT, { horaAlvo: 10, alvo: 'liquidez' });
   if (o.length < 20) continue;
   const s = st(o.map((x) => x.r));
   const a = st(o.filter((x) => x.t < CORTE).map((x) => x.r));

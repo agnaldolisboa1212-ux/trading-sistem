@@ -188,10 +188,10 @@ test('Rompimento 4h: compra o fecho acima do máximo das 20 velas, com a tendên
   assert.equal(s[0].entryPrice, 125);
   assert.ok(s[0].stopLoss < 125, 'o stop fica abaixo da entrada');
   assert.equal(s[0].targets.length, 1);
-  assert.equal(s[0].targets[0].rMultiple, 2);
-  // O alvo está exactamente a +2R do risco.
+  assert.equal(s[0].targets[0].rMultiple, 3);
+  // O alvo está exactamente a +3R do risco (1:3 mediu melhor do que 1:2).
   const risco = s[0].entryPrice - s[0].stopLoss;
-  assert.ok(Math.abs(s[0].targets[0].price - (125 + 2 * risco)) < 1e-9);
+  assert.ok(Math.abs(s[0].targets[0].price - (125 + 3 * risco)) < 1e-9);
   assert.equal(s[0].conviction, estrategiaValidada('rompimento-4h').estatistica.acerto);
 
   // Sem rompimento (fecha dentro da faixa): nada.
@@ -200,6 +200,10 @@ test('Rompimento 4h: compra o fecho acima do máximo das 20 velas, com a tendên
   assert.equal(planRompimento4h(v, { symbol: 'XAUUSD', timeframe: '1h' }).length, 0);
   // Só nos instrumentos medidos.
   assert.deepEqual(estrategiasPara('XAUUSD', '4h').map((e) => e.id).includes('rompimento-4h'), true);
+  // Prata e EURJPY entraram com a medição a custo de conta raw (22/09/2026).
+  assert.ok(estrategiasPara('XAGUSD', '4h').some((e) => e.id === 'rompimento-4h'));
+  assert.ok(estrategiasPara('EURJPY', '4h').some((e) => e.id === 'rompimento-4h'));
+  assert.equal(estrategiasPara('AUDUSD', '4h').some((e) => e.id === 'rompimento-4h'), false);
   assert.equal(estrategiasPara('EURUSD', '4h').some((e) => e.id === 'rompimento-4h'), false);
 });
 

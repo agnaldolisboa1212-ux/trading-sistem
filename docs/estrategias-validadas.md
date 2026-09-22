@@ -81,19 +81,36 @@ Todas as três são **só de compra**. Nos índices, as vendas não têm vantage
   negativos depois; CAC, Hang Seng, AUS200, NL25 e EU50 ficaram abaixo da barra. Ver a secção
   "Alargar o catálogo".
 
-### 3b. Rompimento de 20 velas a favor da tendência — ouro e USDJPY, 4h
+### 3b. Rompimento de 20 velas a favor da tendência — ouro, prata, USDJPY e EURJPY, 4h
 
-- **Instrumentos:** XAUUSD e USDJPY. **Timeframe:** 4h. **Day trade:** a operação vive 24 horas.
+- **Instrumentos:** XAUUSD, XAGUSD, USDJPY, EURJPY. **Timeframe:** 4h. **Day trade:** 24 horas.
 - **Entrada:** fecho acima do máximo das 20 velas anteriores, com a EMA 50 acima da EMA 200.
   Compra ao fecho. Não há segundo sinal enquanto não passarem 6 velas.
-- **Saída:** stop a 1,5 ATR; alvo a +2R; se em 6 velas não tocar em nenhum, sai ao fecho.
-- **Medido (HistData de 1 minuto agregada em 4h, 2012–2026, com o código de produção):**
-  734 operações, **53% fecharam a ganhar**, **+0,16R por operação**, t=4,0, 11 de 15 anos
-  positivos. Fora da amostra (jul/2024 em diante): 138 operações, 64%, +0,42R.
-- **Por instrumento:** o ouro é que carrega (+0,25R, t=4,4, aguenta o spread a TRIPLICAR); o
-  USDJPY dá +0,07R (t=1,3).
-- **Frequência:** cerca de 1 sinal por semana nos dois instrumentos.
+- **Saída:** stop a 1,5 ATR; alvo a **+3R**; se em 6 velas não tocar em nenhum, sai ao fecho.
+- **Medido (HistData agregada em 4h, 2012–2026, código de produção, custo de conta raw):**
+  1388 operações, **51% a ganhar**, **+0,16R por operação**, t=5,3, 11 de 15 anos positivos.
+  Fora da amostra (jul/2024 em diante): 277 operações, 56%, +0,24R.
+- **Os quatro passam sozinhos:** ouro +0,25R (t=4,1), EURJPY +0,14R (t=2,5), prata +0,14R (t=2,0),
+  USDJPY +0,11R (t=1,9).
+- **Frequência:** cerca de 1,8 sinais por semana.
 - Reproduzir: `node scripts/backtest/verificar-rompimento-4h.mjs`.
+
+**Porque é que o alvo é 1:3 e não 1:2.** Medidos todos, nos quatro instrumentos:
+
+| RR | Positivas | Tocou o alvo | R/operação | t | R/ano |
+|---|---|---|---|---|---|
+| 1:1 | 55% | 39% | +0,085R | 3,8 | +8,3R |
+| 1:2 | 52% | 13% | +0,141R | 5,1 | +13,7R |
+| **1:3** | 51% | 4% | **+0,159R** | **5,3** | **+15,5R** |
+| 1:5 | 51% | 0% | +0,161R | 5,2 | +15,7R |
+
+A 1:3 só **4%** das operações chegam ao alvo. Ele não está lá para ser atingido — está lá para
+não cortar os ganhos antes do fim das 24 horas, que é onde a maior parte fecha. Daí para cima
+(1:4, 1:5) fica plano: não há nada a ganhar em pôr o alvo mais longe.
+
+**Prata e EURJPY entraram com a conta raw.** Com o spread de uma conta normal ficam abaixo da
+barra (prata t=1,3; EURJPY com a segunda metade em zero). Com o custo de uma conta raw — spread
+quase nulo mais comissão, ~0,7× — passam ambos. O ouro e o USDJPY passam nas duas.
 
 ### 3. Tendência de 55 dias — cripto, ouro e Nikkei, diário
 

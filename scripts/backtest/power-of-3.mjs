@@ -130,6 +130,12 @@ function st(rs) {
 }
 
 const ALVO = process.argv[2] ?? 'oposto';
+/**
+ * CUSTO=0.5 mede com metade do custo (conta raw: spread quase nulo mais
+ * comissão); CUSTO=0 é o limite teórico sem custo nenhum, que não existe mas
+ * diz se a IDEIA tem conteúdo.
+ */
+const CUSTO_MULT = Number(process.env.CUSTO ?? 1);
 /** Stop mínimo em ATR: com o stop colado à varredura, o spread come ~15% de R. */
 const STOP_MIN_ATR = Number(process.env.STOP_MIN ?? 0);
 /** SENTIDO=contra (o AMD clássico) ou =a-favor (controlo: seguir a varredura). */
@@ -242,7 +248,7 @@ function correr(v, atr, sentido, custo, filtros) {
       }
     }
     if (r === null) continue;
-    ops.push({ t: v[iEnt].time, r: r - custo / risco, rAlvo });
+    ops.push({ t: v[iEnt].time, r: r - (custo * CUSTO_MULT) / risco, rAlvo });
   }
   return ops;
 }

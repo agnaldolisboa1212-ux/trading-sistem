@@ -114,11 +114,20 @@ export const OURO_VALIDADO: readonly string[] = ['XAUUSD'];
 /** Tendência de 55 dias em índices: só o Nikkei passou. */
 export const INDICES_TENDENCIA: readonly string[] = ['JP225'];
 /**
- * Rompimento de 4h: dos doze mercados medidos, só estes dois passaram sozinhos.
- * EURUSD e GBPUSD deram ≈0R; USDCAD e USDCHF, que não participaram na escolha,
- * deram NEGATIVO — é por isso que a lista é curta.
+ * Rompimento de 4h. Dos dezasseis mercados medidos, quatro passam.
+ *
+ * O ouro e o USDJPY passam com o spread de uma conta normal. A prata e o EURJPY
+ * entraram em 22/09/2026, quando se mediu com o custo de uma conta RAW (spread
+ * quase nulo mais comissão, ~0,7× do de uma conta normal): a prata passa de
+ * t=1,3 para t=1,8 e o EURJPY de uma segunda metade morta para t=2,1. Numa conta
+ * normal continuam positivos (+0,08R e +0,10R) mas abaixo da barra — por isso a
+ * lista vale como está para quem opera em conta raw.
+ *
+ * Ficaram de fora: EURUSD e GBPUSD (≈0R), AUDUSD (−0,12R), EURGBP (−0,19R),
+ * USDCAD e USDCHF (negativos, e não participaram na escolha), e os índices
+ * (−0,04R em grupo).
  */
-export const ROMPIMENTO_VALIDADO: readonly string[] = ['XAUUSD', 'USDJPY'];
+export const ROMPIMENTO_VALIDADO: readonly string[] = ['XAUUSD', 'USDJPY', 'XAGUSD', 'EURJPY'];
 
 export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
   {
@@ -209,19 +218,22 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
     timeframes: ['4h'],
     entrada:
       'Fecho acima do máximo das 20 velas anteriores, com EMA 50 acima da EMA 200. Compra ao fecho. Não há segundo sinal enquanto não passarem 6 velas.',
-    saida: 'Stop a 1,5 ATR. Alvo a +2R. Se em 6 velas (24 horas) não tocar nenhum dos dois, sai ao fecho.',
+    saida: 'Stop a 1,5 ATR. Alvo a +3R, que só 4% das operações tocam: o que fecha a maior parte é o fim das 6 velas (24 horas).',
     estatistica: {
-      resumo: '53% das operações fecharam a ganhar, com +0,16R por operação',
-      operacoes: 734,
-      acerto: 0.53,
+      resumo: '51% das operações fecharam a ganhar, com +0,16R por operação',
+      operacoes: 1388,
+      acerto: 0.51,
       expectativaR: 0.16,
-      foraDaAmostra: { periodo: 'jul/2024–ago/2026', operacoes: 138, acerto: 0.64, expectativaR: 0.42 },
+      foraDaAmostra: { periodo: 'jul/2024–ago/2026', operacoes: 277, acerto: 0.56, expectativaR: 0.24 },
       dados:
-        'HistData de 1 minuto agregada em 4h, 2012–2026 (14,5 anos), com spread, medido com o código de produção ' +
-        '(scripts/backtest/verificar-rompimento-4h.mjs): t=4,0 e 11 de 15 anos positivos. O OURO é que carrega ' +
-        '(+0,25R, t=4,4, aguenta o spread a triplicar); o USDJPY dá +0,07R (t=1,3). Nos outros dez mercados ' +
-        'testados: índices −0,04R, EURUSD e GBPUSD ≈0R, e USDCAD e USDCHF — que não participaram na escolha — ' +
-        'deram NEGATIVO. A vantagem não é universal: vive onde as tendências são fortes.',
+        'HistData de 1 minuto agregada em 4h, 2012–2026 (14,5 anos), medido com o código de produção ' +
+        '(scripts/backtest/verificar-rompimento-4h.mjs) com o custo de uma conta RAW (~0,7× do spread de uma ' +
+        'conta normal): t=5,3 e 11 de 15 anos positivos, 1,8 sinais por semana. Os quatro passam sozinhos: ouro ' +
+        '+0,25R (t=4,1), EURJPY +0,14R (t=2,5), prata +0,14R (t=2,0), USDJPY +0,11R (t=1,9). O alvo de 1:3 ' +
+        'veio de medir 1:1 a 1:5 — +0,085R, +0,141R, +0,159R e daí plano. Numa conta normal os quatro ' +
+        'continuam positivos, com a prata e o EURJPY abaixo da barra. Nos outros doze mercados: índices −0,04R, ' +
+        'EURUSD e GBPUSD ≈0R, AUDUSD −0,12R, EURGBP −0,19R, e USDCAD e USDCHF — que não participaram na ' +
+        'escolha — negativos. A vantagem não é universal: vive onde as tendências são fortes.',
     },
   },
   {
@@ -490,7 +502,16 @@ export function planRompimento4h(velas: readonly Candle[], ctx: Contexto): Strat
   const stop = entrada - STOP_ATR_4H * atr;
   const risco = entrada - stop;
   if (!(risco > 0)) return [];
-  const alvo = entrada + 2 * risco;
+  /*
+   * Alvo a +3R, e não a +2R como na primeira versão.
+   *
+   * Medido nos quatro instrumentos: 1:1 dá +0,085R, 1:2 dá +0,141R, 1:3 dá
+   * +0,159R e daí para cima fica plano. E o número que explica porquê: a 1:3 só
+   * 4% das operações chegam ao alvo. Ele não está lá para ser atingido — está
+   * lá para NÃO cortar os ganhos antes do fim das 24 horas, que é onde a maior
+   * parte fecha.
+   */
+  const alvo = entrada + 3 * risco;
   const e = ESTRATEGIAS_VALIDADAS.find((x) => x.id === 'rompimento-4h')!;
   let maximo = -Infinity;
   for (let k = i - VELAS_ROMPIMENTO; k < i; k++) maximo = Math.max(maximo, lista[k]?.high ?? -Infinity);
@@ -510,14 +531,14 @@ export function planRompimento4h(velas: readonly Candle[], ctx: Contexto): Strat
       entryPrice: entrada,
       stopLoss: stop,
       targets: [
-        { price: alvo, rMultiple: 2, closeFraction: 1, rationale: '+2R: fecha tudo. Sem alvo parcial.' },
+        { price: alvo, rMultiple: 3, closeFraction: 1, rationale: '+3R: fecha tudo. Sem alvo parcial.' },
       ],
-      maxRMultiple: 2,
+      maxRMultiple: 3,
       conviction: e.estatistica.acerto,
       rationale:
         `Fecho acima do máximo das 20 velas anteriores (${maximo.toFixed(2)}), com a EMA 50 acima da EMA 200. ` +
-        `Stop a 1,5 ATR (${stop.toFixed(2)}), alvo a +2R (${alvo.toFixed(2)}); se em 24 horas não tocar nenhum, ` +
-        `sai ao fecho. ${texto(e)}`,
+        `Stop a 1,5 ATR (${stop.toFixed(2)}), alvo a +3R (${alvo.toFixed(2)}); a maior parte das operações não ` +
+        `chega lá e fecha ao fim de 24 horas com o lucro que tiver. ${texto(e)}`,
       assumptions: [e.descricao, e.saida],
       warnings: [],
     },
