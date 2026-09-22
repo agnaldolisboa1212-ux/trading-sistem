@@ -372,11 +372,31 @@ mercados medidos. Restavam os quatro pares do universo negociável que ainda nã
 testados. A regra corre igual em qualquer mercado — `PARES=<lista>
 node scripts/backtest/verificar-rompimento-4h.mjs` mede um candidato sem o pôr no catálogo.
 
-| Par | Operações | R/operação | t | Anos positivos | Decisão |
-|---|---|---|---|---|---|
-| AUDUSD | 297 | **−0,117R** | −2,2 | 3/15 | fora |
+| Par | Operações | R/operação | t | 1.ª metade | 2.ª metade | Anos+ | Decisão |
+|---|---|---|---|---|---|---|---|
+| EURJPY | 377 | +0,101R | 2,0 | +0,122 | **+0,009** | 11/15 | **fora** — ver abaixo |
+| NZDUSD | 285 | −0,009R | −0,2 | +0,018 | −0,146 | 9/15 | fora |
+| AUDUSD | 297 | −0,117R | −2,2 | −0,117 | −0,114 | 3/15 | fora |
+| EURGBP | 267 | −0,185R | −3,0 | −0,176 | −0,242 | 3/15 | fora |
 
-(NZDUSD, EURGBP e EURJPY seguem quando os dados estiverem prontos.)
+**O EURJPY é o caso interessante, e ficou de fora na mesma.** No conjunto dos 15 anos é mais
+forte do que o próprio USDJPY que está no catálogo (t=2,0 contra t=1,3), e tem 11 anos positivos.
+O que o trava é o teste do custo:
+
+| Spread | R/operação | t | 2.ª metade |
+|---|---|---|---|
+| assumido | +0,101R | 2,0 | +0,009R |
+| a dobrar | +0,070R | 1,4 | **−0,020R** |
+| a triplicar | +0,038R | 0,7 | −0,050R |
+
+A metade recente já estava praticamente em zero com o spread ideal, e passa a NEGATIVA com um
+spread realista. O ouro, à mesma prova, aguenta o spread a triplicar (+0,18R, t=3,1) — é essa a
+diferença entre uma vantagem e uma coincidência. Se o EURJPY voltar a mostrar algo nos próximos
+meses, revê-se.
+
+**Resultado do alargamento:** dos dez pares de forex do universo negociável, o rompimento de 4h
+foi medido em todos. Passa em dois instrumentos (ouro e USDJPY) e falha nos outros oito. Não é
+uma regra universal: vive onde as tendências são fortes.
 
 ## ⚠️ O VWAP −2σ medido em 4,7 anos: muito mais fraco do que publicado (21/09/2026)
 

@@ -28,6 +28,8 @@ const PARES = process.env.PARES ? process.env.PARES.split(',') : ROMPIMENTO_VALI
 
 const HORA = 3_600_000;
 const CORTE = Date.UTC(2024, 6, 1);
+/** CUSTO=2 dobra o spread: quem só passa com o spread ideal não passa. */
+const CUSTO_MULT = Number(process.env.CUSTO ?? 1);
 /** Spread + deslize, em unidades de preço. */
 const CUSTO = {
   XAUUSD: 0.35, XAGUSD: 0.03, USDJPY: 0.012, GBPJPY: 0.03,
@@ -94,7 +96,7 @@ for (const par of PARES) {
     );
     if (a.resultadoR === null) continue;
     const risco = g.entryPrice - g.stopLoss;
-    ops.push({ t: v[i].time, r: a.resultadoR - CUSTO[par] / risco });
+    ops.push({ t: v[i].time, r: a.resultadoR - (CUSTO[par] * CUSTO_MULT) / risco });
   }
   mostra(par, st(ops.map((o) => o.r)));
   todas.push(...ops);
