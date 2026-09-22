@@ -312,6 +312,39 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## Carry no forex — a terceira da tríade, também não passa (22/09/2026)
+
+Das três famílias com evidência de um século (tendência, valor, carry), o projecto já vive na
+primeira. Faltava medir o carry: estar comprado nas moedas de juro alto contra as de juro baixo,
+que rende o diferencial.
+
+Medido nos **dez pares que a corretora oferece**, com as taxas interbancárias a 3 meses (OCDE via
+FRED) e 15 anos de preços diários, rebalanceado ao mês:
+
+| Estratégia | Por ano | t | Sharpe | Até 2018 | 2019+ |
+|---|---|---|---|---|---|
+| 3 contra 3, carry todo | +0,9% | 0,7 | 0,17 | −1,3% | +2,9% |
+| 3 contra 3, metade do carry | +0,1% | 0,0 | 0,01 | −1,9% | +1,9% |
+| só o preço, sem juros | −0,7% | −0,6 | −0,15 | −2,5% | +1,0% |
+| **só longo (carry > 0)** | **+2,0%** | **1,6** | 0,41 | **+0,1%** | +3,8% |
+| só longo, metade do carry | +1,2% | 1,0 | 0,26 | −0,5% | +2,9% |
+
+**Não passa.** A variante "só longo" chega a t=1,6, mas a primeira metade é +0,1% ao ano — o
+resultado vem todo de 2019 em diante, e nesse período ser comprado em dólar e AUD contra iene foi
+uma aposta direccional que se chama outra coisa. Com metade do carry (a corretora fica com parte
+do swap) cai para t=1,0.
+
+A razão de fundo: o prémio de carry está documentado num universo muito mais largo, com moedas
+emergentes onde os diferenciais são de 10 pontos percentuais. Entre oito moedas maiores, com
+diferenciais de 2 pontos e o swap da corretora pelo meio, não sobra nada.
+
+**Uma armadilha que quase passou.** A primeira medição usava a taxa overnight da OCDE e dava
++2,5%/ano (t=2,0). Só que as séries do NZD e do CHF acabam em 2024, e o código repetia a última
+taxa conhecida: o franco suíço ficava congelado em 1,34% quando hoje está em **−0,045%**. Isso
+inventava carry que não existe, precisamente no período que mais pesava. Com as séries a 3 meses,
+que vão até 2026, o resultado cai para +2,0% e t=1,6.
+Reproduzir: `node scripts/backtest/carry-forex.mjs`.
+
 ## O perfil de volume reforça os sinais? Não (22/09/2026)
 
 Ideia testada: juntar o perfil (POC, área de valor) à melhor regra intradiária para "fortalecer"
