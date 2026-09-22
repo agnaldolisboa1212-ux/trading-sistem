@@ -273,6 +273,7 @@ const NOMES_ANTIGOS: Readonly<Record<string, string>> = {
   'support-resistance': 'Suporte/resistência (antiga)',
   'vwap-bands': 'Bandas de VWAP (antiga)',
   'volume-profile': 'Perfil de volume (antiga)',
+  'smt-teste': 'SMT Divergence (antiga)',
 };
 
 /** Nome legível de uma estratégia, activa ou já retirada. Fonte única. */

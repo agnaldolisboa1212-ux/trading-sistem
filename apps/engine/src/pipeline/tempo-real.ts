@@ -35,7 +35,6 @@ import { join } from 'node:path';
 import {
   acompanharOperacao,
   estadoDoPlano,
-  estrategiaActiva,
   estrategiaEmTeste,
   estrategiasPara,
   executarEstrategiasValidadas,
@@ -329,7 +328,9 @@ async function lerPlanosRecentes(
 function planosVivos(planos: readonly PlanoAnterior[], velas: readonly Candle[]): PlanoAnterior[] {
   return planos.filter((p) => {
     if (p.terminado) return false;
-    if (estrategiaActiva(p.estrategia) && velas.some((v) => v.time === p.geradoEm)) {
+    // Também aqui não se olha ao catálogo: um plano aberto de uma regra
+    // retirada continua a ocupar o instrumento até fechar.
+    if (velas.some((v) => v.time === p.geradoEm)) {
       const e = acompanharOperacao({ ...p, alvos: p.alvos ?? [] }, velas).estado;
       return e === 'a-aguardar-entrada' || e === 'em-curso' || e === 'protegida';
     }
@@ -361,7 +362,21 @@ async function acompanharPlanos(p: {
   const ultima = p.velas[p.velas.length - 1];
   if (!ultima) return enviados;
   for (const plano of p.planos) {
-    if (plano.terminado || !estrategiaActiva(plano.estrategia)) continue;
+    /*
+     * Acompanha-se TUDO o que está aberto, mesmo que a estratégia já tenha
+     * saído do catálogo.
+     *
+     * Antes saltava-se `!estrategiaActiva(...)`, e o resultado era o pior
+     * possível: ao retirar uma regra (oferta/procura, perfil de volume, o SMT)
+     * as operações que estavam abertas GELAVAM — nunca registavam o stop, nunca
+     * fechavam, ficavam "activas" para sempre e não entravam no histórico. Quem
+     * estava na operação deixava de ser avisado de que tinha batido no stop.
+     *
+     * O catálogo decide o que GERA sinais novos. O que já foi anunciado é
+     * história, e a história acompanha-se até ao fim. `acompanharOperacao` tem
+     * ramo genérico (primeiro alvo ou stop) para estratégias que já não conhece.
+     */
+    if (plano.terminado) continue;
     if (!p.velas.some((v) => v.time === plano.geradoEm)) continue;
     const a = acompanharOperacao({ ...plano, alvos: plano.alvos ?? [] }, p.velas);
     const ja = new Set([...(plano.avisados ?? []), ...(p.avisados[plano.id] ?? [])]);

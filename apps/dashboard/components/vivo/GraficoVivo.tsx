@@ -159,7 +159,22 @@ export function GraficoVivo({
       if (v.l < min) min = v.l;
       if (v.h > max) max = v.h;
     }
+    /*
+     * As linhas da análise entram na escala, mas NUNCA a podem destruir.
+     *
+     * Um plano com níveis noutra ordem de grandeza — o do instrumento anterior,
+     * um valor corrompido — esticava o eixo e as velas viravam uma linha fina
+     * colada ao fundo: o gráfico deixava de informar. Fora de três amplitudes
+     * do preço, a linha é ignorada pela escala (continua a ser desenhada, fica
+     * é fora do ecrã), que é a leitura honesta: o gráfico é do PREÇO.
+     */
+    const amplitudeVelas = max - min;
+    const limite = amplitudeVelas > 0 ? 3 * amplitudeVelas : Math.abs(max) * 0.5;
+    const minVelas = min;
+    const maxVelas = max;
     for (const l of linhas) {
+      if (!Number.isFinite(l.preco)) continue;
+      if (l.preco < minVelas - limite || l.preco > maxVelas + limite) continue;
       if (l.preco < min) min = l.preco;
       if (l.preco > max) max = l.preco;
     }

@@ -22,7 +22,7 @@ import { FinanceiroContas } from '@/components/FinanceiroContas';
 import { HistoricoContaConectada } from '@/components/HistoricoContaConectada';
 import { EstatisticasCard } from '@/components/EstatisticasCard';
 import { calcularEstatisticas } from '@/lib/desempenho';
-import { estrategiaActiva, estrategiaEmTeste } from '@trading/core';
+import { estrategiaEmTeste } from '@trading/core';
 import { fetchSinaisTempoReal, isConfigured } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -44,10 +44,15 @@ export default async function Page() {
     );
   }
 
-  // Só estratégias activas (validadas e em teste). Os sinais das estratégias
-  // antigas (oferta/procura, perfil de volume…) continuam na tabela mas já não
-  // são acompanhados — ficariam para sempre "abertos" sem estado.
-  const sinais = (await fetchSinaisTempoReal(1000)).filter((r) => estrategiaActiva(r.estrategia) !== undefined);
+  /*
+   * TODAS as operações, inclusive as de estratégias já retiradas.
+   *
+   * Filtrá-las escondia o resultado real: as regras que saíram saíram
+   * precisamente por perderem dinheiro, e apagar as suas operações do balanço
+   * deixava o histórico a parecer melhor do que foi. O motor agora acompanha os
+   * planos abertos mesmo depois de a regra sair, por isso já fecham.
+   */
+  const sinais = await fetchSinaisTempoReal(1000);
   const fechados = sinais.filter((r) => r.estado === 'fechada');
   const abertos = sinais.filter((r) => r.estado === null || ABERTO.has(r.estado));
 

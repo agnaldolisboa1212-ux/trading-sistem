@@ -687,8 +687,28 @@ function NoticiasDoInstrumento({ codigo, agora }: { codigo: string; agora: numbe
  * cliente não consegue calcular sozinho (o SMT precisa de velas de outros
  * instrumentos, a abertura do DAX precisa das diárias).
  */
+const SEM_SINAIS: Record<string, { sinal: SinalVisao; desenho: Desenho }> = {};
+
 function usarSinaisServidor(codigo: string, tf: string, candles: readonly Candle[]) {
-  const [sinais, setSinais] = useState<Record<string, { sinal: SinalVisao; desenho: Desenho }>>({});
+  /*
+   * O estado guarda A QUE INSTRUMENTO pertence, e só é devolvido se a chave
+   * ainda bater certo.
+   *
+   * Sem isto, o plano do instrumento anterior ficava desenhado por cima do
+   * novo: o efeito saía cedo quando as velas ainda não tinham chegado (e não
+   * limpava), a falha do pedido era silenciosa (e não limpava), e o `tf` nem
+   * sequer estava nas dependências — trocar de 15m para 4h mantinha o plano
+   * de 15m. Medido: um plano do V75 (entrada ~46 500) desenhado num gráfico do
+   * EURUSD a 1,14, que esticava a escala e deixava o gráfico ilegível.
+   *
+   * Guardar a chave COM os dados fecha também a janela entre o render e o
+   * efeito, onde nenhuma limpeza dentro do `useEffect` chegaria a tempo.
+   */
+  const chave = `${codigo}|${tf}`;
+  const [estado, setEstado] = useState<{
+    chave: string;
+    mapa: Record<string, { sinal: SinalVisao; desenho: Desenho }>;
+  }>({ chave, mapa: {} });
 
   useEffect(() => {
     if (candles.length === 0) return;
@@ -752,15 +772,18 @@ function usarSinaisServidor(codigo: string, tf: string, candles: readonly Candle
           mapa[s.estrategia] = { sinal: sv, desenho: linhasDoSinal(sv, nomeVisao(s.estrategia)) };
         }
 
-        setSinais(mapa);
-      } catch (e) {
-        // Silencioso, falha graciosamente mantendo os client-side
+        setEstado({ chave, mapa });
+      } catch {
+        // Falhou o pedido: fica sem sinais do servidor, nunca com os do
+        // instrumento anterior.
+        if (!cancelado) setEstado({ chave, mapa: {} });
       }
     })();
     return () => {
       cancelado = true;
     };
-  }, [codigo, candles.length > 0]); // Re-fetch apenas quando mudamos de instrumento ou temos velas iniciais
+  }, [chave, codigo, tf, candles.length > 0]);
 
-  return sinais;
+  // Só os sinais DESTE instrumento e timeframe; os antigos não passam.
+  return estado.chave === chave ? estado.mapa : SEM_SINAIS;
 }

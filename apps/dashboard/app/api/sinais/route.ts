@@ -16,7 +16,6 @@
 import { NextResponse } from 'next/server';
 import {
   acompanharOperacao,
-  estrategiaActiva,
   estrategiaEmTeste,
   fraseEvento,
   timeframesDoPerfil,
@@ -161,8 +160,17 @@ export async function GET() {
   }
 
   const sinais: SinalDaConta[] = (linhas ?? [])
-    // Só estratégias activas (validadas ou em teste): as que saíram não voltam a aparecer.
-    .filter((l) => !ocultos.has(l.id) && estrategiaActiva(l.estrategia as string) !== undefined)
+    /*
+     * Não se filtra por estratégia activa.
+     *
+     * Filtrar aqui fazia DESAPARECER operações reais: ao retirar uma regra do
+     * catálogo, os sinais que ela tinha anunciado — incluindo os que estavam
+     * abertos com dinheiro em risco — saíam da lista e do histórico, como se
+     * nunca tivessem existido. O catálogo manda no que se GERA; o que já foi
+     * anunciado é registo e fica. O nome de uma estratégia retirada resolve-se
+     * para o próprio id, que é honesto.
+     */
+    .filter((l) => !ocultos.has(l.id))
     .map((l) => ({
       id: l.id,
       simbolo: l.simbolo,
