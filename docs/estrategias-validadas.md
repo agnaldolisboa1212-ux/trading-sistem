@@ -312,6 +312,59 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## O material do ICT: o que já estava medido, e o Silver Bullet (22/09/2026)
+
+O Agnaldo mandou ver o `theinnercircletraders.com`. O site é conteúdo educativo — 137 artigos
+livres, sem qualquer alegação de rentabilidade (diz explicitamente "isto não é um serviço de
+sinais"). Vale como **lista de modelos bem especificados**, que é o que se pode medir. Cruzando
+essa lista com o que este projecto já mediu:
+
+| Modelo do site | Já medido aqui | Resultado |
+|---|---|---|
+| Power of 3 (AMD) | sim, 8476 operações | −0,17R; melhor variante −0,06R |
+| Judas Swing (falso rompimento na abertura de Londres) | sim, é o mesmo teste | negativo nos dois sentidos |
+| SMT Divergence | sim, dezenas de variantes | ≈0R ou negativo; retirado do sistema |
+| MMXM | sim, o motor original do projecto | −0,10R a −0,43R |
+| Fair Value Gap (FVG) | sim, como filtro | não cria vantagem; é bom a cortar sinais falsos |
+| Killzones (Londres/NY) | sim, dentro do AMD | não salvou o setup |
+| Order blocks / liquidez | equivalente a oferta/procura e S/R | −0,10R a −0,51R |
+| **Silver Bullet** | **era o que faltava** | **ver abaixo** |
+
+### Silver Bullet — o resultado mais interessante de todos
+
+A regra: na hora das 10:00–11:00 de Nova Iorque forma-se um FVG; entra-se quando o preço volta ao
+FVG; stop do outro lado; alvo na liquidez mais próxima. Medido em 7 instrumentos, 2012–2026:
+
+| Em 15m | Com custo | **Sem custo nenhum** |
+|---|---|---|
+| alvo 2R | −0,072R (t=−7,2) | +0,049R (t=4,9) |
+| alvo na liquidez | −0,031R (t=−2,6) | **+0,103R (t=8,9)** |
+| liquidez + tendência de 4h | −0,025R | +0,111R (t=6,7) |
+| **controlo: 16h de NY (hora morta)** | −0,269R | −0,017R |
+
+**A ideia tem conteúdo real.** Sem custos é claramente positiva em 9304 operações, e a hora da
+killzone bate sistematicamente todas as outras horas do dia — a diferença entre as 10h e as 16h
+de Nova Iorque é de 0,12R por operação. Isto não é ruído.
+
+O que a mata é a aritmética do custo: o stop colado ao FVG em 15m dá uma distância pequena, e o
+spread come mais do que a vantagem vale. Alargar o stop não resolve (o stop do FVG já era largo).
+**Mudar de timeframe quase resolve** — em velas de 1h, onde o spread pesa 4× menos por R:
+
+| Em 1h, alvo na liquidez | Operações | R/op | t | 1.ª metade | 2.ª metade |
+|---|---|---|---|---|---|
+| todos os instrumentos | 1411 | **+0,028R** | 1,4 | +0,040 | +0,014 |
+| com o spread a dobrar | 1411 | **−0,051R** | −2,5 | | |
+
+Positivo nas duas metades, 5 dos 7 instrumentos positivos (ouro +0,087R, EURJPY +0,076R), ~2,5
+sinais por semana. Mas fica **abaixo da barra** (t=1,4 contra o mínimo de 1,5) e, sobretudo,
+**morre com o spread a dobrar**. Não entrou no catálogo.
+
+**O que ficaria a faltar para entrar:** custos de transacção mais baixos. A vantagem bruta é de
++0,10R por operação e o spread come ~0,08R. Numa corretora com metade do spread, isto passava a
+barra com folga. É a primeira vez neste projecto que uma ideia falha por causa do CUSTO e não por
+falta de vantagem — e por isso fica documentada em vez de arrumada.
+Reproduzir: `node scripts/backtest/silver-bullet-ict.mjs` (e `TF=1h` para a versão de 1h).
+
 ## Carry no forex — a terceira da tríade, também não passa (22/09/2026)
 
 Das três famílias com evidência de um século (tendência, valor, carry), o projecto já vive na
