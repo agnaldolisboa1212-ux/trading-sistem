@@ -743,8 +743,9 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // convicção a aplicar por cima — a regra da estratégia já é o filtro.
         let extra: DadosExtra = {};
         const aplicaveis = estrategiasPara(s.codigo, tf);
-        if (aplicaveis.some((e) => e.id === 'abertura-dax-teste')) {
-          // EMA 20 diária do próprio GER30 — com o cache, pede-se uma vez por dia.
+        if (aplicaveis.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
+          // Diárias do próprio instrumento: a EMA 20 da abertura do DAX e a média
+          // de 200 dias que confirma o regime no VWAP. Com o cache, uma vez por dia.
           const velas1d = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);
           extra = { ...extra, velas1d: velas1d ?? undefined };
         }

@@ -564,9 +564,36 @@ meados de 2024, positivo depois. É o mesmo padrão da abertura do DAX em 30m. A
 que esta regra vive de mercados em subida, e que o ano medido na Deriv foi um ano excepcionalmente
 bom — não que a regra tenha 68% de acerto em geral.
 
-**Pela barra deste projecto** (positivo nas duas metades, t≥1,5), o VWAP −2σ **não passaria hoje**
-em nenhum índice numa janela de 4,7 anos. Fica registado aqui; a decisão de o manter como validado,
-de o passar a "em teste" ou de o retirar é de quem opera.
+**Pela barra deste projecto** (positivo nas duas metades, t≥1,5), o VWAP −2σ **não passava** em
+nenhum índice numa janela de 4,7 anos.
+
+### A solução: confirmação de regime, em vez de retirar a estratégia (22/09/2026)
+
+O Agnaldo propôs apertar o critério em vez de retirar a regra — e sem entrar mais tarde, só com
+uma última confirmação na própria vela do sinal. O diagnóstico apontava o caminho: a regra é
+negativa de 2022 a meados de 2024 e positiva depois, ou seja, **vive de mercados em subida**.
+
+Medido em US100, SP500, DAX e Nikkei, 1h e 4h, 4,7 anos:
+
+| Confirmação | Sinais/ano | R/op | t | Até jun/24 | Depois | R/ano |
+|---|---|---|---|---|---|---|
+| sem filtro (a regra antiga) | 218 | +0,026R | 0,8 | **−0,045** | +0,108 | +5,7R |
+| **acima da média de 200 dias** | 136 | +0,086R | **2,0** | +0,047 | +0,113 | +11,7R |
+| vela do sinal fecha em alta | 126 | +0,085R | 1,9 | −0,023 | +0,229 | +10,6R |
+| RSI já a virar para cima | 124 | +0,079R | 1,8 | −0,033 | +0,229 | +9,8R |
+| **200 dias + vela de alta** | 70 | **+0,216R** | **3,6** | +0,195 | +0,232 | **+15,2R** |
+
+Corta dois terços dos sinais e **triplica o lucro anual**. O filtro do regime é o mesmo que o
+Connors usa há décadas — não foi escolhido por tentativa e erro, tem razão à partida.
+
+**O controlo, como sempre:** nos dois índices que não participaram na medição (UK100 e CAC) os
+mesmos filtros levam a regra de −0,056R para ≈0R. Fazem trabalho real — removem operações más —
+mas não criam vantagem onde não há. Por isso a expectativa honesta está **entre +0,09R e +0,22R**,
+não nos +0,22R.
+
+A regra em produção passou a exigir as duas confirmações, e **sem velas diárias suficientes não
+dispara** (a leitura conservadora). Reproduzir: o script está em
+`scripts/backtest/vwap-com-confirmacao.mjs`.
 
 ## GER30 (DAX) em 30m na abertura de Londres — o que se testou
 

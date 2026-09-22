@@ -127,7 +127,7 @@ export async function GET(
     // a mesma lógica de `tempo-real.ts`, sem o cache entre passagens (aqui é
     // um pedido isolado).
     let extra: DadosExtra = {};
-    if (estrategias.some((e) => e.id === 'abertura-dax-teste')) {
+    if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
       extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
     }
 

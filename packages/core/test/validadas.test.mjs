@@ -69,17 +69,33 @@ function mesComQueda(profundidade) {
     p = c;
   }
   // Queda nas últimas velas até `profundidade` abaixo.
-  for (let k = 1; k <= 6; k++) {
+  for (let k = 1; k <= 5; k++) {
     const c = 100 - (profundidade * k) / 6;
     v.push(vela(inicio + (200 + k) * H, p, p + 0.05, c - 0.05, c));
     p = c;
+  }
+  // A vela do SINAL fecha em alta, ainda bem abaixo do VWAP: é a confirmação
+  // que a regra passou a exigir em 22/09/2026 (não comprar enquanto cai).
+  const fundo = 100 - profundidade;
+  v.push(vela(inicio + 206 * H, fundo - 0.1, fundo + 0.15, fundo - 0.2, fundo + 0.1));
+  return v;
+}
+
+/** 220 velas diárias a subir, que acabam antes do sinal: regime acima da média de 200. */
+function diariasASubir(subir = true) {
+  const fim = Date.UTC(2026, 8, 1);
+  const v = [];
+  for (let i = 0; i < 220; i++) {
+    const c = subir ? 80 + i * 0.2 : 140 - i * 0.2;
+    v.push(vela(fim - (220 - i) * D, c, c + 0.5, c - 0.5, c));
   }
   return v;
 }
 
 test('VWAP: compra quando fecha 2σ abaixo, sobrevendido; nada numa oscilação normal', () => {
   const queda = mesComQueda(6);
-  const s = planCompraVwapIndices(queda, { symbol: 'US30', timeframe: '1h' });
+  const ctx = { symbol: 'US30', timeframe: '1h' };
+  const s = planCompraVwapIndices(queda, ctx, { velas1d: diariasASubir() });
   assert.equal(s.length, 1);
   assert.equal(s[0].direction, 'bullish');
   assert.equal(s[0].strategy, 'compra-vwap-indices');
@@ -90,7 +106,17 @@ test('VWAP: compra quando fecha 2σ abaixo, sobrevendido; nada numa oscilação 
   assert.ok(s[0].conviction >= 0.67 && s[0].conviction <= 0.71);
 
   const calmo = mesComQueda(0);
-  assert.equal(planCompraVwapIndices(calmo, { symbol: 'US30', timeframe: '1h' }).length, 0);
+  assert.equal(planCompraVwapIndices(calmo, ctx, { velas1d: diariasASubir() }).length, 0);
+});
+
+test('VWAP: sem regime de alta não há sinal, por mais esticado que esteja', () => {
+  const queda = mesComQueda(6);
+  const ctx = { symbol: 'US30', timeframe: '1h' };
+  // Mercado abaixo da média de 200 dias: comprar a queda aqui é apanhar faca.
+  assert.equal(planCompraVwapIndices(queda, ctx, { velas1d: diariasASubir(false) }).length, 0);
+  // Sem diárias nenhumas não se adivinha o regime — também não há sinal.
+  assert.equal(planCompraVwapIndices(queda, ctx).length, 0);
+  assert.equal(planCompraVwapIndices(queda, ctx, { velas1d: diariasASubir().slice(-50) }).length, 0);
 });
 
 test('VWAP: o mesmo gráfico no EURUSD não dá sinal validado (só o de teste)', () => {

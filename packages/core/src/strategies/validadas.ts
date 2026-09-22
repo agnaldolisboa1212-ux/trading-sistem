@@ -137,15 +137,23 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
       'Os índices de acções têm deriva positiva e reversão de curto prazo: quando fecham 2σ abaixo do VWAP do mês, voltam para cima mais vezes do que continuam a cair.',
     instrumentos: INDICES_VALIDADOS,
     timeframes: ['1h', '4h'],
-    entrada: 'Fecho abaixo de VWAP − 2σ, com RSI(14) < 30 ou σ do mês > 2 ATR. Compra ao fecho.',
+    entrada:
+      'Fecho abaixo de VWAP − 2σ, com RSI(14) < 30 ou σ do mês > 2 ATR — e com o índice acima da média de 200 dias e a própria vela do sinal já a fechar em alta. Compra ao fecho.',
     saida: 'Stop 1σ abaixo. Metade em +1R, o resto em +2R com o stop na entrada depois do primeiro alvo.',
     estatistica: {
-      resumo: '68% das operações chegaram a +1R antes do stop',
-      operacoes: 135,
-      acerto: 0.68,
-      expectativaR: 0.41,
-      foraDaAmostra: { periodo: '20/07–16/09/2026', operacoes: 31, acerto: 0.68, expectativaR: 0.36 },
-      dados: 'Deriv, 1h e 4h, set/2025–set/2026; em diário (15 anos) a mesma compra dá +0,15R nas duas metades.',
+      resumo: '59% das operações fecharam a ganhar, com a confirmação de regime',
+      operacoes: 328,
+      acerto: 0.59,
+      expectativaR: 0.22,
+      foraDaAmostra: { periodo: 'jul/2024–ago/2026', operacoes: 152, acerto: 0.6, expectativaR: 0.23 },
+      dados:
+        'HistData, 1h e 4h, 4,7 anos (2022–2026), US100, SP500, DAX e Nikkei, com spread. SEM a confirmação de ' +
+        'regime a regra dava +0,026R (t=0,8) com a primeira metade NEGATIVA — não passava. Com o índice acima ' +
+        'da média de 200 dias: +0,086R (t=2,0). Exigindo também a vela do sinal a fechar em alta: +0,216R ' +
+        '(t=3,6), positiva nas duas metades, mas com 70 sinais por ano em vez de 218. Em dois índices que não ' +
+        'participaram na medição (UK100, CAC) os mesmos filtros só chegam a ≈0R, por isso a expectativa ' +
+        'honesta está entre +0,09R e +0,22R. Os 68% e +0,41R publicados antes vinham de UM ano de dados da ' +
+        'Deriv e não se repetiram em 4,7 anos.',
     },
   },
   {
@@ -330,11 +338,56 @@ interface Contexto {
 }
 
 /** Compra na banda −2σ do VWAP mensal, em índices, 1h e 4h. */
-export function planCompraVwapIndices(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+/**
+ * O mercado está acima da média de 200 dias? `null` quando não há diárias que
+ * cheguem — e nesse caso a estratégia não dispara.
+ */
+function acimaDaMedia200(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {
+  if (!velas1d || velas1d.length < 201) return null;
+  // Só velas diárias JÁ FECHADAS antes deste instante.
+  let fim = -1;
+  for (let k = velas1d.length - 1; k >= 0; k--) {
+    if (velas1d[k]!.time < agora) {
+      fim = k;
+      break;
+    }
+  }
+  if (fim < 200) return null;
+  let soma = 0;
+  for (let k = fim - 199; k <= fim; k++) soma += velas1d[k]!.close;
+  return velas1d[fim]!.close > soma / 200;
+}
+
+export function planCompraVwapIndices(
+  velas: readonly Candle[],
+  ctx: Contexto,
+  extra: DadosExtra = {},
+): StrategySignal[] {
   const lista = velas as Candle[];
   const i = lista.length - 1;
   const u = lista[i];
   if (!u || lista.length < 60) return [];
+
+  /*
+   * CONFIRMAÇÃO DE REGIME — acrescentada em 22/09/2026.
+   *
+   * Medida em 4,7 anos, a regra sozinha dava +0,026R (t=0,8) com a primeira
+   * metade NEGATIVA: não passava a barra. O padrão dizia porquê — negativa de
+   * 2022 a meados de 2024, positiva depois. Comprar a queda de um mercado que
+   * está a cair é apanhar faca.
+   *
+   * Com o índice acima da média de 200 dias (o mesmo filtro que o Connors usa)
+   * passa a +0,086R (t=2,0), positiva nas duas metades. Exigindo também que a
+   * própria vela do sinal já não esteja a cair, vai a +0,216R (t=3,6) — mas
+   * corta de 218 para 70 sinais por ano, e essa segunda parte do ganho pode ter
+   * boleia da escolha: em dois índices que não participaram na medição os
+   * filtros só chegam a ≈0R. A expectativa honesta está entre os dois.
+   *
+   * Sem diárias suficientes não há sinal: é a leitura conservadora.
+   */
+  const regime = acimaDaMedia200(extra.velas1d, u.time);
+  if (regime !== true) return [];
+  if (!(u.close > u.open)) return [];
   const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
   const p = vwap.points[vwap.points.length - 1];
   if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
@@ -607,7 +660,7 @@ export function executarEstrategiasValidadas(
 ): StrategySignal[] {
   const out: StrategySignal[] = [];
   for (const e of estrategiasPara(ctx.symbol, ctx.timeframe)) {
-    if (e.id === 'compra-vwap-indices') out.push(...planCompraVwapIndices(velas, ctx));
+    if (e.id === 'compra-vwap-indices') out.push(...planCompraVwapIndices(velas, ctx, extra));
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
