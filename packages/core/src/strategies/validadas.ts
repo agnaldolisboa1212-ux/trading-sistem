@@ -107,6 +107,20 @@ export interface EstrategiaValidada {
  * foi testado.
  */
 export const INDICES_VALIDADOS: readonly string[] = ['US100', 'SP500', 'US30', 'GER30'];
+/**
+ * Onde o VWAP −2σ corre. São os quatro índices MEDIDOS, mais o GBPUSD.
+ *
+ * O GBPUSD entrou em 23/09/2026 a pedido do Agnaldo, para OBSERVAR — e entra
+ * numa lista à parte de propósito, porque `INDICES_VALIDADOS` também alimenta o
+ * Connors, onde o par nunca foi medido.
+ *
+ * O que se mediu nele (4,7 anos, com a confirmação de regime): +0,079R em 159
+ * operações, t=0,9, positivo nas duas metades (+0,049 e +0,148) mas ABAIXO da
+ * barra do projecto. Não melhora com conta raw (t=1,1), porque o stop do VWAP
+ * já é largo e não havia custo a poupar. Por isso os seus sinais saem SEM taxa
+ * de acerto: ver `conviccao` em `planCompraVwapIndices`.
+ */
+export const VWAP_VALIDADO: readonly string[] = [...INDICES_VALIDADOS, 'GBPUSD'];
 /** Connors: os mesmos índices, mais o Nikkei, o bitcoin e o paládio (15 anos de diário). */
 export const CONNORS_VALIDADO: readonly string[] = [...INDICES_VALIDADOS, 'JP225', 'BTCUSD', 'XPDUSD'];
 export const CRIPTO_VALIDADA: readonly string[] = ['BTCUSD', 'ETHUSD'];
@@ -135,7 +149,7 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
     nome: 'Compra na banda −2σ do VWAP (índices)',
     descricao:
       'Os índices de acções têm deriva positiva e reversão de curto prazo: quando fecham 2σ abaixo do VWAP do mês, voltam para cima mais vezes do que continuam a cair.',
-    instrumentos: INDICES_VALIDADOS,
+    instrumentos: VWAP_VALIDADO,
     timeframes: ['1h', '4h'],
     entrada:
       'Fecho abaixo de VWAP − 2σ, com RSI(14) < 30 ou σ do mês > 2 ATR — e com o índice acima da média de 200 dias e a própria vela do sinal já a fechar em alta. Compra ao fecho.',
@@ -153,7 +167,9 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
         '(t=3,6), positiva nas duas metades, mas com 70 sinais por ano em vez de 218. Em dois índices que não ' +
         'participaram na medição (UK100, CAC) os mesmos filtros só chegam a ≈0R, por isso a expectativa ' +
         'honesta está entre +0,09R e +0,22R. Os 68% e +0,41R publicados antes vinham de UM ano de dados da ' +
-        'Deriv e não se repetiram em 4,7 anos.',
+        'Deriv e não se repetiram em 4,7 anos. O GBPUSD corre a mesma regra desde 23/09/2026 para se OBSERVAR: ' +
+        '+0,079R em 159 operações (t=0,9), positivo nas duas metades mas abaixo da barra — os seus sinais saem ' +
+        'sem taxa de acerto.',
     },
   },
   {
@@ -408,8 +424,16 @@ export function planCompraVwapIndices(
   if (!(risco > 0)) return [];
 
   const e = estrategiaValidada('compra-vwap-indices')!;
-  // Taxa de +1R antes do stop medida em cada caso (41, 37 e 57 operações).
-  const conviccao = sobrevendido && deslocado ? 0.71 : deslocado ? 0.68 : 0.67;
+  /*
+   * A taxa só se mostra onde foi medida.
+   *
+   * Os 67–71% vêm dos quatro índices. O GBPUSD corre a mesma regra mas deu
+   * t=0,9 — está na lista para se observar, não porque passou. Mostrar-lhe uma
+   * percentagem seria inventar-lhe uma confiança que a medição não dá; com
+   * convicção 0 o painel mostra o R máximo em vez de uma taxa.
+   */
+  const medido = INDICES_VALIDADOS.includes(ctx.symbol);
+  const conviccao = medido ? (sobrevendido && deslocado ? 0.71 : deslocado ? 0.68 : 0.67) : 0;
   return [
     {
       strategy: 'compra-vwap-indices',

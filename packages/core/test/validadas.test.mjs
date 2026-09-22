@@ -40,6 +40,10 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
     ['connors-rsi2-indices', 'tendencia-indices'],
   );
   assert.equal(estrategiasPara('JP225', '1h').length, 0);
+  // O GBPUSD corre o VWAP para observação (23/09/2026) mas NÃO entra no Connors,
+  // que partilhava a lista dos índices.
+  assert.ok(estrategiasPara('GBPUSD', '1h').some((e) => e.id === 'compra-vwap-indices'));
+  assert.equal(estrategiasPara('GBPUSD', '1d').some((e) => e.id === 'connors-rsi2-indices'), false);
   // O paládio entrou no Connors (22/09/2026); a platina foi testada e recusada.
   assert.deepEqual(estrategiasPara('XPDUSD', '1d').map((e) => e.id), ['connors-rsi2-indices']);
   assert.equal(estrategiasPara('XPTUSD', '1d').length, 0);
@@ -53,7 +57,10 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);
   assert.ok(estrategiasPara('XAUUSD', '1h').every((e) => 'emTeste' in e));
   assert.equal(estrategiasPara('V75', '1h').length, 0);
-  assert.equal(temEstrategiaValidada('GBPUSD'), false);
+  // O GBPUSD passou a correr o VWAP em 23/09/2026, para observação — e por isso
+  // conta como instrumento com estratégia validada, ainda que os seus sinais
+  // saiam sem taxa de acerto (a medição deu t=0,9).
+  assert.equal(temEstrategiaValidada('GBPUSD'), true);
   assert.equal(temEstrategiaValidada('ETHUSD'), true);
 });
 
