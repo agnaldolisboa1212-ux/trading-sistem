@@ -2170,7 +2170,7 @@ body:has(.terminal--cheio) .bottomnav {
 }
 
 /* Estratégia em teste ao vivo: sem taxa de acerto medida ainda. */
-.selo-em-teste {
+.selo-sem-taxa {
   display: inline-block;
   font-size: 10px;
   font-weight: 800;

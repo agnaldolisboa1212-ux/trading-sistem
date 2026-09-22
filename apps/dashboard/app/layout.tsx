@@ -6,7 +6,7 @@ import './globals.css';
 import './vivo.css';
 
 export const metadata: Metadata = {
-  title: 'Sistema de Trading — MMXM & SMT',
+  title: 'Forex Dude System',
   description:
     'Painel de sinais de swing trading baseado em Market Maker Models, SMT Divergence e alinhamento Time & Price, com ligacao a conta Deriv.',
   applicationName: 'Trading',

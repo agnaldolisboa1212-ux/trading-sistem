@@ -122,7 +122,7 @@ export function PainelMotores({ compacto = false }: { compacto?: boolean }) {
   }
 
   const e = dados.estado;
-  const rotuloVivo = e.vivo ? 'a correr' : e.fonte === 'nenhuma' ? 'nunca arrancaram' : 'parados';
+  const rotuloVivo = e.vivo ? 'Dude System a correr' : e.fonte === 'nenhuma' ? 'nunca arrancaram' : 'parados';
 
   return (
     <section>

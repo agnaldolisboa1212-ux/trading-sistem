@@ -208,8 +208,11 @@ function sinaisPorVela(
   lista: Candle[],
   simbolo: string,
   timeframe: Timeframe,
+  velas1d?: readonly Candle[],
 ): { sinais: StrategySignal[]; avisosUltima: string[] } {
-  const chave = `${simbolo}|${timeframe}`;
+  // As diárias entram na chave: sem elas o VWAP não dá sinal, e um resultado
+  // guardado de quando ainda não tinham chegado ficaria a mentir para sempre.
+  const chave = `${simbolo}|${timeframe}|${velas1d?.length ?? 0}`;
   let porTempo = memoria.get(chave);
   if (!porTempo) {
     if (memoria.size > 40) memoria.clear();
@@ -226,7 +229,11 @@ function sinaisPorVela(
     if (!r) {
       // As mesmas regras que o motor usa para anunciar — só as validadas.
       r = {
-        sinais: executarEstrategiasValidadas(lista.slice(0, i + 1), { symbol: simbolo, timeframe }),
+        sinais: executarEstrategiasValidadas(
+          lista.slice(0, i + 1),
+          { symbol: simbolo, timeframe },
+          velas1d ? { velas1d } : {},
+        ),
         avisos: [],
       };
       porTempo.set(tempo, r);
@@ -319,6 +326,8 @@ export function analisarVisoes(
   candles: readonly Candle[],
   simbolo: string,
   timeframe: Timeframe,
+  /** Diárias do próprio instrumento: o VWAP confirma nelas o regime. */
+  velas1d?: readonly Candle[],
 ): AnaliseVisoes {
   const lista = candles as Candle[];
   const ultimo = lista.length - 1;
@@ -327,7 +336,7 @@ export function analisarVisoes(
   const perto = (a: { baixo: number; alto?: number }) =>
     Math.abs((a.baixo + (a.alto ?? a.baixo)) / 2 - preco);
 
-  const historico = sinaisPorVela(lista, simbolo, timeframe);
+  const historico = sinaisPorVela(lista, simbolo, timeframe, velas1d);
   const sinalDe = (id: string) =>
     maisRecente(historico.sinais.filter((s) => s.strategy === id), lista);
   // Desenha sempre o sinal mais recente dessa estratégia, vivo ou já

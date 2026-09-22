@@ -25,11 +25,11 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import type { Candle, Timeframe as TimeframeCore } from '@trading/core';
-import type { Vela } from '@/lib/deriv/live';
-import { formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
+import { velasUnicas, type Vela } from '@/lib/deriv/live';
+import { acharSimbolo, formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
 import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
-import { estrategiaEmTeste } from '@trading/core';
+import { estrategiaEmTeste, estrategiasPara } from '@trading/core';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
@@ -149,16 +149,19 @@ export function AnaliseAoVivo({
     }));
   }, [velas, nFechadas]);
 
+  // O VWAP dos índices precisa das diárias para confirmar o regime.
+  const diarias = usarDiarias(codigo, estrategiasPara(codigo, tf).some((e) => e.id === 'compra-vwap-indices'));
+
   const analise = useMemo(() => {
     if (candles.length < MIN_VELAS) return { pronta: false as const, velas: candles.length };
     return {
       pronta: true as const,
       calculadaEm: Date.now(),
-      ...analisarVisoes(candles, codigo, tf as TimeframeCore),
+      ...analisarVisoes(candles, codigo, tf as TimeframeCore, diarias),
     };
     // `chave` resume velas/nFechadas: recalcular ao tick seria o erro a evitar.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chave, candles]);
+  }, [chave, candles, diarias]);
 
   const sinaisServidor = usarSinaisServidor(codigo, tf, analise.pronta ? candles : []);
   const mmxmServidor = usarMmxm(codigo, visao === 'mmxm' && mmxm === undefined);
@@ -258,9 +261,7 @@ export function AnaliseAoVivo({
                   {sv.velasAtras === 0 ? 'nesta vela' : `há ${sv.velasAtras} velas`} · {ROTULO_ESTADO[sv.estado]}
                 </em>
               </span>
-              {estrategiaEmTeste(sv.sinal.strategy) ? (
-                <span className="selo-em-teste">EM TESTE</span>
-              ) : (
+              {estrategiaEmTeste(sv.sinal.strategy) ? null : (
                 <b title="acerto medido no backtest">{Math.round(sv.sinal.conviction * 100)}%</b>
               )}
             </>
@@ -419,9 +420,7 @@ function CartaoSinal({
         <span className={`lado-pill ${compra ? 'compra' : 'venda'}`}>{compra ? 'COMPRA' : 'VENDA'}</span>
         <strong>{nomeVisao(s.strategy)}</strong>
         <span className="grow" />
-        {estrategiaEmTeste(s.strategy) ? (
-          <span className="selo-em-teste">EM TESTE</span>
-        ) : (
+        {estrategiaEmTeste(s.strategy) ? null : (
           <span className="analise-viva__r" title="acerto medido no backtest">
             {Math.round(s.conviction * 100)}% acerto
           </span>
@@ -680,6 +679,39 @@ function NoticiasDoInstrumento({ codigo, agora }: { codigo: string; agora: numbe
       </a>
     </div>
   );
+}
+
+/**
+ * Velas diárias do próprio instrumento, para o VWAP confirmar o regime.
+ *
+ * Sem elas a regra não dispara — de propósito, é a leitura conservadora — e o
+ * gráfico deixaria de desenhar os sinais do VWAP sem dizer porquê. Pede-se uma
+ * vez por instrumento; um dia de velas diárias não muda a cada minuto.
+ */
+function usarDiarias(codigo: string, precisa: boolean) {
+  const [estado, setEstado] = useState<{ codigo: string; velas: Candle[] } | null>(null);
+  useEffect(() => {
+    if (!precisa) return;
+    let cancelado = false;
+    void (async () => {
+      try {
+        const sim = acharSimbolo(codigo);
+        if (!sim) return;
+        const v = await velasUnicas(sim.deriv, '1d', 260);
+        if (cancelado) return;
+        setEstado({
+          codigo,
+          velas: v.map((c) => ({ time: c.t, open: c.o, high: c.h, low: c.l, close: c.c, volume: 0 })),
+        });
+      } catch {
+        /* sem diárias: o VWAP não dispara, que é o comportamento pretendido */
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [codigo, precisa]);
+  return estado?.codigo === codigo ? estado.velas : undefined;
 }
 
 /**

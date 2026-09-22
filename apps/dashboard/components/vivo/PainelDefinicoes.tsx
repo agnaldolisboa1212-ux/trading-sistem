@@ -273,7 +273,7 @@ function TimeframesSinais() {
         nomes.set(e.nome, grupo);
       }
     }
-    // "(ouro)" some do nome; "(em teste)" fica, para não parecer validada.
+    // "(ouro)" some do nome: é o instrumento, não a regra.
     return [...nomes].map(
       ([nome, { sims, emTeste }]) => `${emTeste ? nome : nome.replace(/ \(.*\)$/, '')} · ${sims.join(', ')}`,
     );

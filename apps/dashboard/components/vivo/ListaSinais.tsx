@@ -38,7 +38,8 @@ interface Sinal {
   ultimoEvento?: string | null;
   stopActual?: number | null;
   conviccao?: number;
-  emTeste?: boolean;
+  /** Quanto o preço já andou desde a entrada, em R. */
+  distanciaR?: number | null;
 }
 
 
@@ -200,6 +201,24 @@ export function ListaSinais() {
   );
 }
 
+/**
+ * O preço já fugiu da entrada?
+ *
+ * O plano é calculado no fecho da vela. Quem abre a aplicação mais tarde vê a
+ * entrada a um preço que já não existe, e entrar na mesma é outro negócio: o
+ * stop é o mesmo, o prémio é menor. Medido no rompimento de 4h — a +0,25R da
+ * entrada perde-se 40% da vantagem, a +0,5R mais de metade.
+ */
+function avisoEntrada(s: Sinal): string {
+  const d = s.distanciaR;
+  if (d === null || d === undefined || !Number.isFinite(d)) return '';
+  if (s.resultadoR !== null && s.resultadoR !== undefined) return ''; // já fechou
+  if (d >= 0.5) return ` · entrada perdida (o preço já andou +${d.toFixed(1)}R)`;
+  if (d >= 0.15) return ` · o preço já andou +${d.toFixed(1)}R desde a entrada`;
+  if (d <= -0.15) return ` · o preço está ${Math.abs(d).toFixed(1)}R melhor do que a entrada`;
+  return '';
+}
+
 function LinhaSinal({
   s,
   agora,
@@ -240,6 +259,7 @@ function LinhaSinal({
             {s.stopActual !== null && s.stopActual !== undefined && s.stopActual !== s.stop ? ' (subiu)' : ''} ·{' '}
             {nomeDeEstrategia(s.estrategia)}
             {s.ultimoEvento ? ` · ${s.ultimoEvento}` : ''}
+            {avisoEntrada(s)}
           </em>
         </span>
         <span className="sinal-tr__r">
@@ -248,9 +268,7 @@ function LinhaSinal({
               {s.resultadoR > 0 ? '+' : ''}
               {s.resultadoR.toFixed(1)}R
             </b>
-          ) : s.emTeste ? (
-            <span className="selo-em-teste">EM TESTE</span>
-          ) : s.conviccao !== undefined ? (
+          ) : s.conviccao ? (
             <>{Math.round(s.conviccao * 100)}%</>
           ) : (
             <>{s.rMaximo.toFixed(1)}R</>

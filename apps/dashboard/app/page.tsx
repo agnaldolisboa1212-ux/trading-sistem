@@ -65,7 +65,7 @@ export default async function Page() {
         </Link>
         <div className="cabeca__id">
           <p className="cabeca__saudacao">{prefs.nome ? `Olá, ${prefs.nome}` : 'Bem-vindo'}</p>
-          <h1>{prefs.objetivoRotulo ?? 'Sistema de Trading'}</h1>
+          <h1>{prefs.objetivoRotulo ?? 'Forex Dude System'}</h1>
         </div>
         <Ligacao rotulo={false} />
       </div>

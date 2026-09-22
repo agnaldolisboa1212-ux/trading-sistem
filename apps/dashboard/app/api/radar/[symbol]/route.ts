@@ -1,5 +1,5 @@
 /**
- * Análise de um instrumento com as estratégias ACTIVAS — validadas e em teste.
+ * Análise de um instrumento com todas as estratégias ACTIVAS.
  *
  * Alimenta o painel de agentes do Início. Corre exactamente o que o motor de
  * tempo real decide em cada passagem (`apps/engine/.../tempo-real.ts`): pede
@@ -123,7 +123,7 @@ export async function GET(
       );
     }
 
-    // O SMT em teste precisa das velas das referências e da tendência de 4h —
+    // Algumas regras precisam de velas de outro timeframe —
     // a mesma lógica de `tempo-real.ts`, sem o cache entre passagens (aqui é
     // um pedido isolado).
     let extra: DadosExtra = {};

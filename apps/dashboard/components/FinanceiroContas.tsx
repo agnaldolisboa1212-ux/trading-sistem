@@ -377,11 +377,6 @@ function TabelaSinais({
                 </td>
                 <td className="dim">
                   {nomeEstrategia(r.estrategia)}
-                  {emTesteId(r.estrategia) && (
-                    <span className="selo-em-teste" style={{ marginLeft: 6 }}>
-                      EM TESTE
-                    </span>
-                  )}
                 </td>
                 <td className={r.direccao === 'bullish' ? 'bull-t' : 'bear-t'}>
                   {r.direccao === 'bullish' ? 'COMPRA' : 'VENDA'}

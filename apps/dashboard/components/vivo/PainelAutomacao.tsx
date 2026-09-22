@@ -228,8 +228,8 @@ export function PainelAutomacao() {
 
       <h3>Estratégias</h3>
       <p className="dim">
-        As marcadas EM TESTE não têm taxa de acerto medida. São as que dão mais sinais — e as que podem perder
-        dinheiro sem aviso.
+        As que aparecem sem percentagem não têm taxa de acerto medida. São as que dão mais sinais — e as que
+        podem perder dinheiro sem aviso.
       </p>
       <div className="rows">
         {ESTRATEGIAS_ACTIVAS.map((e) => {
@@ -238,7 +238,7 @@ export function PainelAutomacao() {
           return (
             <div key={e.id}>
               <span className="k">
-                {e.nome} {teste ? <span className="selo-em-teste">EM TESTE</span> : null}
+                {e.nome} {teste ? <span className="selo-sem-taxa">sem taxa medida</span> : null}
               </span>
               <span className="v">
                 <button
@@ -356,7 +356,7 @@ export function PainelAutomacao() {
 
       {emTesteEscolhidas.length > 0 && d.activa ? (
         <div className="nt-aviso" style={{ marginTop: '16px' }}>
-          Escolheu {emTesteEscolhidas.length} estratégia(s) EM TESTE para automação
+          Escolheu {emTesteEscolhidas.length} estratégia(s) sem vantagem medida para automação
           {contaEscolhida?.real ? ' numa conta REAL' : ''}. Não têm vantagem medida: o resultado pode ser
           negativo e o robô não pára até atingir os limites acima.
         </div>

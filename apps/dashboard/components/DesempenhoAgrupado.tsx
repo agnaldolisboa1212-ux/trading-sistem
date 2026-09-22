@@ -58,11 +58,6 @@ export function DesempenhoAgrupado({
                 <tr key={g.chave}>
                   <td>
                     {g.chave}
-                    {g.emTeste && (
-                      <span className="selo-em-teste" style={{ marginLeft: 6 }}>
-                        EM TESTE
-                      </span>
-                    )}
                   </td>
                   <td className="num">{g.n}</td>
                   <td className="num">{Math.round((g.vitorias / g.n) * 100)}%</td>

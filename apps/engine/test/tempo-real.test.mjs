@@ -159,14 +159,27 @@ test('preço: na entrada', () => {
   assert.equal(r.anunciar, true);
 });
 
-test('preço: compra com o preço acima da entrada espera o recuo', () => {
-  const r = avaliarPrecoActual({ ...compra, actual: 101.5 });
+test('preço: compra um pouco acima da entrada espera o recuo', () => {
+  // 100,6 com risco de 2 = 0,3R acima: ainda vale a pena, avisa-se.
+  const r = avaliarPrecoActual({ ...compra, actual: 100.6 });
   assert.equal(r.estado, 'a-aguardar');
   assert.equal(r.anunciar, true);
-  assert.equal(r.distanciaR, 0.75);
+  assert.ok(Math.abs(r.distanciaR - 0.3) < 1e-9);
 });
 
-test('preço: compra que já fez metade do caminho até ao alvo não é anunciada', () => {
+test('preço: meio R acima da entrada já não se avisa', () => {
+  // A medição do custo de entrar atrasado: a 0,5R perde-se 57% da vantagem, e
+  // arrisca-se o mesmo. Antes o limiar seguia o alvo e variava com ele.
+  const r = avaliarPrecoActual({ ...compra, actual: 101 });
+  assert.equal(r.estado, 'passou');
+  assert.equal(r.anunciar, false);
+  assert.equal(r.distanciaR, 0.5);
+  // E não depende do tamanho do alvo: com alvo a 3R o limiar é o mesmo.
+  assert.equal(avaliarPrecoActual({ ...compra, alvo: 106, actual: 101 }).estado, 'passou');
+  assert.equal(avaliarPrecoActual({ ...compra, alvo: 112, actual: 101 }).estado, 'passou');
+});
+
+test('preço: compra que já disparou bem acima não é anunciada', () => {
   const r = avaliarPrecoActual({ ...compra, actual: 103 });
   assert.equal(r.estado, 'passou');
   assert.equal(r.anunciar, false);
@@ -185,7 +198,8 @@ test('preço: compra abaixo da entrada com o stop intacto é melhor preço', () 
 });
 
 test('preço: venda espelha a compra', () => {
-  assert.equal(avaliarPrecoActual({ ...venda, actual: 98.5 }).estado, 'a-aguardar');
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 99.4 }).estado, 'a-aguardar');
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 99 }).estado, 'passou');
   assert.equal(avaliarPrecoActual({ ...venda, actual: 97 }).estado, 'passou');
   assert.equal(avaliarPrecoActual({ ...venda, actual: 102.1 }).estado, 'invalidado');
   assert.equal(avaliarPrecoActual({ ...venda, actual: 101 }).estado, 'melhor-que-entrada');

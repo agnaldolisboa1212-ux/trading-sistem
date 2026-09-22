@@ -354,7 +354,7 @@ function MeusInstrumentos() {
               >
                 <Link href={`/grafico?s=${encodeURIComponent(c)}`}>
                   {c}
-                  {emTeste && <small> · em teste</small>}
+                  {emTeste && <small> · sem taxa medida</small>}
                   {!validada && !emTeste && <small> · sem sinais</small>}
                 </Link>
                 <button type="button" aria-label={`Remover ${c} do portfólio`} onClick={() => void correr(p.remover(c))}>

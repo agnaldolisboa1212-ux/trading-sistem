@@ -63,7 +63,16 @@ export interface SinalDaConta {
   ultimoEvento: string | null;
   /** Stop em vigor (sobe com a protecção ou o stop móvel). */
   stopActual: number | null;
-  /** Estratégia em teste ao vivo: sem taxa de acerto medida. */
+  /**
+   * Quanto o preço já andou desde a entrada, em R.
+   *
+   * O plano é calculado no fecho da vela; quem abre a aplicação meia hora
+   * depois precisa de saber quanto do movimento já foi. Medido no rompimento de
+   * 4h: entrar a +0,25R da entrada deita fora 40% da vantagem, e a +0,5R mais
+   * de metade — com o mesmo stop, portanto o mesmo risco.
+   */
+  distanciaR: number | null;
+  /** Regra sem taxa de acerto medida. */
   emTeste: boolean;
 }
 
@@ -189,6 +198,7 @@ export async function GET() {
       resultadoR: null,
       ultimoEvento: null,
       stopActual: null,
+      distanciaR: null,
       emTeste: estrategiaEmTeste(l.estrategia as string) !== undefined,
     }));
 
@@ -223,6 +233,12 @@ export async function GET() {
         s.stopActual = a.stopActual;
         const ultimo = a.eventos[a.eventos.length - 1];
         s.ultimoEvento = ultimo ? fraseEvento(ultimo, casas, s.estrategia).titulo : null;
+        const agora = velas[velas.length - 1]?.close;
+        const risco = Math.abs(s.entrada - s.stop);
+        s.distanciaR =
+          agora !== undefined && risco > 0
+            ? ((agora - s.entrada) * (s.direccao === 'bullish' ? 1 : -1)) / risco
+            : null;
       }
     }),
   );

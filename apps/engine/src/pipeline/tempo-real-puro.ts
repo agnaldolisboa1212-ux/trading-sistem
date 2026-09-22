@@ -98,8 +98,27 @@ export interface AvaliacaoPreco {
   progresso: number;
 }
 
-/** A partir de metade do caminho até ao primeiro alvo, a entrada perdeu-se. */
-export const PROGRESSO_MAXIMO = 0.5;
+/**
+ * A partir desta distância da entrada, em R, a entrada perdeu-se.
+ *
+ * Era "metade do caminho até ao primeiro alvo" — e isso variava com o alvo: ao
+ * passar o rompimento de 4h de 2R para 3R, a tolerância saltou de 1R para 1,5R
+ * sem ninguém pedir. Passa a ser uma distância ABSOLUTA em R, que não depende da
+ * geometria da estratégia.
+ *
+ * O valor vem de medir o custo de entrar atrasado no rompimento de 4h (1336
+ * operações, stop e alvo fixos no plano original):
+ *
+ *   no preço do plano  +0,232R
+ *   +0,15R             +0,170R   perde 27%
+ *   +0,25R             +0,140R   perde 40%
+ *   +0,50R             +0,101R   perde 57%
+ *   +1,00R             +0,080R   perde 66%
+ *
+ * Continua positivo mais além, mas a meio R já se deitou fora mais de metade da
+ * vantagem — e o stop é o mesmo, portanto arrisca-se igual por metade do prémio.
+ */
+export const DISTANCIA_MAXIMA_R = 0.5;
 /** Até esta distância (em R) o preço conta como estando na entrada. */
 export const TOLERANCIA_ENTRADA_R = 0.15;
 
@@ -137,7 +156,7 @@ export function avaliarPrecoActual(p: {
   if ((p.actual - p.stop) * lado <= 0) {
     return { estado: 'invalidado', anunciar: false, distanciaR, progresso };
   }
-  if (progresso >= PROGRESSO_MAXIMO) {
+  if (distanciaR >= DISTANCIA_MAXIMA_R) {
     return { estado: 'passou', anunciar: false, distanciaR, progresso };
   }
   if (Math.abs(distanciaR) <= TOLERANCIA_ENTRADA_R) {

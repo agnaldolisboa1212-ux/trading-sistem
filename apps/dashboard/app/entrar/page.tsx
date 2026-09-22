@@ -104,7 +104,7 @@ function Entrar() {
 
   return (
     <div className="wrap ob">
-      <Marca titulo="Entrar" sub="Sistema de Trading" />
+      <Marca titulo="Entrar" sub="Forex Dude System" />
 
       <div className="card">
         {modo !== 'codigo' && (

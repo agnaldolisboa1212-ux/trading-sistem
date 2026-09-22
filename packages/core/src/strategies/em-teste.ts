@@ -1,5 +1,5 @@
 /**
- * Estratégias EM TESTE AO VIVO — geram sinais, mas SEM vantagem medida com confiança.
+ * Estratégias SEM VANTAGEM MEDIDA — geram sinais, mas sem taxa de acerto.
  *
  * ── PORQUE EXISTEM ─────────────────────────────────────────────────────────
  *
@@ -68,7 +68,7 @@ export const DAX_EM_TESTE: readonly string[] = ['GER30'];
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
     id: 'vwap-forex-teste',
-    nome: 'VWAP ±2σ no forex (em teste)',
+    nome: 'VWAP ±2σ no forex',
     descricao:
       'A regra do VWAP dos índices aplicada ao forex, nos dois sentidos: compra 2σ abaixo do VWAP do mês e vende 2σ acima.',
     instrumentos: FOREX_EM_TESTE,
@@ -84,7 +84,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   },
   {
     id: 'tendencia-baixa-cripto',
-    nome: 'Tendência de baixa — cripto (em teste)',
+    nome: 'Tendência de baixa — cripto',
     descricao:
       'O espelho, em venda, da tendência de 55 dias validada na cripto: rompe o mínimo dos últimos 55 dias, abaixo da média de 200 — só quando o regime já é de baixa.',
     instrumentos: CRIPTO_EM_TESTE,
@@ -103,7 +103,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   },
   {
     id: 'abertura-dax-teste',
-    nome: 'Abertura de Londres no DAX (em teste)',
+    nome: 'Abertura de Londres no DAX',
     descricao:
       'Rompimento da primeira vela de 30 minutos da abertura de Londres (que é também a abertura do DAX à vista), só a favor da tendência diária. Day trade: sai no fecho do DAX.',
     instrumentos: DAX_EM_TESTE,
@@ -146,10 +146,19 @@ const HORA = 3_600_000;
 const DIA = 86_400_000;
 const PASSO_MS: Readonly<Record<string, number>> = { '15m': 900_000, '1h': HORA, '4h': 4 * HORA };
 
+/**
+ * O aviso que segue no texto do sinal.
+ *
+ * Diz o que interessa — que esta regra ainda não tem taxa de acerto medida —
+ * sem carimbos. O selo "EM TESTE" saiu de toda a aplicação em 23/09/2026: como
+ * o Agnaldo notou, TUDO está permanentemente à prova, e um carimbo que está em
+ * todo o lado não distingue nada. O que distingue é o número: as regras com
+ * vantagem medida trazem a taxa, estas trazem esta frase.
+ */
 function aviso(id: EstrategiaEmTesteId): string {
   const e = estrategiaEmTeste(id)!;
   const dia = (iso: string) => iso.split('-').slice(1).reverse().join('/');
-  return `Estratégia EM TESTE desde ${dia(e.emTeste.desde)}, revisão a ${dia(e.emTeste.revisao)}: sem taxa de acerto medida. ${e.emTeste.antes}`;
+  return `Sem taxa de acerto medida (ao vivo desde ${dia(e.emTeste.desde)}, próxima revisão a ${dia(e.emTeste.revisao)}). ${e.emTeste.antes}`;
 }
 
 // ---------------------------------------------------------------------------

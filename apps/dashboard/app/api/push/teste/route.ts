@@ -32,7 +32,7 @@ export async function POST(pedido: Request) {
 
   const r = await enviarAviso(
     {
-      titulo: 'Sistema de Trading',
+      titulo: 'Forex Dude System',
       corpo: 'As notificacoes estao a funcionar. Vai receber alertas de entrada e saida aqui.',
       url: '/',
       tag: 'teste',

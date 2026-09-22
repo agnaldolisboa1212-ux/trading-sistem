@@ -33,7 +33,7 @@ import Link from 'next/link';
 export interface Resultado {
   simbolo: string;
   nome?: string;
-  /** Há alguma estratégia activa (validada ou em teste) para este instrumento e timeframe? */
+  /** Há alguma estratégia activa para este instrumento e timeframe? */
   temEstrategia?: boolean;
   /** Nomes das estratégias activas aqui, mesmo sem sinal na última vela. */
   estrategias?: string[];
@@ -274,9 +274,7 @@ function LinhaAgente({
         <em className="agente__detalhe">{detalhe()}</em>
       </span>
       <span className="agente__valor">
-        {sinal?.emTeste ? (
-          <span className="selo-em-teste">EM TESTE</span>
-        ) : sinal ? (
+        {sinal?.emTeste ? null : sinal ? (
           `${Math.round(sinal.conviccao * 100)}%`
         ) : (
           ''

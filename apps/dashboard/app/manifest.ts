@@ -18,8 +18,8 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Sistema de Trading — MMXM & SMT',
-    short_name: 'Trading',
+    name: 'Forex Dude System',
+    short_name: 'Forex Dude',
     description:
       'Sinais de swing trading com Market Maker Models, SMT Divergence e ligacao a conta Deriv.',
     start_url: '/',

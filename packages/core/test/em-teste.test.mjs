@@ -66,7 +66,7 @@ test('VWAP forex: vende 2σ acima, compra 2σ abaixo, com convicção 0', () => 
   assert.ok(Math.abs(s.targets[0].price - (s.entryPrice - risco)) < 1e-12, 'TP1 a +1R');
   assert.ok(Math.abs(s.targets[1].price - (s.entryPrice - 2 * risco)) < 1e-12, 'TP2 a +2R');
   assert.equal(s.conviction, 0);
-  assert.match(s.rationale, /EM TESTE/);
+  assert.match(s.rationale, /Sem taxa de acerto medida/);
 
   const queda = planVwapForexTeste(mesComMovimento(-0.006), { symbol: 'EURUSD', timeframe: '1h' });
   assert.equal(queda[0]?.direction, 'bullish');
@@ -113,7 +113,7 @@ test('Tendência de baixa — cripto: vende no rompimento do mínimo, abaixo da 
   assert.equal(s[0].targets.length, 0, 'sem alvo fixo');
   assert.ok(s[0].stopLoss > s[0].entryPrice, 'stop acima da entrada, numa venda');
   assert.equal(s[0].conviction, 0);
-  assert.match(s[0].rationale, /EM TESTE/);
+  assert.match(s[0].rationale, /Sem taxa de acerto medida/);
 
   // Só o PRIMEIRO fecho abaixo do mínimo: continuar a descer não repete o sinal.
   const segueAbaixo = [...rompe, vela(231 * D, 95, 96, 92, 93)];
@@ -226,7 +226,7 @@ test('Abertura do DAX: compra no primeiro fecho acima da 1.ª vela, a favor da E
   assert.equal(s[0].stopLoss, 25020, 'stop no meio da faixa');
   assert.equal(s[0].targets.length, 0, 'sem alvo fixo');
   assert.equal(s[0].conviction, 0);
-  assert.match(s[0].rationale, /EM TESTE/);
+  assert.match(s[0].rationale, /Sem taxa de acerto medida/);
   assert.deepEqual(estrategiasPara('GER30', '30m').map((e) => e.id), ['abertura-dax-teste']);
   assert.equal(executarEstrategiasValidadas(velas, ctx, subida)[0]?.strategy, 'abertura-dax-teste');
 
