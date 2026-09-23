@@ -15,6 +15,8 @@ export interface EventoNoticia {
   em: number;
   previsao?: string | null;
   anterior?: string | null;
+  /** 'alto' trava sinais no motor; 'medio' só se mostra. */
+  impacto?: 'alto' | 'medio';
   instrumentos: string[];
 }
 

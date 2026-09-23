@@ -1,9 +1,17 @@
 'use client';
 
 /**
- * Notícias — só alto impacto.
+ * Notícias — impacto alto e médio.
  *
- *   calendário       eventos marcados como de alto impacto nesta semana, com os
+ * Trazia só as de alto impacto, e havia dias inteiros vazios: a 23/09/2026 os
+ * PMI preliminares da Alemanha, França e Reino Unido saíram todos como MÉDIOS
+ * na ForexFactory (noutros calendários levam três touros). Uma secção vazia num
+ * dia com eventos a mexer no euro e na libra lê-se como avaria.
+ *
+ * O motor continua a travar sinais SÓ nas de alto impacto — o que mudou é o que
+ * a pessoa vê, não o que o sistema faz.
+ *
+ *   calendário       eventos de alto e médio impacto nesta semana, com os
  *                    instrumentos que movem; os do seu portfólio em destaque
  *   bancos centrais  comunicados de política monetária da Fed, BCE e Banco de
  *                    Inglaterra, com ligação para o texto oficial
@@ -62,7 +70,7 @@ export default function Page() {
     <div className="wrap">
       <div className="cabeca">
         <div className="cabeca__id">
-          <p className="cabeca__saudacao">Só alto impacto</p>
+          <p className="cabeca__saudacao">Alto e médio impacto</p>
           <h1>Notícias</h1>
         </div>
       </div>
@@ -87,7 +95,7 @@ export default function Page() {
           <div className="brilho" style={{ height: 160, borderRadius: 20 }} />
         ) : proximos.length === 0 ? (
           <div className="empty">
-            <strong>Sem notícias de alto impacto {soMeus && meus.size > 0 ? 'para o seu portfólio ' : ''}até ao fim da semana.</strong>
+            <strong>Sem notícias {soMeus && meus.size > 0 ? 'para o seu portfólio ' : ''}até ao fim da semana.</strong>
             {soMeus && meus.size > 0 ? 'Desligue o filtro para ver as de todos os mercados.' : ''}
           </div>
         ) : (
@@ -180,7 +188,10 @@ function LinhaEvento({ e, agora, meus }: { e: EventoNoticia; agora: number; meus
         {BANDEIRA[e.moeda] ?? ''} {e.moeda}
       </span>
       <span className="grow">
-        <strong>{e.titulo}</strong>
+        <strong>
+          {e.titulo}
+          {e.impacto === 'medio' && <small className="noticia-linha__medio"> · impacto médio</small>}
+        </strong>
         <em>
           {agora ? quandoNoticia(e.em, agora) : ''}
           {breve ? ` · daqui a ${Math.round(falta / 60_000)} min` : ''}

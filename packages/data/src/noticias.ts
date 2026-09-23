@@ -58,6 +58,18 @@ interface EventoForexFactory {
 }
 
 /** Eventos de ALTO impacto da semana actual (UTC). Memória de 30 minutos. */
+/**
+ * O calendário da semana: eventos de impacto ALTO e MÉDIO.
+ *
+ * Trazia só os altos, e havia dias inteiros sem nada — 23/09/2026, por exemplo,
+ * em que os PMI preliminares da Alemanha, França e Reino Unido saíram todos
+ * classificados como médios na ForexFactory (outros calendários dão-lhes três
+ * touros). A secção de notícias aparecia vazia num dia com eventos a mexer no
+ * euro e na libra, e isso lê-se como avaria.
+ *
+ * Quem consome decide o que faz com cada nível: o motor só trava nos ALTOS
+ * (`eventosAltoImpacto`), o painel mostra os dois.
+ */
 export const calendarioAltoImpacto = comMemoria<EventoEconomico[]>(
   30 * 60_000,
   async () => {
@@ -68,13 +80,14 @@ export const calendarioAltoImpacto = comMemoria<EventoEconomico[]>(
     if (!r.ok) throw new Error(`calendário HTTP ${r.status}`);
     const lista = (await r.json()) as EventoForexFactory[];
     return lista
-      .filter((e) => e.impact === 'High')
+      .filter((e) => e.impact === 'High' || e.impact === 'Medium')
       .map((e) => ({
         titulo: e.title,
         moeda: e.country.toUpperCase(),
         em: Date.parse(e.date),
         previsao: e.forecast || null,
         anterior: e.previous || null,
+        impacto: (e.impact === 'High' ? 'alto' : 'medio') as 'alto' | 'medio',
       }))
       .filter((e) => Number.isFinite(e.em))
       .sort((a, b) => a.em - b.em);
@@ -230,3 +243,8 @@ export const posicionamentoCot = comMemoria<PosicionamentoCot[]>(
   },
   [],
 );
+
+/** Só os de impacto alto — é sobre estes que o motor trava os sinais. */
+export async function eventosAltoImpacto(): Promise<EventoEconomico[]> {
+  return (await calendarioAltoImpacto()).filter((e) => e.impacto !== 'medio');
+}

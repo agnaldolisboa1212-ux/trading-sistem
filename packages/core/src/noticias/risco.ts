@@ -20,6 +20,12 @@
 
 export interface EventoEconomico {
   titulo: string;
+  /**
+   * Peso do evento na fonte. O motor só trava em `alto`; o `medio` existe para
+   * a pessoa VER — os PMI preliminares da Europa, por exemplo, são médios na
+   * ForexFactory e movem o euro na mesma.
+   */
+  impacto?: 'alto' | 'medio';
   /** Moeda/economia afectada (USD, EUR, GBP, JPY...). */
   moeda: string;
   /** Instante do evento (ms UTC). */

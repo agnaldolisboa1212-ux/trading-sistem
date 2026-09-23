@@ -12,6 +12,7 @@ export * from './symbols/mapping.js';
 export { fetchJson, fetchText, sleep } from './http.js';
 export {
   calendarioAltoImpacto,
+  eventosAltoImpacto,
   comunicadosBancosCentrais,
   posicionamentoCot,
   type Comunicado,

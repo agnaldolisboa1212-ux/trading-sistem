@@ -3852,3 +3852,11 @@ body:has(.terminal--cheio) .bottomnav {
   }
 }
 
+
+/* Impacto médio: presente na lista, mas visivelmente mais discreto do que o
+   alto — a diferença entre "vê isto" e "não te distraias com isto". */
+.noticia-linha__medio {
+  color: var(--text-faint);
+  font-weight: 500;
+  font-size: 11px;
+}

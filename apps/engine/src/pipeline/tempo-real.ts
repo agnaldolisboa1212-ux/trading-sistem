@@ -49,7 +49,7 @@ import {
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
-import { acharSimbolo, calendarioAltoImpacto, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
+import { acharSimbolo, eventosAltoImpacto, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
 import { createDbClient, isDbConfigured } from '@trading/db';
 import { difundirAvisoOperacao, difundirSinalTempoReal, type SinalTempoReal } from '@trading/notify';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -820,7 +820,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
             continue;
           }
           // --- 6c. notícias de alto impacto do instrumento -------------------
-          const noticias = riscoDeNoticias(s.codigo, tf, await calendarioAltoImpacto(), Date.now());
+          const noticias = riscoDeNoticias(s.codigo, tf, await eventosAltoImpacto(), Date.now());
           if (noticias.suspender) {
             analise.nota = noticias.aviso ?? 'notícia de alto impacto — não anunciado';
             analises.push(analise);
