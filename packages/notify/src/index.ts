@@ -528,9 +528,21 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
   const acordo = s.concordam && s.concordam > 1 ? ` · ${s.concordam} estrategias de acordo` : '';
 
   const agora = frasePreco(s);
+  /*
+   * Ordem PENDENTE ou a mercado?
+   *
+   * Um plano cujo preço ainda não voltou à entrada é uma ordem limitada: não se
+   * entra agora, deixa-se a ordem à espera. Isso mudava tudo para quem recebia o
+   * aviso e não se dizia em lado nenhum — o cabeçalho dizia 'COMPRA' e a pessoa
+   * comprava a mercado, num preço pior do que o plano.
+   */
+  const pendente = s.estadoPreco === 'a-aguardar';
   const linhas = [
-    `${compra ? '🟢' : '🔴'} *${compra ? 'COMPRA' : 'VENDA'} ${escapeMarkdown(s.simbolo)}* · ${escapeMarkdown(s.timeframe)}`,
+    `${pendente ? '⏳' : compra ? '🟢' : '🔴'} *${pendente ? 'ORDEM PENDENTE · ' : ''}${compra ? 'COMPRA' : 'VENDA'} ${escapeMarkdown(s.simbolo)}* · ${escapeMarkdown(s.timeframe)}`,
     '',
+    ...(pendente
+      ? [`*Não entre a mercado.* Deixe ordem ${compra ? 'limitada de compra' : 'limitada de venda'} em \`${n(s.entrada)}\`.`, '']
+      : []),
     `entrada \`${n(s.entrada)}\``,
     `stop    \`${n(s.stop)}\``,
     alvos,
@@ -559,8 +571,14 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       geradoEm: new Date(s.geradoEm).toISOString(),
     }),
     sendPush({
-      titulo: `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe} · ${s.emTeste ? 'EM TESTE' : `${Math.round(s.conviccao * 100)}% de acerto medido`}`,
+      titulo:
+        (s.estadoPreco === 'a-aguardar' ? '⏳ PENDENTE · ' : '') +
+        `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}` +
+        (s.conviccao > 0 ? ` · ${Math.round(s.conviccao * 100)}% de acerto medido` : ''),
       corpo: [
+        s.estadoPreco === 'a-aguardar'
+          ? `Ordem ${compra ? 'limitada de compra' : 'limitada de venda'} em ${s.entrada.toFixed(s.casas)} — não entre a mercado.`
+          : null,
         `Entrada ${s.entrada.toFixed(s.casas)} · stop ${s.stop.toFixed(s.casas)}` +
           (s.alvos[0] ? ` · alvo ${s.alvos[0].preco.toFixed(s.casas)}` : ''),
         s.precoActual !== undefined ? `Agora ${s.precoActual.toFixed(s.casas)} · ${frasePreco(s)}` : null,

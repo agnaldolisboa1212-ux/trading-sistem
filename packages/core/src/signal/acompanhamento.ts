@@ -290,7 +290,10 @@ export function fraseEvento(e: EventoOperacao, casas: number, estrategia: string
   const r = e.resultadoR !== undefined ? `${e.resultadoR >= 0 ? '+' : ''}${e.resultadoR.toFixed(1)}R` : '';
   switch (e.tipo) {
     case 'entrada':
-      return { titulo: 'entrada tocada', corpo: `O preço chegou à entrada (${p}). A operação está em curso.` };
+      return {
+        titulo: 'ordem pendente accionada',
+        corpo: `O preço voltou à entrada (${p}) e a ordem foi accionada. A operação está em curso.`,
+      };
     case 'alvo1':
       return GESTAO_PARCIAL.has(estrategia)
         ? { titulo: '+1R atingido', corpo: `Chegou a ${p}. Feche metade e passe o stop para a entrada.` }
