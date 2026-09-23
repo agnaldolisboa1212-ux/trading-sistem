@@ -362,10 +362,39 @@ Medido em 14,5 anos, quatro pares, 1h e 4h, com spread e gestão parcial:
 negativa nas duas metades. São ~378 sinais por ano — a −0,079R dá **−30R por ano**, quase o mesmo
 que as Bandas de VWAP que fizeram −34R em Setembro antes de saírem.
 
-A confirmação de regime foi aplicada (só compra acima da média de 200 dias, só vende abaixo, e a
-vela do sinal tem de já estar a virar). Corta o dano a um quarto e acaba com a compra em queda,
-mas **a regra continua negativa**. A recomendação de quem mediu é desligá-la; enquanto estiver
-ligada, ao menos não compra facas a cair.
+Aplicou-se primeiro a confirmação de regime (corta o dano a um quarto), e **em 23/09/2026 o
+Agnaldo mandou desligá-la**. Deixou de gerar sinais; o histórico e as operações que estavam
+abertas continuam a ser acompanhados até ao fim, como se fez com o SMT.
+
+Com isso o EURUSD e o GBPJPY ficam sem estratégia nenhuma, e o USDJPY fica só com o rompimento
+de 4h. É a leitura honesta: **não há nada medido que compense operar esses pares em 1h**.
+
+### E as outras, fazem o mesmo?
+
+A pergunta seguinte do Agnaldo, e a resposta é não. Todas as regras que ficam têm filtro de
+regime — era o `vwap-forex-teste` a única sem ele:
+
+| Regra | O que exige do regime |
+|---|---|
+| VWAP −2σ (índices) | só compra acima da média de 200 dias, e com a vela já a virar |
+| RSI(2) de Connors | só compra acima da média de 200 dias |
+| Rompimento de 4h | só compra com a EMA 50 acima da EMA 200 |
+| Tendência de 55 dias | compra o rompimento do máximo — é seguir a tendência por construção |
+| Tendência de baixa (cripto) | só vende abaixo da média de 200 dias |
+| Abertura do DAX | só a favor da EMA 20 diária |
+
+**E a re-entrada depois do stop, que parecia ser a doença, não é.** Media-se no VWAP dos índices
+(4,7 anos, com o filtro de regime):
+
+| | Operações | R/operação | t |
+|---|---|---|---|
+| primeiras entradas | 225 | +0,166R | 2,3 |
+| **re-entradas ≤20 velas depois de um stop** | 102 | **+0,309R** | 2,8 |
+
+As re-entradas são 31% dos sinais e valem quase o dobro. Ia acrescentar-se um travão global à
+re-entrada — e teria removido os melhores sinais da regra. O que separa a boa da má re-entrada é o
+filtro de tendência: **numa subida, a segunda queda é uma oportunidade melhor; numa descida, é uma
+faca a cair.**
 
 ## O material do ICT: o que já estava medido, e o Silver Bullet (22/09/2026)
 

@@ -448,7 +448,8 @@ export function analisarVisoes(
   });
   const ultimoVwap = vwap.points[vwap.points.length - 1];
   const indicesValidos = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'compra-vwap-indices');
-  const forexEmTeste = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'vwap-forex-teste');
+  // O VWAP do forex foi desligado em 23/09/2026 (−0,079R, t=−5,5): os sinais
+  // antigos continuam a desenhar-se, novos não há.
   const vw = sinalDe('compra-vwap-indices') ?? sinalDe('vwap-forex-teste');
   const vwapVisao: Visao = {
     id: 'vwap-bands',
@@ -479,10 +480,8 @@ export function analisarVisoes(
       : [],
     nota: [
       indicesValidos
-        ? 'Sinal: fecho abaixo de −2σ com RSI(14) < 30 ou σ do mês > 2 ATR. Só compras — as vendas não têm vantagem medida.'
-        : forexEmTeste
-          ? 'EM TESTE ao vivo (revisão em 1 semana): fecho a ±2σ do VWAP do mês com RSI(14) em extremo, nos dois sentidos. Sem taxa de acerto medida ainda.'
-          : 'A compra na banda −2σ só está validada em US100, SP500, US30 e GER30, em 1h e 4h. Aqui as bandas são contexto.',
+        ? 'Sinal: fecho abaixo de −2σ com RSI(14) < 30 ou σ do mês > 2 ATR, com o índice acima da média de 200 dias e a vela já a fechar em alta. Só compras — as vendas não têm vantagem medida.'
+        : 'A compra na banda −2σ só está validada em US100, SP500, US30 e GER30, em 1h e 4h. No forex foi desligada em 23/09/2026: media 14,5 anos e dava −0,079R por operação. Aqui as bandas são contexto.',
       vwap.usedVolume ? null : 'A Deriv não entrega volume: é a média ponderada pelo tempo (TWAP).',
     ]
       .filter(Boolean)

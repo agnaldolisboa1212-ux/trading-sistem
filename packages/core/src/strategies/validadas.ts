@@ -60,7 +60,6 @@ import {
   ESTRATEGIAS_EM_TESTE,
   planAberturaDaxTeste,
   planTendenciaBaixaCripto,
-  planVwapForexTeste,
   type DadosExtra,
   type EstrategiaEmTeste,
 } from './em-teste.js';
@@ -310,6 +309,7 @@ const NOMES_ANTIGOS: Readonly<Record<string, string>> = {
   'vwap-bands': 'Bandas de VWAP (antiga)',
   'volume-profile': 'Perfil de volume (antiga)',
   'smt-teste': 'SMT Divergence (antiga)',
+  'vwap-forex-teste': 'VWAP ±2σ no forex (antiga)',
 };
 
 /** Nome legível de uma estratégia, activa ou já retirada. Fonte única. */
@@ -690,7 +690,6 @@ export function executarEstrategiasValidadas(
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
     if (e.id === 'tendencia-indices') out.push(...planTendenciaIndices(velas, ctx));
     if (e.id === 'rompimento-4h') out.push(...planRompimento4h(velas, ctx));
-    if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx, extra));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));
     if (e.id === 'abertura-dax-teste') out.push(...planAberturaDaxTeste(velas, ctx, extra));
   }

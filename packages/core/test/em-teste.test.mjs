@@ -18,23 +18,24 @@ import {
   planAberturaDaxTeste,
   planTendenciaBaixaCripto,
   sessaoDax,
-  planVwapForexTeste,
 } from '../dist/index.js';
 
 const H = 3_600_000;
 const vela = (time, open, high, low, close) => ({ time, open, high, low, close, volume: 0 });
 
 test('em teste: forex e ouro intradiário, nunca como validadas', () => {
-  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), ['vwap-forex-teste']);
-  assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), ['vwap-forex-teste']);
+  // O VWAP do forex foi DESLIGADO em 23/09/2026 (−0,079R, t=−5,5 em 5487
+  // operações). O EURUSD ficou sem estratégia nenhuma, e é a leitura honesta.
+  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), []);
+  assert.equal(estrategiaActiva('vwap-forex-teste'), undefined);
+  assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), []);
   assert.deepEqual(estrategiasPara('XAUUSD', '15m').map((e) => e.id), []);
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);
   assert.equal(estrategiasPara('USDJPY', '15m').length, 0);
-  assert.equal(estrategiaValidada('vwap-forex-teste'), undefined);
-  assert.equal(estrategiaActiva('vwap-forex-teste')?.id, 'vwap-forex-teste');
+  assert.equal(estrategiaValidada('tendencia-baixa-cripto'), undefined);
+  assert.equal(estrategiaActiva('tendencia-baixa-cripto')?.id, 'tendencia-baixa-cripto');
   // O SMT foi retirado em 22/09/2026: não é estratégia nenhuma.
   assert.equal(estrategiaActiva('smt-teste'), undefined);
-  assert.equal(estrategiaEmTeste('vwap-forex-teste')?.emTeste.revisao, '2026-09-24');
 });
 
 /** Um mês de velas de 1h a oscilar e um movimento final forte (para cima ou para baixo). */
@@ -73,49 +74,6 @@ function diarias(subir) {
   }
   return v;
 }
-
-test('VWAP forex: vende 2σ acima, compra 2σ abaixo, com convicção 0', () => {
-  // A regra passou a exigir o regime a favor (23/09/2026): a subida só dá VENDA
-  // se o par estiver ABAIXO da média de 200 dias, e vice-versa.
-  const subida = planVwapForexTeste(mesComMovimento(0.006), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(false) });
-  assert.equal(subida.length, 1);
-  const s = subida[0];
-  assert.equal(s.strategy, 'vwap-forex-teste');
-  assert.equal(s.direction, 'bearish');
-  assert.ok(s.stopLoss > s.entryPrice);
-  const risco = s.stopLoss - s.entryPrice;
-  assert.ok(Math.abs(s.targets[0].price - (s.entryPrice - risco)) < 1e-12, 'TP1 a +1R');
-  assert.ok(Math.abs(s.targets[1].price - (s.entryPrice - 2 * risco)) < 1e-12, 'TP2 a +2R');
-  assert.equal(s.conviction, 0);
-  assert.match(s.rationale, /Sem taxa de acerto medida/);
-
-  const queda = planVwapForexTeste(mesComMovimento(-0.006), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(true) });
-  assert.equal(queda[0]?.direction, 'bullish');
-  assert.equal(
-    planVwapForexTeste(mesComMovimento(0), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(true) }).length,
-    0,
-  );
-});
-
-test('VWAP forex: não compra a queda de um par em queda', () => {
-  // A queixa de 23/09: comprava EURUSD e GBPUSD abaixo da média de 200 dias,
-  // levava stop e comprava outra vez mais abaixo.
-  const queda = mesComMovimento(-0.006);
-  assert.equal(planVwapForexTeste(queda, { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(false) }).length, 0);
-  // E sem diárias para confirmar o regime também não dispara.
-  assert.equal(planVwapForexTeste(queda, { symbol: 'EURUSD', timeframe: '1h' }).length, 0);
-});
-
-test('VWAP forex: +1R fecha metade e protege, como nos índices', () => {
-  const t0 = Date.UTC(2026, 8, 17, 8);
-  const velas = [vela(t0, 1.1, 1.1, 1.1, 1.1)];
-  velas.push(vela(t0 + H, 1.1, 1.1005, 1.0985, 1.0988)); // venda: +1R a 1.0990, sem chegar a +2R
-  velas.push(vela(t0 + 2 * H, 1.0985, 1.1001, 1.0985, 1.1)); // volta à entrada
-  const plano = { estrategia: 'vwap-forex-teste', direccao: 'bearish', entrada: 1.1, stop: 1.101, alvos: [{ preco: 1.099 }, { preco: 1.098 }], geradoEm: t0 };
-  const a = acompanharOperacao(plano, velas);
-  assert.deepEqual(a.eventos.map((e) => e.tipo), ['alvo1', 'stop-na-entrada']);
-  assert.equal(a.resultadoR, 0.5);
-});
 
 const D = 86_400_000;
 

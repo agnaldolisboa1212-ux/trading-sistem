@@ -3,12 +3,14 @@
  *
  * ── PORQUE EXISTEM ─────────────────────────────────────────────────────────
  *
- * No backtest nenhuma regra passou nos pares de forex que se operam (EURUSD,
- * GBPUSD, GBPJPY, USDJPY). Em vez de os deixar sem sinais, estas regras correm
- * ao vivo e os resultados reais decidem se ficam:
+ * Regras que correm ao vivo enquanto os resultados reais decidem se ficam.
  *
- *   vwap-forex-teste       a regra do VWAP dos índices levada para o forex, nos
- *                          dois sentidos (o forex não tem a deriva de subida dos índices)
+ * Uma delas já decidiu e SAIU: o `vwap-forex-teste`, desligado em 23/09/2026.
+ * Medido em 14,5 anos deu −0,079R por operação (t=−5,5, negativo nas duas
+ * metades, 5487 operações) — ~378 sinais por ano a perder, quase o mesmo que as
+ * Bandas de VWAP. O que o apanhou foi o Agnaldo a reparar que comprava EURUSD e
+ * GBPUSD em queda e, depois do stop, comprava outra vez mais abaixo.
+ *
  *   tendencia-baixa-cripto o espelho, em venda, da tendência de 55 dias validada
  *                          na cripto — só entra abaixo da média de 200 dias
  *   abertura-dax-teste     GER30 em 30m: rompimento da 1.ª vela da abertura de
@@ -16,8 +18,6 @@
  *
  * O que o backtest disse (para quem ler os resultados com o contexto certo):
  *
- *   VWAP ±2σ no forex
- *       não medido nesta forma
  *   Tendência de baixa na cripto (Yahoo diário, 2014–2026)
  *       positiva nos dois períodos em TODAS as combinações de canal (20 a 100
  *       dias) e saída (10 a 30 dias) testadas — 36 no total — mas com t<1,4 em
@@ -41,7 +41,7 @@ import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import { sessaoDax } from '../time/europa.js';
 
-export type EstrategiaEmTesteId = 'vwap-forex-teste' | 'tendencia-baixa-cripto' | 'abertura-dax-teste';
+export type EstrategiaEmTesteId = 'tendencia-baixa-cripto' | 'abertura-dax-teste';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -66,22 +66,6 @@ export const CRIPTO_EM_TESTE: readonly string[] = ['BTCUSD', 'ETHUSD'];
 export const DAX_EM_TESTE: readonly string[] = ['GER30'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
-  {
-    id: 'vwap-forex-teste',
-    nome: 'VWAP ±2σ no forex',
-    descricao:
-      'A regra do VWAP dos índices aplicada ao forex, nos dois sentidos: compra 2σ abaixo do VWAP do mês e vende 2σ acima.',
-    instrumentos: FOREX_EM_TESTE,
-    timeframes: ['1h', '4h'],
-    entrada:
-      'Fecho abaixo de VWAP − 2σ com RSI(14) < 30 (compra), ou acima de VWAP + 2σ com RSI(14) > 70 (venda); ou σ do mês > 2 ATR.',
-    saida: 'Stop 1σ para lá do fecho. Metade em +1R, o resto em +2R com o stop na entrada depois do primeiro alvo.',
-    emTeste: {
-      desde: '2026-09-17',
-      revisao: '2026-09-24',
-      antes: 'Nos índices: 68% a +1R. No forex esta forma nunca foi medida.',
-    },
-  },
   {
     id: 'tendencia-baixa-cripto',
     nome: 'Tendência de baixa — cripto',
@@ -159,110 +143,6 @@ function aviso(id: EstrategiaEmTesteId): string {
   const e = estrategiaEmTeste(id)!;
   const dia = (iso: string) => iso.split('-').slice(1).reverse().join('/');
   return `Sem taxa de acerto medida (ao vivo desde ${dia(e.emTeste.desde)}, próxima revisão a ${dia(e.emTeste.revisao)}). ${e.emTeste.antes}`;
-}
-
-// ---------------------------------------------------------------------------
-// VWAP ±2σ no forex
-// ---------------------------------------------------------------------------
-
-/** O instrumento está acima da média de 200 dias? `null` sem diárias que cheguem. */
-function regimeDiario(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {
-  if (!velas1d || velas1d.length < 201) return null;
-  let fim = -1;
-  for (let k = velas1d.length - 1; k >= 0; k--) {
-    if (velas1d[k]!.time < agora) {
-      fim = k;
-      break;
-    }
-  }
-  if (fim < 200) return null;
-  let soma = 0;
-  for (let k = fim - 199; k <= fim; k++) soma += velas1d[k]!.close;
-  return velas1d[fim]!.close > soma / 200;
-}
-
-export function planVwapForexTeste(
-  velas: readonly Candle[],
-  ctx: Contexto,
-  extra: DadosExtra = {},
-): StrategySignal[] {
-  const lista = velas as Candle[];
-  const i = lista.length - 1;
-  const u = lista[i];
-  if (!u || lista.length < 60) return [];
-  const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
-  const p = vwap.points[vwap.points.length - 1];
-  if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
-  const z = vwapZScore(p, u.close);
-  const lado = z <= -2 ? 1 : z >= 2 ? -1 : 0;
-  if (lado === 0) return [];
-
-  const atr = atrSerie(lista, 14)[i] ?? Number.NaN;
-  const rsi = rsiSerie(lista, 14)[i] ?? Number.NaN;
-  if (!(atr > 0) || !Number.isFinite(rsi)) return [];
-  const extremo = lado > 0 ? rsi < 30 : rsi > 70;
-  const deslocado = p.sigma > 2 * atr;
-  if (!extremo && !deslocado) return [];
-
-  /*
-   * CONFIRMAÇÃO DE REGIME — 23/09/2026.
-   *
-   * Sem ela esta regra comprava a queda de um par em queda, levava stop, e
-   * comprava outra vez mais abaixo. Não é hipótese: a 23/09 deu quatro compras
-   * em EURUSD e GBPUSD com os dois pares abaixo da média de 200 dias, e uma
-   * delas entrou 60 pips ABAIXO do stop que acabara de ser accionado.
-   *
-   * Medida em 14,5 anos e quatro pares, a regra sem filtro dá −0,079R por
-   * operação (t=−5,5, negativa nas duas metades, 5487 operações). Com o regime
-   * a favor e a vela do sinal já a virar, passa a −0,042R em 1381 operações.
-   * CONTINUA NEGATIVA — o filtro não a salva, só reduz o dano a um quarto.
-   * A recomendação de quem mediu é desligá-la; enquanto estiver ligada, ao
-   * menos não compra facas a cair.
-   *
-   * Sem diárias suficientes não há sinal: a leitura conservadora.
-   */
-  const alta = regimeDiario(extra.velas1d, u.time);
-  if (alta === null) return [];
-  if (lado > 0 !== alta) return [];
-  if (lado > 0 ? !(u.close > u.open) : !(u.close < u.open)) return [];
-
-  const entrada = u.close;
-  const stop = p.vwap - lado * (Math.abs(z) + 1) * p.sigma;
-  const risco = (entrada - stop) * lado;
-  if (!(risco > 0)) return [];
-
-  const e = estrategiaEmTeste('vwap-forex-teste')!;
-  const direction: Direction = lado > 0 ? 'bullish' : 'bearish';
-  return [
-    {
-      strategy: 'vwap-forex-teste',
-      symbol: ctx.symbol,
-      timeframe: ctx.timeframe,
-      direction,
-      regime: 'mean-reversion',
-      index: i,
-      generatedAt: u.time,
-      referencePrice: u.close,
-      entryZoneLow: entrada,
-      entryZoneHigh: entrada,
-      entryPrice: entrada,
-      stopLoss: stop,
-      targets: [
-        { price: entrada + lado * risco, rMultiple: 1, closeFraction: 0.5, rationale: '+1R: fecha metade e passa o stop para a entrada.' },
-        { price: entrada + lado * 2 * risco, rMultiple: 2, closeFraction: 0.5, rationale: '+2R: fecha o resto.' },
-      ],
-      maxRMultiple: 2,
-      conviction: 0,
-      rationale:
-        `Fecho a ${z >= 0 ? '+' : ''}${z.toFixed(1)}σ do VWAP do mês${extremo ? `, RSI(14) ${rsi.toFixed(0)}` : ''}` +
-        `${deslocado ? `, σ do mês ${(p.sigma / atr).toFixed(1)}× o ATR` : ''}. ${aviso('vwap-forex-teste')}`,
-      assumptions: [e.descricao, e.saida],
-      warnings: [
-        'Em teste: sem vantagem medida no forex.',
-        ...(vwap.usedVolume ? [] : ['Sem volume da Deriv: VWAP ponderado pelo tempo.']),
-      ],
-    },
-  ];
 }
 
 // ---------------------------------------------------------------------------
