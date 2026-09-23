@@ -690,7 +690,7 @@ export function executarEstrategiasValidadas(
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));
     if (e.id === 'tendencia-indices') out.push(...planTendenciaIndices(velas, ctx));
     if (e.id === 'rompimento-4h') out.push(...planRompimento4h(velas, ctx));
-    if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx));
+    if (e.id === 'vwap-forex-teste') out.push(...planVwapForexTeste(velas, ctx, extra));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));
     if (e.id === 'abertura-dax-teste') out.push(...planAberturaDaxTeste(velas, ctx, extra));
   }

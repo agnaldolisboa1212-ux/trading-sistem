@@ -165,7 +165,27 @@ function aviso(id: EstrategiaEmTesteId): string {
 // VWAP ±2σ no forex
 // ---------------------------------------------------------------------------
 
-export function planVwapForexTeste(velas: readonly Candle[], ctx: Contexto): StrategySignal[] {
+/** O instrumento está acima da média de 200 dias? `null` sem diárias que cheguem. */
+function regimeDiario(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {
+  if (!velas1d || velas1d.length < 201) return null;
+  let fim = -1;
+  for (let k = velas1d.length - 1; k >= 0; k--) {
+    if (velas1d[k]!.time < agora) {
+      fim = k;
+      break;
+    }
+  }
+  if (fim < 200) return null;
+  let soma = 0;
+  for (let k = fim - 199; k <= fim; k++) soma += velas1d[k]!.close;
+  return velas1d[fim]!.close > soma / 200;
+}
+
+export function planVwapForexTeste(
+  velas: readonly Candle[],
+  ctx: Contexto,
+  extra: DadosExtra = {},
+): StrategySignal[] {
   const lista = velas as Candle[];
   const i = lista.length - 1;
   const u = lista[i];
@@ -183,6 +203,28 @@ export function planVwapForexTeste(velas: readonly Candle[], ctx: Contexto): Str
   const extremo = lado > 0 ? rsi < 30 : rsi > 70;
   const deslocado = p.sigma > 2 * atr;
   if (!extremo && !deslocado) return [];
+
+  /*
+   * CONFIRMAÇÃO DE REGIME — 23/09/2026.
+   *
+   * Sem ela esta regra comprava a queda de um par em queda, levava stop, e
+   * comprava outra vez mais abaixo. Não é hipótese: a 23/09 deu quatro compras
+   * em EURUSD e GBPUSD com os dois pares abaixo da média de 200 dias, e uma
+   * delas entrou 60 pips ABAIXO do stop que acabara de ser accionado.
+   *
+   * Medida em 14,5 anos e quatro pares, a regra sem filtro dá −0,079R por
+   * operação (t=−5,5, negativa nas duas metades, 5487 operações). Com o regime
+   * a favor e a vela do sinal já a virar, passa a −0,042R em 1381 operações.
+   * CONTINUA NEGATIVA — o filtro não a salva, só reduz o dano a um quarto.
+   * A recomendação de quem mediu é desligá-la; enquanto estiver ligada, ao
+   * menos não compra facas a cair.
+   *
+   * Sem diárias suficientes não há sinal: a leitura conservadora.
+   */
+  const alta = regimeDiario(extra.velas1d, u.time);
+  if (alta === null) return [];
+  if (lado > 0 !== alta) return [];
+  if (lado > 0 ? !(u.close > u.open) : !(u.close < u.open)) return [];
 
   const entrada = u.close;
   const stop = p.vwap - lado * (Math.abs(z) + 1) * p.sigma;

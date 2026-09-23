@@ -329,6 +329,44 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## O VWAP do forex compra facas a cair — medido e travado (23/09/2026)
+
+O Agnaldo reparou que o sistema andava a insistir em compras de EURUSD e GBPUSD com os dois pares
+em queda, e que **depois de uma levar stop, saía outra compra mais abaixo**. Estava certo, e os
+sinais mostram-no:
+
+| Hora (23/09) | Par | Entrada | Desfecho |
+|---|---|---|---|
+| 08:34 | GBPUSD 4h | 1,33017 | **stop, −1R** |
+| 10:05 | GBPUSD 1h | 1,32800 | aberto |
+| 10:05 | EURUSD 1h | 1,14080 | aberto |
+| **20:07** | **GBPUSD 4h** | **1,32417** | comprou outra vez, **abaixo do stop que acabara de bater** |
+
+Nesse dia o EURUSD estava a 1,1384 com a média de 200 dias em 1,1625, e o GBPUSD a 1,3241 com a
+média em 1,3453. Os dois em queda, e a regra a comprar.
+
+**A prova natural esteve na mesma tela:** desde 23/09 o GBPUSD corre as DUAS regras de VWAP. A que
+tem confirmação de regime (`compra-vwap-indices`) não deu um único sinal; a que não tinha comprou
+quatro vezes.
+
+### O número que fecha o assunto
+
+Medido em 14,5 anos, quatro pares, 1h e 4h, com spread e gestão parcial:
+
+| `vwap-forex-teste` | Operações | Acerto | R/operação | t | 1.ª metade | 2.ª metade |
+|---|---|---|---|---|---|---|
+| **como estava** | 5487 | 48% | **−0,079R** | **−5,5** | −0,080 | −0,072 |
+| com regime + vela a favor | 1381 | 50% | −0,042R | −1,5 | −0,038 | −0,061 |
+
+**Não é uma regra por provar: é uma regra provadamente perdedora.** t=−5,5 em 5487 operações,
+negativa nas duas metades. São ~378 sinais por ano — a −0,079R dá **−30R por ano**, quase o mesmo
+que as Bandas de VWAP que fizeram −34R em Setembro antes de saírem.
+
+A confirmação de regime foi aplicada (só compra acima da média de 200 dias, só vende abaixo, e a
+vela do sinal tem de já estar a virar). Corta o dano a um quarto e acaba com a compra em queda,
+mas **a regra continua negativa**. A recomendação de quem mediu é desligá-la; enquanto estiver
+ligada, ao menos não compra facas a cair.
+
 ## O material do ICT: o que já estava medido, e o Silver Bullet (22/09/2026)
 
 O Agnaldo mandou ver o `theinnercircletraders.com`. O site é conteúdo educativo — 137 artigos

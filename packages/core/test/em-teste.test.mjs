@@ -47,16 +47,37 @@ function mesComMovimento(delta) {
     v.push(vela(inicio + i * H, p, Math.max(p, c) + 0.0003, Math.min(p, c) - 0.0003, c));
     p = c;
   }
-  for (let k = 1; k <= 6; k++) {
+  for (let k = 1; k <= 5; k++) {
     const c = 1.1 + (delta * k) / 6;
     v.push(vela(inicio + (200 + k) * H, p, Math.max(p, c) + 0.00005, Math.min(p, c) - 0.00005, c));
     p = c;
+  }
+  // A vela do SINAL vira contra o movimento, mantendo-se além dos 2σ: é a
+  // confirmação que a regra passou a exigir em 23/09/2026 (não entrar enquanto
+  // o preço ainda vai a correr no sentido do movimento).
+  if (delta !== 0) {
+    const fim = 1.1 + delta;
+    const abre = fim + delta * 0.05;
+    v.push(vela(inicio + 206 * H, abre, Math.max(abre, fim) + 0.00005, Math.min(abre, fim) - 0.00005, fim));
+  }
+  return v;
+}
+
+/** 220 diárias a subir (ou a descer), que acabam antes do sinal. */
+function diarias(subir) {
+  const fim = Date.UTC(2026, 8, 1);
+  const v = [];
+  for (let i = 0; i < 220; i++) {
+    const c = subir ? 1.0 + i * 0.001 : 1.3 - i * 0.001;
+    v.push(vela(fim - (220 - i) * 86_400_000, c, c + 0.002, c - 0.002, c));
   }
   return v;
 }
 
 test('VWAP forex: vende 2σ acima, compra 2σ abaixo, com convicção 0', () => {
-  const subida = planVwapForexTeste(mesComMovimento(0.006), { symbol: 'EURUSD', timeframe: '1h' });
+  // A regra passou a exigir o regime a favor (23/09/2026): a subida só dá VENDA
+  // se o par estiver ABAIXO da média de 200 dias, e vice-versa.
+  const subida = planVwapForexTeste(mesComMovimento(0.006), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(false) });
   assert.equal(subida.length, 1);
   const s = subida[0];
   assert.equal(s.strategy, 'vwap-forex-teste');
@@ -68,9 +89,21 @@ test('VWAP forex: vende 2σ acima, compra 2σ abaixo, com convicção 0', () => 
   assert.equal(s.conviction, 0);
   assert.match(s.rationale, /Sem taxa de acerto medida/);
 
-  const queda = planVwapForexTeste(mesComMovimento(-0.006), { symbol: 'EURUSD', timeframe: '1h' });
+  const queda = planVwapForexTeste(mesComMovimento(-0.006), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(true) });
   assert.equal(queda[0]?.direction, 'bullish');
-  assert.equal(planVwapForexTeste(mesComMovimento(0), { symbol: 'EURUSD', timeframe: '1h' }).length, 0);
+  assert.equal(
+    planVwapForexTeste(mesComMovimento(0), { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(true) }).length,
+    0,
+  );
+});
+
+test('VWAP forex: não compra a queda de um par em queda', () => {
+  // A queixa de 23/09: comprava EURUSD e GBPUSD abaixo da média de 200 dias,
+  // levava stop e comprava outra vez mais abaixo.
+  const queda = mesComMovimento(-0.006);
+  assert.equal(planVwapForexTeste(queda, { symbol: 'EURUSD', timeframe: '1h' }, { velas1d: diarias(false) }).length, 0);
+  // E sem diárias para confirmar o regime também não dispara.
+  assert.equal(planVwapForexTeste(queda, { symbol: 'EURUSD', timeframe: '1h' }).length, 0);
 });
 
 test('VWAP forex: +1R fecha metade e protege, como nos índices', () => {
