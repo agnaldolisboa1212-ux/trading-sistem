@@ -40,18 +40,25 @@ import {
   executarEstrategiasValidadas,
   fraseEvento,
   planoVivo,
+  proximidadeDosSinais,
   riscoDeNoticias,
   timeframesDoPerfil,
   VELAS_ATE_EXPIRAR,
   type Candle,
   type DadosExtra,
   type EventoOperacao,
+  type Proximidade,
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
 import { acharSimbolo, eventosAltoImpacto, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
 import { createDbClient, isDbConfigured } from '@trading/db';
-import { difundirAvisoOperacao, difundirSinalTempoReal, type SinalTempoReal } from '@trading/notify';
+import {
+  difundirAtencao,
+  difundirAvisoOperacao,
+  difundirSinalTempoReal,
+  type SinalTempoReal,
+} from '@trading/notify';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EngineConfig } from '../config.js';
 import { dirDados, tabelaAusente } from './estado.js';
@@ -98,6 +105,17 @@ const MIN_VELAS = 60;
  * repetidos.
  */
 const ultimaFechadaVista = new Map<string, number>();
+
+/**
+ * Quando saiu o último boletim de "fica atento", e o que dizia.
+ *
+ * De hora a hora no máximo, e nunca duas vezes o mesmo texto: entre sinais as
+ * condições mudam devagar, e repetir o mesmo boletim de hora a hora ensina a
+ * ignorá-lo — que é o oposto do que ele serve.
+ */
+let atencaoUltima = 0;
+let atencaoTexto = '';
+const ATENCAO_CADA_MS = 60 * 60_000;
 
 /**
  * Velas de outro timeframe do mesmo instrumento (as diárias da abertura do DAX),
@@ -606,6 +624,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
   const avisados = lerAvisados();
   const analises: AnaliseTempoReal[] = [];
   const novos: SinalTempoReal[] = [];
+  const atencao: Proximidade[] = [];
   let saltados = 0;
 
   /*
@@ -749,6 +768,15 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           const velas1d = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);
           extra = { ...extra, velas1d: velas1d ?? undefined };
         }
+        // O que falta para cada regra disparar neste par — alimenta o boletim.
+        for (const p of proximidadeDosSinais(
+          fechadas,
+          { symbol: s.codigo, timeframe: tf as Timeframe, casas: s.casas },
+          extra,
+        )) {
+          if (p.distanciaAtr <= 1.5) atencao.push(p);
+        }
+
         const frescos = executarEstrategiasValidadas(
           fechadas,
           { symbol: s.codigo, timeframe: tf as Timeframe },
@@ -885,6 +913,26 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     gravarAvisados(avisados);
   } catch (err) {
     erros.push(`registo local: ${msg(err)}`);
+  }
+
+  /*
+   * O boletim de "fica atento", no fim da passagem.
+   *
+   * Sai DEPOIS dos sinais e só quando não há nada mais urgente a dizer: se esta
+   * passagem anunciou um sinal, o boletim espera pela próxima hora — ninguém
+   * precisa de saber o que está a caminho no mesmo minuto em que chega o que já
+   * chegou.
+   */
+  if (novos.length === 0 && atencao.length > 0 && Date.now() - atencaoUltima >= ATENCAO_CADA_MS) {
+    const melhores = atencao.sort((a, b) => a.distanciaAtr - b.distanciaAtr).slice(0, 5);
+    const texto = melhores.map((p) => `${p.simbolo}${p.timeframe}${p.estrategia}${p.falta}`).join('|');
+    if (texto !== atencaoTexto) {
+      atencaoUltima = Date.now();
+      atencaoTexto = texto;
+      for (const r of await difundirAtencao(melhores)) {
+        if (!r.ok && !r.skipped) erros.push(`atenção ${r.channel}: ${r.error}`);
+      }
+    }
   }
 
   return {

@@ -15,6 +15,7 @@ import {
   planCompraVwapIndices,
   planConnorsIndices,
   planRompimento4h,
+  proximidadeDosSinais,
   planTendenciaCripto,
   saidaDinamica,
   temEstrategiaValidada,
@@ -283,4 +284,33 @@ test('Rompimento 4h: fecha no alvo de +2R, ou ao fim de 6 velas', () => {
   assert.equal(b.estado, 'fechada');
   assert.equal(b.eventos.at(-1).tipo, 'saida-tempo');
   assert.ok(Math.abs(b.resultadoR - 0.5) < 1e-9, '+1,5 pontos com 3 de risco = +0,5R');
+});
+
+// --- O boletim de "fica atento" -------------------------------------------
+
+test('Proximidade: diz o que falta, com o número, e o que trava', () => {
+  const v = velas4h(118); // consolida abaixo do tecto: não rompe
+  const p = proximidadeDosSinais(v, { symbol: 'XAUUSD', timeframe: '4h', casas: 2 });
+  const r = p.find((x) => x.estrategia === 'rompimento-4h');
+  assert.ok(r, 'devia haver proximidade do rompimento');
+  assert.match(r.falta, /fechar acima de 1\d\d\.\d\d \(máximo das 20 velas\)/);
+  assert.ok(r.distanciaAtr > 0, 'ainda falta caminho');
+  // Uma regra que JÁ disparou não entra no boletim: para isso há o sinal.
+  const rompeu = proximidadeDosSinais(velas4h(125), { symbol: 'XAUUSD', timeframe: '4h', casas: 2 });
+  assert.equal(rompeu.some((x) => x.estrategia === 'rompimento-4h'), false);
+  // Instrumento sem estratégia nenhuma: boletim vazio.
+  assert.deepEqual(proximidadeDosSinais(v, { symbol: 'AUDUSD', timeframe: '4h' }), []);
+});
+
+test('Proximidade: o VWAP avisa quando o regime o trava', () => {
+  // Queda pequena: ainda longe dos −2σ, que é quando há PROXIMIDADE para avisar.
+  // Com uma queda grande a regra já disparou, e aí o que sai é o sinal.
+  const queda = mesComQueda(0.4);
+  const abaixo = proximidadeDosSinais(queda, { symbol: 'US30', timeframe: '1h', casas: 2 }, { velas1d: diariasASubir(false) });
+  const vw = abaixo.find((x) => x.estrategia === 'compra-vwap-indices');
+  assert.ok(vw, 'devia avisar do VWAP');
+  assert.match(vw.trava ?? '', /abaixo da média de 200 dias/i);
+  // Com o regime a favor, deixa de haver trava e diz o que acontece se chegar lá.
+  const acima = proximidadeDosSinais(queda, { symbol: 'US30', timeframe: '1h', casas: 2 }, { velas1d: diariasASubir() });
+  assert.equal(acima.find((x) => x.estrategia === 'compra-vwap-indices')?.trava, null);
 });

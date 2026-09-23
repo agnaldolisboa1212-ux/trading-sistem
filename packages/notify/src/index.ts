@@ -18,7 +18,7 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { nomeDeEstrategia } from '@trading/core';
+import { frasesDeAtencao, type Proximidade, nomeDeEstrategia } from '@trading/core';
 
 
 export interface NotifyResult {
@@ -711,4 +711,36 @@ export async function difundirAvisoOperacao(a: AvisoOperacao): Promise<NotifyRes
       timeframe: a.timeframe,
     }),
   ]);
+}
+
+// ---------------------------------------------------------------------------
+// Aviso de atenção — o que está quase a acontecer
+// ---------------------------------------------------------------------------
+
+/**
+ * O boletim de "fica atento": o que falta para cada regra disparar.
+ *
+ * Existe porque entre sinais o sistema ficava mudo, e mudo parece parado. Não
+ * é uma previsão — é a leitura das MESMAS condições que geram o sinal, ditas
+ * com o número que as satisfaz, para se poder pôr um alerta na corretora.
+ *
+ * Só Telegram: um push por cada aproximação seria ruído, e isto lê-se quando dá
+ * jeito, não quando toca.
+ */
+export function formatarAtencao(lista: readonly Proximidade[]): string {
+  const nl = String.fromCharCode(10);
+  const linhas = [`👀 *A que estar atento*`, ''];
+  for (const p of lista) {
+    const f = frasesDeAtencao(p);
+    linhas.push(`*${escapeMarkdown(f.titulo)}*`);
+    linhas.push(escapeMarkdown(f.corpo));
+    linhas.push('');
+  }
+  linhas.push(escapeMarkdown('Não são sinais: são as condições que faltam. O sinal chega sozinho se acontecerem.'));
+  return linhas.join(nl);
+}
+
+export async function difundirAtencao(lista: readonly Proximidade[]): Promise<NotifyResult[]> {
+  if (lista.length === 0) return [];
+  return Promise.all([sendTelegram(formatarAtencao(lista))]);
 }
