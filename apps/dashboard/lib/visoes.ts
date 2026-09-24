@@ -57,6 +57,7 @@ export type VisaoInstitucional =
   | 'connors-rsi2-indices'
   | 'tendencia-cripto'
   | 'rompimento-4h'
+  | 'abertura-dax-teste'
   | 'smt';
 export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
 
@@ -66,6 +67,7 @@ export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; c
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
   { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
   { id: 'rompimento-4h', nome: 'Rompimento de 20 velas (4h)', curto: 'Rompimento' },
+  { id: 'abertura-dax-teste', nome: 'Abertura de Londres (DAX)', curto: 'Abertura' },
   { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
   { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
@@ -92,6 +94,7 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   // O VWAP no forex/ouro partilha a mesma visão (bandas).
   'vwap-forex-teste': 'vwap-bands',
   'rompimento-4h': 'rompimento-4h',
+  'abertura-dax-teste': 'abertura-dax-teste',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {
@@ -681,11 +684,33 @@ export function analisarVisoes(
       : 'Esta regra está medida em 4h, no ouro, prata, USDJPY e EURJPY. Aqui é contexto.',
   };
 
+  // --- abertura de Londres no DAX (30m) --------------------------------------
+  /*
+   * Esta regra não tinha vista nenhuma, e o mapeamento mandava-a para o Resumo
+   * — que por sua vez só conhecia três estratégias. Resultado: tocar no sinal
+   * do GER30 na lista abria um gráfico sem sinal nenhum, como se ele não
+   * existisse. Foi o que o Agnaldo apanhou a 24/09/2026.
+   */
+  const ab = sinalDe('abertura-dax-teste');
+  const aberturaAqui = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'abertura-dax-teste');
+  const aberturaVisao: Visao = {
+    id: 'abertura-dax-teste',
+    nome: nomeVisao('abertura-dax-teste'),
+    sinal: ab,
+    desenho: desenhoDoSinal(ab, 'abertura-dax-teste'),
+    estruturas: [],
+    nota: aberturaAqui
+      ? 'GER30 em 30m: rompimento da primeira meia hora da abertura de Londres, só a favor da EMA 20 diária. Stop no meio da faixa, sem alvo — sai no fecho do DAX à vista. Sem taxa de acerto medida.'
+      : 'Esta regra só corre no GER30 em 30 minutos. Aqui é contexto.',
+  };
+
   // --- resumo ---------------------------------------------------------------
   const activos = historico.sinais.filter((s) => s.index === ultimo);
   const confluencia = assessConfluence(activos);
   const comSinais = estrategiasPara(simbolo, timeframe).length > 0;
-  const todos = [vw, cn, tc].filter((x): x is SinalVisao => x !== null);
+  // Todas as estratégias com vista, não só três: um sinal que não entra aqui
+  // fica invisível para quem abre o gráfico pelo Resumo.
+  const todos = [vw, cn, tc, rp, ab].filter((x): x is SinalVisao => x !== null);
   const candidatos = todos.filter((x) => sinalVivo(x.estado));
   // Primeiro os da última vela (salvo conflito), depois os mais recentes ainda vivos.
   const vivo =
@@ -742,6 +767,7 @@ export function analisarVisoes(
       'connors-rsi2-indices': connorsVisao,
       'tendencia-cripto': tendenciaVisao,
       'rompimento-4h': rompimentoVisao,
+      'abertura-dax-teste': aberturaVisao,
       smt: smtVisao,
     },
     comSinais,
