@@ -329,6 +329,52 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## Order blocks: o bug que quase virou descoberta (24/09/2026)
+
+O Agnaldo propôs usar order blocks como confluência — para os sinais deixarem de contrariar a
+tendência — e como forma de finalmente ter sinais de VENDA. A definição foi tirada do próprio site
+do ICT: *a última vela de cor oposta antes de um deslocamento*, com a zona a ser o intervalo dessa
+vela e a entrada no regresso a ela.
+
+**A primeira medição foi espectacular:**
+
+| Com o bug | Operações | R/op | t |
+|---|---|---|---|
+| COMPRA, stop mínimo 1 ATR | 5204 | +0,258R | **13,3** |
+| VENDA, stop mínimo 1 ATR | 3776 | +0,239R | **10,5** |
+
+Positivo nas duas metades, nos dois sentidos, robusto ao tamanho do stop e a dobrar o custo. Era
+o melhor resultado alguma vez medido neste projecto — e por isso mesmo foi revisto antes de ser
+comemorado. **Um t de 13 não é um bom resultado; é um bug por encontrar.**
+
+Estava aqui:
+
+```js
+if (b.lado !== lado || b.i >= i) continue;   // só exige que o bloco seja ANTERIOR
+```
+
+O bloco no índice `i` só fica **conhecido** três velas depois — é o deslocamento que o define. O
+código deixava usá-lo já na vela seguinte, ou seja: **entrava mesmo antes de um movimento forte
+que o próprio teste já sabia que ia acontecer.** Look-ahead clássico, e o mais traiçoeiro, porque
+a regra parecia respeitar a causalidade.
+
+**Com a confirmação correcta, tudo se inverte:**
+
+| Corrigido (deslocamento 2 ATR) | Operações | R/op | t | 1.ª metade | 2.ª metade |
+|---|---|---|---|---|---|
+| COMPRA, stop 1 ATR | 4313 | −0,044R | −2,2 | −0,051 | −0,026 |
+| VENDA, stop 1 ATR | 3115 | −0,069R | −2,9 | −0,070 | −0,063 |
+| melhor variante (stop 2 ATR, compra) | 3294 | −0,021R | −1,2 | −0,036 | +0,017 |
+
+Negativo em todas as variantes, nos dois sentidos, e pior ainda com o custo a dobrar.
+
+**E como confluência?** Também não: exigir um order block por baixo da entrada leva o rompimento
+de 4h de +0,159R para **+0,120R** e corta os sinais de 1418 para 491. Remove operações boas.
+
+**Não entra no sistema, em nenhuma das duas formas.** E o lado da venda continua por resolver:
+esta era a candidata mais séria até agora, e não passou.
+Reproduzir: `node scripts/backtest/order-blocks.mjs`.
+
 ## O VWAP do forex compra facas a cair — medido e travado (23/09/2026)
 
 O Agnaldo reparou que o sistema andava a insistir em compras de EURUSD e GBPUSD com os dois pares
