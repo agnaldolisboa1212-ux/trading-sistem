@@ -36,6 +36,7 @@ import { SelectorMercado } from '@/components/vivo/SelectorMercado';
 import { GraficoSmt } from '@/components/vivo/GraficoSmt';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
 import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
+import { ICTPanel } from '@/components/ict/ICTPanel';
 import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
 import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
@@ -360,6 +361,7 @@ function Terminal() {
             setAba('ordem');
           }}
         />
+        <ICTPanel codigo={codigo} />
       </div>
 
       {aba === 'ordem' && <Negociar codigo={codigo} sinal={plano} />}
