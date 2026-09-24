@@ -329,6 +329,65 @@ operações" que se pediu — é o que os dados sustentam. Para mais frequência
 seria preciso encontrar outra regra que passe a mesma barra, não alargar esta a mercados onde ela
 foi medida e falhou.
 
+## As vendas do DAX não eram o defeito — eram a melhor parte (24/09/2026)
+
+Auditados todos os sinais da semana contra a média de 200 dias: **14 contra a tendência, 3 a
+favor**. Onze dos catorze vinham de regras entretanto removidas (SMT e VWAP do forex). Sobravam
+duas vendas no GER30 da abertura de Londres, e a hipótese natural era que lhe faltava o mesmo
+filtro de regime que se pôs nas outras.
+
+Mediu-se antes de se mexer, com 30m de 2022–2026:
+
+| Abertura do DAX | Operações | R/op | t | 1.ª metade | 2.ª metade |
+|---|---|---|---|---|---|
+| como está (filtro: EMA 20 diária) | 618 | +0,441R | 4,0 | +0,211 | +0,611 |
+| só compras | 399 | +0,391R | 3,0 | +0,235 | +0,500 |
+| **só vendas** | 219 | **+0,533R** | 2,7 | +0,171 | +0,826 |
+| com filtro de 200 dias por cima | 428 | +0,369R | 2,9 | +0,138 | +0,525 |
+| com 200 dias, só vendas | 52 | **−0,290R** | −1,2 | −1,074 | +0,285 |
+
+**As vendas são a melhor parte da regra, e o filtro de 200 dias destrói-as** (de 219 operações a
++0,53R para 52 a −0,29R). Não se mexeu.
+
+A razão é de escala, e vale a pena guardá-la: esta é uma regra de SESSÃO, não de swing. A operação
+vive horas e morre no fecho do DAX à vista. Vender um dia de queda na abertura de Londres não é
+"contrariar a tendência" no horizonte em que a operação existe — a tendência de 200 dias não tem
+tempo de se manifestar dentro de uma sessão. **O filtro de regime certo depende do prazo da
+operação**, e aplicá-lo por reflexo teria tirado o melhor que esta regra tem.
+
+(Nota: esta medição dá +0,44R e a publicada na secção do DAX dá +0,19R em 611 operações. A
+diferença virá dos detalhes da simulação — janela de entrada e tratamento da hora de verão. O que
+se usou para decidir foi a comparação RELATIVA, que é feita com o mesmo código dos dois lados.)
+
+## O balanço do material do ICT, conceito a conceito (24/09/2026)
+
+O Agnaldo pediu para varrer a lista dos conceitos do ICT à procura de confluências. Aqui está o
+cruzamento completo entre essa lista e o que este projecto mediu:
+
+| Conceito | Medido? | Resultado |
+|---|---|---|
+| Power of 3 (AMD) / Judas Swing | sim, 8476 ops | −0,17R; melhor variante −0,06R |
+| Order Block | sim, 4313 ops | −0,04R (depois de corrigir look-ahead) |
+| Market Structure Shift (MSS) | sim | +0,10R na amostra, **−0,01R fora dela** |
+| Silver Bullet | sim, 14 067 ops | vantagem bruta real, morre no custo |
+| SMT Divergence | sim, dezenas de variantes | ≈0R — retirado do sistema |
+| Kill Zones | sim (dentro do AMD e do Silver Bullet) | a hora de NY é a menos má; perde à mesma |
+| Fair Value Gap | sim, como filtro | não cria vantagem; bom a cortar sinais falsos |
+| BOS / CHoCH | sim (dentro do SMT) | ≈0R |
+| Turtle Soup / varredura de liquidez | sim (é o teste do AMD) | negativo nos dois sentidos |
+| Displacement | sim (condição no OB e no MSS) | não salvou nenhum |
+| **Premium / Discount** | sim, como filtro | +0,33R mas em **51 de 1418** operações |
+| **OTE (recuo 62–79%)** | sim, como filtro | +0,31R em **28** operações |
+
+As duas últimas são o caso clássico de amostra sem valor: um rompimento do máximo de 20 velas
+está, por construção, quase sempre em "prémio" — exigir "desconto" deixa 3,6% dos sinais. O único
+filtro com amostra decente (preço acima de 70% do intervalo) acrescenta +0,016R, que é ruído.
+
+**Doze conceitos medidos, nenhum passou.** Não prova que o corpo todo não valha nada — prova que
+os que são mecanicamente especificáveis o suficiente para se programarem não sobreviveram ao mesmo
+teste que o rompimento de 4h e o Connors sobreviveram. E o padrão repete-se: quase todos parecem
+bons na amostra que os escolheu.
+
 ## Order blocks: o bug que quase virou descoberta (24/09/2026)
 
 O Agnaldo propôs usar order blocks como confluência — para os sinais deixarem de contrariar a
