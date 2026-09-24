@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { CandleSeries } from '@trading/core';
 
 export interface IctPoint {

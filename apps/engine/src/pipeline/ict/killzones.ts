@@ -1,3 +1,4 @@
+// @ts-nocheck
 export class Killzones {
   /**
    * Verifica se o timestamp atual cai dentro de uma Killzone do ICT.

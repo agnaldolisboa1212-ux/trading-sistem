@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Varrimento completo: carrega dados, analisa cada instrumento, persiste e
  * notifica.

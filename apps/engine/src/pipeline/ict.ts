@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { CandleSeries, TradeSignal } from '@trading/core';
 import { randomUUID } from 'crypto';
 

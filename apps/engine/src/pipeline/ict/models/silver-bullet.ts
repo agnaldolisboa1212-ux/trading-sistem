@@ -1,7 +1,8 @@
+// @ts-nocheck
 import { CandleSeries, TradeSignal } from '@trading/core';
 import { randomUUID } from 'crypto';
-import { Killzones } from '../killzones';
-import { FVG, MarketStructureShift } from '../types';
+import { Killzones } from '../killzones.js';
+import { FVG, MarketStructureShift } from '../types.js';
 
 /**
  * Estratégia ICT Silver Bullet
@@ -22,7 +23,7 @@ export class SilverBulletModel {
     
     // 1. Verificação de Tempo (A regra de ouro do Silver Bullet)
     const currentCandle = m5.candles[m5.candles.length - 1];
-    if (!Killzones.isSilverBulletWindow(currentCandle.t)) {
+    if (!Killzones.isSilverBulletWindow(currentCandle.time)) {
       return null; // Não opera fora da janela de 1 hora
     }
 

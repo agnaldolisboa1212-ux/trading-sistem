@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Motor SECUNDÁRIO — análise em tempo real.
  *

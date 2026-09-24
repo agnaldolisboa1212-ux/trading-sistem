@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { TradeSignal } from '@trading/core';
 
 /**

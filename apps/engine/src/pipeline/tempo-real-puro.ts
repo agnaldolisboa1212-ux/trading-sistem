@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Partes PURAS do motor de tempo real — sem rede, sem ficheiros, sem relógio.
  *

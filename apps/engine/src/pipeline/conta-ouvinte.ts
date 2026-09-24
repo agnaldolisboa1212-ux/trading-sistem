@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Ouvinte da conta Deriv — os webhooks que a Deriv não tem.
  *

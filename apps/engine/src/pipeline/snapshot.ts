@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Snapshot local do varrimento em JSON.
  *

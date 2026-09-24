@@ -35,6 +35,7 @@ async function run() {
     symbol: 'SIMULATED',
     timeframe: '15m',
     fidelity: 'true-ohlc',
+    source: 'backtest',
     candles
   };
 

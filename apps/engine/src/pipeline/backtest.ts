@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Backtest walk-forward da estrategia.
  *

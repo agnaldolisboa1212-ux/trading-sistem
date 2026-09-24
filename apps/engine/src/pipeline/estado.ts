@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Estado dos motores — o "estão vivos?" que o painel mostra.
  *

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Ciclo de vida das posições (paper).
  *

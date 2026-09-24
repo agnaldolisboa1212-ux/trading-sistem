@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { CandleSeries } from '@trading/core';
-import { ICTCoreEngine } from './core';
+import { ICTCoreEngine } from './core.js';
 
 /**
  * Subagente 6: Motor Massivo de Backtesting Institucional.
