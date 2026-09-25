@@ -128,9 +128,10 @@ Correções feitas por esta regra durante a construção (para não se repetirem
 | Variável | Efeito |
 |---|---|
 | `ICT_ALGO_NOTIFICAR` | sem efeito desde 25/09/2026 — os avisos saem do motor de tempo real |
+| `ICT_ALGO_PASSAGEM=1` | liga a passagem própria (só registo em `ict-algo-sinais.jsonl`); desligada por omissão |
 | `ICT_ALGO_TIMEFRAMES=15m` | timeframes de execução, separados por vírgula |
 | `ICT_ALGO_SIMBOLOS=EURUSD,GBPUSD` | substitui os portfólios dos perfis |
-| `ICT_ALGO_DESLIGADO=1` | não agenda a passagem |
+| `ICT_ALGO_DESLIGADO` | sem efeito: a passagem própria só corre com `ICT_ALGO_PASSAGEM=1` |
 
 Passagem única: `node apps/engine/dist/index.js ict`.
 
@@ -298,9 +299,11 @@ de ordens só os executa se forem escolhidos explicitamente.
   depender da escolha.
 - Precisam de diário e do par correlacionado (`extra.algo`), que só o servidor
   entrega. No cliente (as abas calculadas vela a vela) devolvem vazio.
-- A passagem própria do ICT (`pipeline/ict-algo.ts`) continua a registar em
-  `ict-algo-sinais.jsonl`, mas já não avisa: `ICT_ALGO_NOTIFICAR` deixou de ter
-  efeito (duplicaria os avisos).
+- A passagem própria do ICT (`pipeline/ict-algo.ts`) já não avisa
+  (`ICT_ALGO_NOTIFICAR` deixou de ter efeito) e está **desligada por omissão**:
+  corria o algoritmo uma segunda vez e pedia 3500 velas do instrumento e do par
+  a cada vela de 15M, o que fazia a Deriv responder RateLimit ao tempo real e
+  ao painel. Liga-se com `ICT_ALGO_PASSAGEM=1` para ter o `ict-algo-sinais.jsonl`.
 
 **POI de Londres** (`poi.ts`): no sentido do viés, o destino mais próximo para
 lá do extremo oposto da Ásia — uma poça por tomar ou a borda de um PD array
