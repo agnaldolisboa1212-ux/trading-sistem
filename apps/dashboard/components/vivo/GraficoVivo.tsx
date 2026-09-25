@@ -122,11 +122,27 @@ export function GraficoVivo({
    * porque todas caíam fora do intervalo desenhado.
    */
   const escalaActual = useRef<Escala>({ min: Number.NaN, max: Number.NaN });
-  const arrasto = useRef<{ x: number; recuo: number } | null>(null);
+  /*
+   * Escala de preço manual, como no TradingView: arrastar na vertical desloca o
+   * preço, arrastar no eixo de preço estica/encolhe. Null = automática (encaixa
+   * nas velas visíveis). Ref para o desenho; o estado só liga o botão ⤒.
+   */
+  const escalaManual = useRef<Escala | null>(null);
+  const [manual, setManual] = useState(false);
+  const arrasto = useRef<{
+    x: number;
+    y: number;
+    recuo: number;
+    /** 'grafico' desloca; 'eixo' (começou no eixo de preço) escala na vertical. */
+    modo: 'grafico' | 'eixo';
+    escala: Escala;
+  } | null>(null);
   const pinca = useRef<{ dist: number; visiveis: number } | null>(null);
 
+  /** Velas de espaço vazio à direita quando se arrasta para lá do presente. */
+  const futuro = Math.max(0, -recuo);
   const janela = useMemo(() => {
-    const fim = Math.max(1, velas.length - recuo);
+    const fim = Math.max(1, velas.length - Math.max(0, recuo));
     const inicio = Math.max(0, fim - visiveis);
     return velas.slice(inicio, fim);
   }, [velas, visiveis, recuo]);
@@ -205,7 +221,7 @@ export function GraficoVivo({
       }
     }
     const folga = (max - min) * 0.08 || Math.abs(max) * 0.001 || 1;
-    const alvo: Escala = { min: min - folga, max: max + folga };
+    const alvo: Escala = escalaManual.current ?? { min: min - folga, max: max + folga };
 
     /*
      * Interpolação exponencial em direção ao alvo.
@@ -228,7 +244,12 @@ export function GraficoVivo({
       Number.isFinite(a.min) &&
       (Math.abs(alvo.min - a.min) > amplitudeAlvo || Math.abs(alvo.max - a.max) > amplitudeAlvo);
 
-    if (!Number.isFinite(a.min) || Math.abs(a.max - a.min) < 1e-12 || saltoGrande) {
+    if (
+      escalaManual.current ||
+      !Number.isFinite(a.min) ||
+      Math.abs(a.max - a.min) < 1e-12 ||
+      saltoGrande
+    ) {
       escalaActual.current = alvo;
     } else {
       const k = 0.18;
@@ -245,7 +266,7 @@ export function GraficoVivo({
     const altoUtil = A - MARGEM_BAIXO - MARGEM_TOPO;
     const y = (p: number) =>
       MARGEM_TOPO + ((esc.max - p) / (esc.max - esc.min || 1)) * altoUtil;
-    const passo = largura / janela.length;
+    const passo = largura / (janela.length + futuro);
     const larguraVela = Math.max(1, Math.min(14, passo * 0.68));
 
     // --- grelha e eixo de preço ------------------------------------------
@@ -284,6 +305,13 @@ export function GraficoVivo({
     const rotulos: Array<{ texto: string; cor: string; x: number; y: number; alinhar: 'left' | 'right' }> = [];
     /** Etiquetas no eixo de preços, como no TradingView: o preço de cada linha, na cor dela. */
     const etiquetasEixo: Array<{ preco: number; cor: string; y: number }> = [];
+
+    // Tudo o que é do gráfico fica dentro da área do gráfico: com a escala
+    // manual as velas podiam invadir o eixo de tempo e o de preço.
+    cx.save();
+    cx.beginPath();
+    cx.rect(0, 0, largura, A - MARGEM_BAIXO);
+    cx.clip();
 
     // --- zonas (oferta/procura, níveis, value area, FVG) -----------------
     const corDoTipo = (tipo: string) =>
@@ -538,6 +566,8 @@ export function GraficoVivo({
       cx.fillText(m.rotulo, tx + 4, ty + 6.5);
     }
 
+    cx.restore();
+
     // --- linha do último preço, com etiqueta -----------------------------
     const ultima = janela[janela.length - 1];
     if (ultima) {
@@ -630,7 +660,7 @@ export function GraficoVivo({
       cx.textAlign = 'left';
       cx.fillText(etiqueta, largura + 7, mira.y);
     }
-  }, [janela, casas, linhas, zonas, curvas, marcadores, segmentos, mira, timeframe]);
+  }, [janela, futuro, casas, linhas, zonas, curvas, marcadores, segmentos, mira, timeframe]);
 
   /*
    * Loop de animação.
@@ -672,9 +702,47 @@ export function GraficoVivo({
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  // Outro instrumento ou timeframe: a escala manual do anterior não serve.
+  useEffect(() => {
+    escalaManual.current = null;
+    setManual(false);
+    setRecuo(0);
+  }, [timeframe, titulo, casas]);
+  useEffect(() => {
+    // Mudou a série inteira (novo símbolo sem título): fora de 10 amplitudes
+    // do preço, a escala manual já não diz respeito a este gráfico.
+    const m = escalaManual.current;
+    const u = velas[velas.length - 1];
+    if (!m || !u) return;
+    const amp = m.max - m.min;
+    if (u.c < m.min - 10 * amp || u.c > m.max + 10 * amp) {
+      escalaManual.current = null;
+      setManual(false);
+    }
+  }, [velas]);
+
+  /** Volta ao presente e à escala automática (⤒ ou toque duplo). */
+  const repor = () => {
+    setRecuo(0);
+    setVisiveis(90);
+    escalaManual.current = null;
+    setManual(false);
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
+    // Com dois dedos é a pinça que manda; o arrasto fica parado.
+    if (pinca.current) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    arrasto.current = { x: e.clientX, recuo };
+    const el = caixa.current;
+    const p = posicao(e);
+    const noEixo = !!el && !!p && p.x > el.clientWidth - MARGEM_DIR;
+    arrasto.current = {
+      x: e.clientX,
+      y: e.clientY,
+      recuo,
+      modo: noEixo ? 'eixo' : 'grafico',
+      escala: { ...escalaActual.current },
+    };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -682,12 +750,36 @@ export function GraficoVivo({
     if (p) setMira(p);
 
     const a = arrasto.current;
-    if (!a) return;
-    const largura = (caixa.current?.clientWidth ?? 1) - MARGEM_DIR;
+    const el = caixa.current;
+    if (!a || !el || pinca.current) return;
+    const altoUtil = Math.max(1, el.clientHeight - MARGEM_BAIXO - MARGEM_TOPO);
+    const amplitude = a.escala.max - a.escala.min;
+    if (!Number.isFinite(amplitude) || amplitude <= 0) return;
+    const dy = e.clientY - a.y;
+
+    if (a.modo === 'eixo') {
+      // Puxar para baixo afasta (mais preço no ecrã); para cima aproxima.
+      const f = Math.min(20, Math.max(0.05, Math.exp(dy / 200)));
+      const centro = (a.escala.max + a.escala.min) / 2;
+      escalaManual.current = { min: centro - (amplitude * f) / 2, max: centro + (amplitude * f) / 2 };
+      if (!manual) setManual(true);
+      return;
+    }
+
+    // Horizontal: velas. Recuo negativo = espaço vazio à direita do presente.
+    const largura = el.clientWidth - MARGEM_DIR;
     const passo = largura / Math.max(1, visiveis);
     const delta = Math.round((e.clientX - a.x) / passo);
     const max = Math.max(0, velas.length - 10);
-    setRecuo(Math.min(max, Math.max(0, a.recuo + delta)));
+    const min = -Math.floor(visiveis * 0.6);
+    setRecuo(Math.min(max, Math.max(min, a.recuo + delta)));
+
+    // Vertical: o preço acompanha o dedo; a partir daí a escala fica manual.
+    if (escalaManual.current || Math.abs(dy) > 12) {
+      const dp = (dy / altoUtil) * amplitude;
+      escalaManual.current = { min: a.escala.min + dp, max: a.escala.max + dp };
+      if (!manual) setManual(true);
+    }
   };
 
   const onPointerUp = () => {
@@ -696,7 +788,18 @@ export function GraficoVivo({
 
   const onWheel = (e: React.WheelEvent) => {
     // Sem `preventDefault`: o React liga o `wheel` como passivo e chamá-lo
-    // dispara um aviso na consola. Limita-se a ajustar o zoom.
+    // dispara um aviso na consola. Trackpad na horizontal (ou Shift + roda)
+    // desloca as velas; a roda na vertical faz zoom.
+    const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (horizontal !== 0) {
+      const largura = (caixa.current?.clientWidth ?? 1) - MARGEM_DIR;
+      const passo = largura / Math.max(1, visiveis);
+      const delta = Math.round(horizontal / passo) || Math.sign(horizontal);
+      const max = Math.max(0, velas.length - 10);
+      const min = -Math.floor(visiveis * 0.6);
+      setRecuo((r) => Math.min(max, Math.max(min, r + delta)));
+      return;
+    }
     const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
     setVisiveis((v) => Math.round(Math.min(600, Math.max(20, v * factor))));
   };
@@ -704,6 +807,7 @@ export function GraficoVivo({
   const onTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       pinca.current = { dist: distancia(e.touches), visiveis };
+      arrasto.current = null;
     }
   };
 
@@ -715,8 +819,8 @@ export function GraficoVivo({
     }
   };
 
-  const onTouchEnd = () => {
-    pinca.current = null;
+  const onTouchEnd = (e: React.TouchEvent) => {
+    if (e.touches.length < 2) pinca.current = null;
   };
 
   const ultima = janela[janela.length - 1];
@@ -763,13 +867,10 @@ export function GraficoVivo({
           <button
             type="button"
             className="so-largo"
-            onClick={() => {
-              setRecuo(0);
-              setVisiveis(90);
-            }}
+            onClick={repor}
             aria-label="Voltar ao presente"
-            title="Voltar ao presente"
-            disabled={recuo === 0 && visiveis === 90}
+            title="Voltar ao presente e à escala automática"
+            disabled={recuo === 0 && visiveis === 90 && !manual}
           >
             ⤒
           </button>
@@ -812,6 +913,7 @@ export function GraficoVivo({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onPointerLeave={() => {
           onPointerUp();
           setMira(null);
@@ -819,10 +921,7 @@ export function GraficoVivo({
         onWheel={onWheel}
         // Toque duplo (ou duplo clique) volta ao presente: no telemóvel é o que
         // substitui o botão ⤒, que não cabe ao lado dos timeframes.
-        onDoubleClick={() => {
-          setRecuo(0);
-          setVisiveis(90);
-        }}
+        onDoubleClick={repor}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
