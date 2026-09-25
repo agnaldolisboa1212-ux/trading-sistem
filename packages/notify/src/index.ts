@@ -18,7 +18,7 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { frasesDeAtencao, type Proximidade, nomeDeEstrategia } from '@trading/core';
+import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, type SinalIct } from '@trading/core';
 
 
 export interface NotifyResult {
@@ -550,12 +550,89 @@ export function formatarSinalTempoReal(s: SinalTempoReal): string {
       ? ['', `agora   \`${n(s.precoActual)}\` · ${escapeMarkdown(agora)}`]
       : []),
     '',
-    `*${s.emTeste ? 'EM TESTE, sem acerto medido' : `${Math.round(s.conviccao * 100)}% de acerto medido`}* · ${escapeMarkdown((nomeDeEstrategia(s.estrategia)) + acordo)}`,
+    `*${s.emTeste ? 'sem acerto medido' : `${Math.round(s.conviccao * 100)}% de acerto medido`}* · ${escapeMarkdown((nomeDeEstrategia(s.estrategia)) + acordo)}`,
     '',
     `_${escapeMarkdown(razao)}_`,
   ];
   if (s.avisos[0]) linhas.push(`⚠️ ${escapeMarkdown(s.avisos[0].slice(0, 160))}`);
   return linhas.join(nl);
+}
+
+// ---------------------------------------------------------------------------
+// ICT ALGO — avisos próprios
+// ---------------------------------------------------------------------------
+
+const NOME_REGIME_ICT: Record<string, string> = {
+  manipulacao: 'manipulação',
+  reversao: 'reversão',
+  tendencia: 'tendência',
+  consolidacao: 'consolidação',
+  indefinido: 'indefinido',
+};
+
+/**
+ * Mensagem de Telegram de um sinal do ICT ALGO.
+ *
+ * Começa SEMPRE por "ICT ALGO": é o algoritmo independente, não uma das
+ * estratégias validadas, e quem recebe tem de o saber antes de ler o resto.
+ * Leva a leitura de cima para baixo — do semanal à vela — porque um setup ICT
+ * sem a estrutura que o justifica é só um preço.
+ */
+export function formatarSinalIct(s: SinalIct, casas: number): string {
+  const compra = s.direccao === 'bullish';
+  const n = (v: number) => v.toFixed(casas);
+  const nl = String.fromCharCode(10);
+  const pendente = s.tipoEntrada === 'pendente';
+  // Os passos de leitura (antes do modelo) são as frases do regime.
+  const leitura = s.passos
+    .filter((p) => p.titulo === 'Leitura' || p.titulo === 'Regime')
+    .map((p) => `• ${escapeMarkdown(p.detalhe)}`);
+
+  const linhas = [
+    `🧭 *ICT ALGO* · ${compra ? '🟢 COMPRA' : '🔴 VENDA'} *${escapeMarkdown(s.simbolo)}* · ${escapeMarkdown(s.timeframe)}`,
+    `${escapeMarkdown(NOME_MODELO[s.modelo])} · regime ${escapeMarkdown(NOME_REGIME_ICT[s.regime] ?? s.regime)}`,
+    '',
+    pendente
+      ? `⏳ *Ordem pendente.* ${compra ? 'Limitada de compra' : 'Limitada de venda'} em \`${n(s.entrada)}\` — não entre a mercado.`
+      : `Entrada a mercado, no fecho da vela de rejeição: \`${n(s.entrada)}\`.`,
+    '',
+    `entrada \`${n(s.entrada)}\``,
+    `stop    \`${n(s.stop)}\`  ${escapeMarkdown(s.rotuloStop)}`,
+    `alvo    \`${n(s.alvo)}\`  ${escapeMarkdown(s.rr.toFixed(1))}R · ${escapeMarkdown(s.rotuloAlvo)}`,
+    '',
+    '*Leitura*',
+    ...leitura,
+  ];
+  if (s.avisos[0]) linhas.push('', `⚠️ ${escapeMarkdown(s.avisos[0].slice(0, 160))}`);
+  linhas.push(
+    '',
+    `_${escapeMarkdown('Medido em 2022–2026 com custos: sem vantagem demonstrada. É análise, não sinal validado.')}_`,
+  );
+  return linhas.join(nl);
+}
+
+/** Difunde um sinal do ICT ALGO por Telegram e push. Nunca pelo canal das estratégias validadas. */
+export async function difundirSinalIct(s: SinalIct, casas: number): Promise<NotifyResult[]> {
+  const compra = s.direccao === 'bullish';
+  return Promise.all([
+    sendTelegram(formatarSinalIct(s, casas)),
+    sendPush({
+      titulo: `ICT ALGO · ${s.tipoEntrada === 'pendente' ? '⏳ ' : ''}${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}`,
+      corpo: [
+        `${NOME_MODELO[s.modelo]} · regime ${NOME_REGIME_ICT[s.regime] ?? s.regime}`,
+        `Entrada ${s.entrada.toFixed(casas)} · stop ${s.stop.toFixed(casas)} · alvo ${s.alvo.toFixed(casas)} (${s.rr.toFixed(1)}R)`,
+        s.tipoEntrada === 'pendente' ? 'Ordem pendente — não entre a mercado.' : null,
+      ]
+        .filter(Boolean)
+        .join(String.fromCharCode(10)),
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.timeframe}&v=ict-algo`,
+      tag: `ict|${s.chave}`,
+      urgencia: 'high',
+      topico: `ict-${s.simbolo}-${s.timeframe}`,
+      simbolo: s.simbolo,
+      timeframe: s.timeframe,
+    }),
+  ]);
 }
 
 /** Difunde um sinal de tempo real por Telegram, n8n e push. */

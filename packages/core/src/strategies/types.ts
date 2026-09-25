@@ -34,8 +34,7 @@ export type StrategyId =
   | 'supply-demand'
   | 'support-resistance'
   | 'vwap-bands'
-  | 'volume-profile'
-  | 'ict-advanced';
+  | 'volume-profile';
 
 /**
  * Regime que a estratégia está a assumir.

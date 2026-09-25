@@ -3860,3 +3860,156 @@ body:has(.terminal--cheio) .bottomnav {
   font-weight: 500;
   font-size: 11px;
 }
+
+/* --- ICT ALGO: a secção do gráfico ---------------------------------------- */
+
+.ict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.ict__topo {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.ict__selo {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--text);
+  color: var(--surface);
+}
+
+.ict__regime {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.ict__regime--manipulacao,
+.ict__regime--reversao {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  color: var(--warn);
+}
+
+.ict__regime--tendencia {
+  border-color: color-mix(in srgb, var(--bull) 55%, transparent);
+  color: var(--bull);
+}
+
+.ict__passos,
+.ict__modelos,
+.ict__vies {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ict__passo,
+.ict__modelos li,
+.ict__vies li {
+  display: flex;
+  gap: var(--s2);
+  padding: var(--s2) 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.ict__passo + .ict__passo,
+.ict__modelos li + li,
+.ict__vies li + li {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.ict__icone {
+  flex: 0 0 16px;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.ict__passo--ok .ict__icone,
+.ict__icone--ok {
+  color: var(--bull);
+}
+
+.ict__passo--falhou .ict__icone {
+  color: var(--bear);
+}
+
+.ict__passo--espera .ict__icone {
+  color: var(--warn);
+}
+
+.ict__passo-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ict__passo-texto b {
+  display: flex;
+  gap: var(--s2);
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ict__passo-texto em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.ict__passo-texto > span {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.ict__modelo--elegivel .ict__passo-texto b {
+  color: var(--text);
+}
+
+.ict__modelos li:not(.ict__modelo--elegivel) {
+  opacity: 0.72;
+}
+
+.ict__vies li b {
+  flex: 0 0 44px;
+  font-size: 12px;
+}
+
+.ict__vies em {
+  display: block;
+  font-style: normal;
+}
+
+.ict__bloco {
+  border-top: 1px solid var(--border);
+  padding-top: var(--s2);
+}
+
+.ict__bloco summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--s1) 0;
+}
+
+.ict__medicao {
+  border-left: 3px solid var(--warn);
+  padding-left: var(--s2);
+}

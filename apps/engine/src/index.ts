@@ -3,6 +3,7 @@
  *
  *   npm run engine:scan          motor principal (MMXM diário), uma passagem
  *   npm run engine:tempo-real    motor de tempo real, uma passagem
+ *   node dist/index.js ict       ICT ALGO, uma passagem (independente)
  *   npm run engine:dev           agendador com os dois motores, contínuo
  *   npm run sistema              agendador + painel, tudo junto
  *
@@ -32,6 +33,8 @@ const envResult = loadEnvFile();
 const { describeConfig, loadConfig } = await import('./config.js');
 const { formatScanReport, runScan } = await import('./pipeline/scan.js');
 const { correrTempoReal, formatarRelatorioTempoReal } = await import('./pipeline/tempo-real.js');
+const { correrIctTempoReal } = await import('./pipeline/ict-algo.js');
+const { createDbClient, isDbConfigured } = await import('@trading/db');
 const estado = await import('./pipeline/estado.js');
 const { iniciarOuvinteConta, ouvinteConfigurado } = await import('./pipeline/conta-ouvinte.js');
 const { closeDerivConnection } = await import('@trading/data');
@@ -44,6 +47,7 @@ const msg = (err: unknown) => (err instanceof Error ? err.message : String(err))
 // Guardas contra sobreposição: uma passagem lenta não pode acumular outras.
 let principalACorrer = false;
 let tempoRealACorrer = false;
+let ictACorrer = false;
 
 async function motorPrincipal(): Promise<void> {
   if (principalACorrer) {
@@ -125,6 +129,31 @@ async function motorTempoReal(): Promise<void> {
 }
 
 /**
+ * ICT ALGO — passagem própria, independente da das estratégias validadas.
+ *
+ * Corre no mesmo ritmo, mas com a sua guarda e o seu registo: se falhar, o tempo
+ * real das estratégias validadas não dá por nada, e vice-versa.
+ */
+async function motorIct(): Promise<void> {
+  if (ictACorrer) return;
+  ictACorrer = true;
+  try {
+    const r = await correrIctTempoReal(isDbConfigured() ? createDbClient() : null);
+    if (r.setups.length > 0 || r.erros.length > 0) {
+      console.log(
+        `[ICT ALGO] ${r.analisados} analisados · ${r.setups.length} setup(s) novo(s)` +
+          (r.notificar ? ` · ${r.avisados} aviso(s) entregues` : ' · avisos desligados') +
+          (r.erros.length > 0 ? ` · erros: ${r.erros.slice(0, 5).join(' | ')}` : ''),
+      );
+    }
+  } catch (err) {
+    console.error('[ICT ALGO] falhou:', err instanceof Error ? err.stack : err);
+  } finally {
+    ictACorrer = false;
+  }
+}
+
+/**
  * Espera que o painel responda antes da primeira passagem.
  *
  * O push não sai do motor: é o painel que o envia. Quando os dois arrancam
@@ -187,6 +216,12 @@ if (comando === 'scan') {
   estado.marcarArranque('unico', null);
   await motorTempoReal();
   closeDerivConnection();
+} else if (comando === 'ict') {
+  console.log(
+    `[ICT ALGO] passagem única | ${process.env['ICT_ALGO_TIMEFRAMES'] ?? '15m'} | avisos ${process.env['ICT_ALGO_NOTIFICAR'] === '1' ? 'ligados' : 'desligados'}`,
+  );
+  await motorIct();
+  closeDerivConnection();
 } else if (comando === 'schedule') {
   const crons: Array<[string, string]> = [
     ['principal', config.cron],
@@ -231,6 +266,8 @@ if (comando === 'scan') {
 
   cron.schedule(config.cron, () => void motorPrincipal());
   cron.schedule(config.tempoReal.cron, () => void motorTempoReal());
+  // O ICT ALGO no mesmo ritmo, noutra passagem: um não espera pelo outro.
+  if (process.env['ICT_ALGO_DESLIGADO'] !== '1') cron.schedule(config.tempoReal.cron, () => void motorIct());
 
   // Ouvinte da conta Deriv: ordens, fechos e depósitos passam a avisos.
   let pararOuvinte: (() => void) | null = null;

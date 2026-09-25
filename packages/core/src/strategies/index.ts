@@ -34,7 +34,6 @@ import { planSupplyDemandTrades } from './supply-demand.js';
 import { planSupportResistanceTrades } from './support-resistance.js';
 import { planVwapTrades } from './vwap.js';
 import { planVolumeProfileTrades } from './volume-profile.js';
-import { planICTAdvancedTrades } from './ict-advanced.js';
 import { assessOhlcQuality } from '../indicators/quality.js';
 
 export * from './types.js';
@@ -43,7 +42,6 @@ export * from './support-resistance.js';
 export * from './supply-demand.js';
 export * from './vwap.js';
 export * from './volume-profile.js';
-export * from './ict-advanced.js';
 export * from './contexto.js';
 export * from './validadas.js';
 export * from './em-teste.js';
@@ -76,7 +74,6 @@ const ALL_STRATEGIES: StrategyId[] = [
   'support-resistance',
   'vwap-bands',
   'volume-profile',
-  'ict-advanced',
 ];
 
 /**
@@ -102,7 +99,6 @@ export function runInstitutionalStrategies(
     'support-resistance': [],
     'vwap-bands': [],
     'volume-profile': [],
-    'ict-advanced': [],
   };
 
   const dataWarnings: string[] = [];
@@ -138,9 +134,6 @@ export function runInstitutionalStrategies(
   }
   if (enabled.has('volume-profile')) {
     byStrategy['volume-profile'] = planVolumeProfileTrades(series.candles, context);
-  }
-  if (enabled.has('ict-advanced')) {
-    byStrategy['ict-advanced'] = planICTAdvancedTrades(series, context);
   }
 
   const signals = ALL_STRATEGIES.flatMap((id) => byStrategy[id]).sort(

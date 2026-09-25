@@ -52,3 +52,6 @@ export * from './risk/sizing.js';
 
 // Universo
 export * from './universe.js';
+
+// ICT ALGO — algoritmo independente, ver docs/ICT-ALGO.md
+export * from './ict/index.js';

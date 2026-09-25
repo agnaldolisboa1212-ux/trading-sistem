@@ -59,10 +59,16 @@ export type VisaoInstitucional =
   | 'rompimento-4h'
   | 'abertura-dax-teste'
   | 'smt';
-export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm';
+/**
+ * `ict-algo` e `mmxm` vêm do SERVIDOR, não do cálculo local sobre as velas do
+ * gráfico: ambos precisam de séries de vários timeframes e de um par
+ * correlacionado, que o cliente não tem em mãos.
+ */
+export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm' | 'ict-algo';
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
+  { id: 'ict-algo', nome: 'ICT ALGO (Venom)', curto: 'ICT ALGO' },
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
   { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
@@ -769,14 +775,6 @@ export function analisarVisoes(
       'rompimento-4h': rompimentoVisao,
       'abertura-dax-teste': aberturaVisao,
       smt: smtVisao,
-      'ict-advanced': {
-        id: 'ict-advanced',
-        nome: 'ICT Advanced',
-        sinal: null,
-        desenho: DESENHO_VAZIO,
-        estruturas: [],
-        nota: 'Análise Avançada ICT Algo: Market Structure Shifts, Fair Value Gaps e Sweeps.',
-      },
     },
     comSinais,
     confluencia,

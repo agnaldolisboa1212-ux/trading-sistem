@@ -29,6 +29,7 @@ import { velasUnicas, type Vela } from '@/lib/deriv/live';
 import { acharSimbolo, formatarPreco, segundosDe, type Timeframe } from '@/lib/deriv/simbolos';
 import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
+import { VisaoIct, desenhoIct, usarIct } from './VisaoIct';
 import { estrategiaEmTeste, estrategiasPara } from '@trading/core';
 import {
   analisarVisoes,
@@ -99,6 +100,9 @@ function visoesOrdenadas(codigo: string, tf: string) {
   const daqui = new Set<string>(estrategiasPara(codigo, tf).map((e) => e.id as string));
   const peso = (v: (typeof VISOES)[number]) => {
     if (v.id === 'resumo') return 0;
+    // O ICT ALGO é um algoritmo à parte e aplica-se a qualquer instrumento do
+    // portfólio: fica logo a seguir ao Resumo.
+    if (v.id === 'ict-algo') return 0.5;
     if (v.contexto) return 3;
     const ids: string[] = [...daqui];
     return ids.includes(v.id) || (v.id === 'tendencia-cripto' && ids.some((i) => i.startsWith('tendencia')))
@@ -188,6 +192,8 @@ export function AnaliseAoVivo({
   const sinaisServidor = usarSinaisServidor(codigo, tf, analise.pronta ? candles : []);
   const mmxmServidor = usarMmxm(codigo, visao === 'mmxm' && mmxm === undefined);
   const mmxmActivo = mmxm ?? mmxmServidor;
+  // O ICT ALGO corre no servidor: só se pede quando a secção está aberta.
+  const ict = usarIct(codigo, tf, visao === 'ict-algo');
 
   // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
   // (ex: a abertura do DAX, que precisa das velas diárias).
@@ -216,15 +222,18 @@ export function AnaliseAoVivo({
   }, [analise, sinaisServidor]);
 
   const actual: Visao | null =
-    visoesComServidor && visao !== 'mmxm' ? visoesComServidor[visao] : null;
+    visoesComServidor && visao !== 'mmxm' && visao !== 'ict-algo' ? visoesComServidor[visao] : null;
 
   // Desenha a visão escolhida — ou limpa.
   const assinatura =
     visao === 'mmxm'
       ? `mmxm|${mmxmActivo?.titulo ?? ''}|${mmxmActivo?.desenho.linhas.length ?? 0}`
-      : `${chave}|${visao}`;
+      : visao === 'ict-algo'
+        ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}`
+        : `${chave}|${visao}`;
   useEffect(() => {
     if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
+    else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null));
     else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);
@@ -237,6 +246,10 @@ export function AnaliseAoVivo({
 
   /** Ponto de cor no botão: há um plano vivo nesta estratégia? */
   const marca = (id: VisaoId): string => {
+    if (id === 'ict-algo') {
+      const s = ict?.analise?.sinal;
+      return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
+    }
     if (!visoesComServidor || id === 'mmxm') return '';
     const sv = visoesComServidor[id as keyof typeof visoesComServidor]?.sinal;
     if (!sv || !sinalVivo(sv.estado)) return '';
@@ -244,7 +257,8 @@ export function AnaliseAoVivo({
   };
 
   if (compacto) {
-    const sv = visao === 'mmxm' ? null : (actual?.sinal ?? null);
+    const sv = visao === 'mmxm' || visao === 'ict-algo' ? null : (actual?.sinal ?? null);
+    const si = visao === 'ict-algo' ? (ict?.analise?.sinal ?? null) : null;
     const m = visao === 'mmxm' ? mmxmActivo : null;
     return (
       <div className="analise-viva analise-viva--compacta">
@@ -267,7 +281,23 @@ export function AnaliseAoVivo({
           </span>
         </div>
         <div className="analise-compacta__linha">
-          {sv ? (
+          {si ? (
+            <>
+              <span className={`lado-pill ${si.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+                {si.direccao === 'bullish' ? 'COMPRA' : 'VENDA'}
+              </span>
+              <span className="grow">
+                ICT ALGO · entrada <b>{fmt(si.entrada)}</b> · stop <b className="bear-t">{fmt(si.stop)}</b> · alvo{' '}
+                <b className="bull-t">{fmt(si.alvo)}</b>
+                <em>{si.rr.toFixed(1)}R · {si.modelo}</em>
+              </span>
+            </>
+          ) : visao === 'ict-algo' ? (
+            <span className="grow">
+              <b>ICT ALGO</b>
+              <em>{ict?.analise ? (ict.analise.porqueNao ?? 'sem setup') : 'a pedir a análise ao servidor…'}</em>
+            </span>
+          ) : sv ? (
             <>
               <span className={`lado-pill ${sv.sinal.direction === 'bullish' ? 'compra' : 'venda'}`}>
                 {sv.sinal.direction === 'bullish' ? 'COMPRA' : 'VENDA'}
@@ -336,7 +366,9 @@ export function AnaliseAoVivo({
       </div>
 
       <div className="analise-viva__corpo">
-        {visao === 'mmxm' ? (
+        {visao === 'ict-algo' ? (
+          <VisaoIct estado={ict} tf={tf} casas={casas} aoNegociar={aoNegociar} />
+        ) : visao === 'mmxm' ? (
           <VisaoMmxm codigo={codigo} mmxm={mmxmActivo} casas={casas} aoCarregar={mmxm === undefined} />
         ) : !analise.pronta ? (
           <div className="empty">
@@ -356,7 +388,14 @@ export function AnaliseAoVivo({
             )}
             {actual?.nota && <p className="analise-viva__nota">{actual.nota}</p>}
             <div className="visoes__lista">
-              {VISOES.filter((v) => v.id !== 'resumo' && v.id !== 'mmxm').map((v) => {
+              <button type="button" className="visoes__linha" onClick={() => aoMudarVisao('ict-algo')}>
+                <span className="grow">
+                  <strong>ICT ALGO</strong>
+                  <em>algoritmo independente · análise do semanal à vela, com o setup do momento</em>
+                </span>
+                <span aria-hidden="true">›</span>
+              </button>
+              {VISOES.filter((v) => v.id !== 'resumo' && v.id !== 'mmxm' && v.id !== 'ict-algo').map((v) => {
                 const sv = analise.visoes[v.id as keyof typeof analise.visoes].sinal;
                 return (
                   <button
@@ -409,7 +448,7 @@ export function AnaliseAoVivo({
 
       <NoticiasDoInstrumento codigo={codigo} agora={agora} />
 
-      {analise.pronta && visao !== 'mmxm' && (
+      {analise.pronta && visao !== 'mmxm' && visao !== 'ict-algo' && (
         <div className="analise-viva__rodape">
           Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas da Deriv, às{' '}
           {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. Os planos vêm só das
