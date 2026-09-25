@@ -30,6 +30,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ASIA_RANGE_EM_TESTE, ICT_ALGO_EM_TESTE } from '@trading/core';
 import Link from 'next/link';
+import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
 
 export interface Resultado {
   simbolo: string;
@@ -44,6 +45,10 @@ export interface Resultado {
     direccao: string;
     entrada: number;
     stop: number;
+    /** Primeiro alvo (TP). */
+    alvo?: number | null;
+    /** Ordem pendente (limite) na entrada, à espera do regresso do preço. */
+    pendente?: boolean;
     rMaximo: number;
     /** Taxa de acerto medida no backtest; 0 quando `emTeste`. */
     conviccao: number;
@@ -101,16 +106,20 @@ async function pedirRadar(
 /**
  * Os dois grupos do painel:
  *
- *   algo     ICT ALGO e Asia Range Algo, sempre em 15M (o timeframe deles)
+ *   ict      ICT ALGO, nos timeframes em que executa (15M, 1H, 4H)
+ *   asia     Asia Range Algo, em 15M
  *   basico   as outras estratégias, no timeframe escolhido
  */
-type Grupo = 'algo' | 'basico';
+type Grupo = 'ict' | 'asia' | 'basico';
 
 /** Em intradiário a vela fecha a cada poucos minutos: repetir mais depressa. */
 const INTRADIARIO = new Set(['1m', '5m', '15m', '30m']);
 
 const TIMEFRAMES_RADAR = ['15m', '30m', '1h', '4h', '1d'] as const;
 const CHAVE_RADAR = 'radar_timeframe';
+/** Só os timeframes em que o ICT ALGO dá sinais. */
+const TIMEFRAMES_ICT = ['15m', '1h', '4h'] as const;
+const CHAVE_ICT = 'radar_timeframe_ict';
 
 /** Ordena com sinal primeiro (por convicção), depois sem sinal, depois falhas. */
 function pontuacaoOrdem(r: Resultado | undefined): number {
@@ -144,16 +153,39 @@ export function PainelAgentes({
       /* sem armazenamento */
     }
   };
-  const algos = useMemo(
-    () => simbolos.filter((s) => INSTRUMENTOS_ALGOS.has(s.toUpperCase())),
-    [simbolos],
-  );
+  const [tfIct, setTfIct] = useState<string>('15m');
+  useEffect(() => {
+    try {
+      const v = window.localStorage.getItem(CHAVE_ICT);
+      if (v && (TIMEFRAMES_ICT as readonly string[]).includes(v)) setTfIct(v);
+    } catch {
+      /* sem armazenamento */
+    }
+  }, []);
+  const escolherTfIct = (tf: string) => {
+    setTfIct(tf);
+    try {
+      window.localStorage.setItem(CHAVE_ICT, tf);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
+  const doIct = useMemo(() => simbolos.filter((s) => ICT_ALGO_EM_TESTE.includes(s.toUpperCase())), [simbolos]);
+  const doAsia = useMemo(() => simbolos.filter((s) => ASIA_RANGE_EM_TESTE.includes(s.toUpperCase())), [simbolos]);
 
   return (
     <>
-      {algos.length > 0 && (
-        <GrupoAgentes titulo="Análises Algo" grupo="algo" simbolos={algos} timeframe="15m" />
+      {doIct.length > 0 && (
+        <GrupoAgentes
+          titulo="ICT ALGO"
+          grupo="ict"
+          simbolos={doIct}
+          timeframe={tfIct}
+          timeframes={TIMEFRAMES_ICT}
+          aoEscolherTimeframe={escolherTfIct}
+        />
       )}
+      {doAsia.length > 0 && <GrupoAgentes titulo="Asia Range Algo" grupo="asia" simbolos={doAsia} timeframe="15m" />}
       <GrupoAgentes
         titulo="Análises básicas"
         grupo="basico"
@@ -165,21 +197,21 @@ export function PainelAgentes({
   );
 }
 
-/** Os instrumentos onde o ICT ALGO ou o Asia Range Algo correm. */
-const INSTRUMENTOS_ALGOS = new Set([...ICT_ALGO_EM_TESTE, ...ASIA_RANGE_EM_TESTE]);
-
 function GrupoAgentes({
   titulo,
   grupo,
   simbolos,
   timeframe,
+  timeframes = TIMEFRAMES_RADAR,
   aoEscolherTimeframe,
 }: {
   titulo: string;
   grupo: Grupo;
   simbolos: string[];
   timeframe: string;
-  /** Sem isto o grupo tem timeframe fixo (os algos) e não mostra o seletor. */
+  /** Os timeframes do seletor; por omissão, os cinco do radar. */
+  timeframes?: readonly string[];
+  /** Sem isto o grupo tem timeframe fixo (o Asia Range) e não mostra o seletor. */
   aoEscolherTimeframe?: (tf: string) => void;
 }) {
   const [resultados, setResultados] = useState<Map<string, Resultado>>(new Map());
@@ -264,7 +296,8 @@ function GrupoAgentes({
           {titulo}
           <em className="faint">
             {' · '}
-            {aoEscolherTimeframe ? (aCorrer ? 'a analisar…' : 'concluída') : `15M · ${aCorrer ? 'a analisar…' : 'concluída'}`}
+            {aoEscolherTimeframe ? '' : `${timeframe.toUpperCase()} · `}
+            {aCorrer ? 'a analisar…' : 'concluída'}
           </em>
         </span>
         <span className="grow" />
@@ -287,7 +320,7 @@ function GrupoAgentes({
 
       {aoEscolherTimeframe && (
         <div className="segmentos agentes__tfs" role="radiogroup" aria-label="Timeframe da análise">
-          {TIMEFRAMES_RADAR.map((tf) => (
+          {timeframes.map((tf) => (
             <button key={tf} type="button" aria-pressed={timeframe === tf} onClick={() => aoEscolherTimeframe(tf)}>
               {tf.toUpperCase()}
             </button>
@@ -315,9 +348,11 @@ function GrupoAgentes({
             minute: '2-digit',
           })}
           . Velas {timeframe} fechadas —{' '}
-          {grupo === 'algo'
-            ? 'ICT ALGO e Asia Range Algo, os mesmos que o motor de tempo real usa'
-            : 'as mesmas estratégias que o motor de tempo real usa'}
+          {grupo === 'ict'
+            ? 'o ICT ALGO, o mesmo que o motor de tempo real usa'
+            : grupo === 'asia'
+              ? 'o Asia Range Algo, o mesmo que o motor de tempo real usa'
+              : 'as mesmas estratégias que o motor de tempo real usa'}
           , repetidas a cada {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
         </div>
       )}
@@ -337,6 +372,8 @@ function LinhaAgente({
   timeframe: string;
 }) {
   const sinal = resultado?.sinal;
+  const casas = acharSimbolo(simbolo)?.casas ?? 5;
+  const fmt = (v: number) => formatarPreco(v, casas);
 
   const marca =
     estado === 'corre' ? '◍' : estado === 'falhou' ? '!' : estado === 'passou' ? '✓' : '·';
@@ -347,7 +384,7 @@ function LinhaAgente({
     if (resultado?.erro) return resultado.erro.slice(0, 44);
     if (sinal) {
       const lado = sinal.direccao === 'bullish' ? 'COMPRA' : 'VENDA';
-      return `${lado} · ${sinal.rMaximo.toFixed(1)}R`;
+      return `${lado} · ${sinal.rMaximo.toFixed(1)}R${sinal.pendente ? ' · ordem pendente' : ''}`;
     }
     if (resultado?.conflito) return 'estratégias em sentidos opostos';
     if (resultado?.temEstrategia === false) return 'sem estratégia activa';
@@ -369,6 +406,17 @@ function LinhaAgente({
       <span className="agente__nome">
         <strong>{simbolo}</strong>
         <em className="agente__detalhe">{detalhe()}</em>
+        {sinal && estado === 'passou' && (
+          <em className="agente__detalhe">
+            entrada <b>{fmt(sinal.entrada)}</b> · stop <b className="bear-t">{fmt(sinal.stop)}</b>
+            {sinal.alvo != null && (
+              <>
+                {' '}
+                · alvo <b className="bull-t">{fmt(sinal.alvo)}</b>
+              </>
+            )}
+          </em>
+        )}
       </span>
       <span className="agente__valor">
         {sinal?.emTeste ? null : sinal ? (

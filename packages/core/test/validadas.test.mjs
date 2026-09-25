@@ -26,7 +26,12 @@ const D = 86_400_000;
 const vela = (time, open, high, low, close) => ({ time, open, high, low, close, volume: 0 });
 
 test('só índices e cripto validados, nos timeframes medidos', () => {
-  assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices']);
+  // Em 1H o US100 tem o VWAP validado e o ICT ALGO em teste (25/09/2026).
+  assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices', 'ict-algo']);
+  assert.deepEqual(
+    estrategiasPara('US100', '1h').filter((e) => !('emTeste' in e)).map((e) => e.id),
+    ['compra-vwap-indices'],
+  );
   assert.deepEqual(estrategiasPara('SP500', '1d').map((e) => e.id), ['connors-rsi2-indices']);
   // BTCUSD 1d: duas compras validadas (tendência de 55 dias e Connors), mais a
   // venda em teste (tendencia-baixa-cripto).

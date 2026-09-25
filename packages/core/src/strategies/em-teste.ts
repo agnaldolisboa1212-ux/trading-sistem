@@ -125,7 +125,8 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     descricao:
       'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo do site que corresponde (Venom, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE).',
     instrumentos: ICT_ALGO_EM_TESTE,
-    timeframes: ['15m'],
+    // Os três timeframes de execução do algoritmo (os medidos no backtest).
+    timeframes: ['15m', '1h', '4h'],
     entrada: 'A do modelo escolhido: ordem pendente no PD array (FVG/OB) ou a mercado na vela de rejeição, dentro das killzones de Londres ou Nova Iorque.',
     saida: 'Stop estrutural do modelo (extremo varrido ou swing); alvo na liquidez mais próxima que pague pelo menos 2R.',
     emTeste: {

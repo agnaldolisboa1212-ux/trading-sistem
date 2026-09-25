@@ -69,6 +69,12 @@ export interface StrategySignal {
   targets: TargetPlan[];
   /** Maior múltiplo de R alcançável no plano. */
   maxRMultiple: number;
+  /**
+   * `limit`: ordem pendente no preço de entrada, à espera de que o preço volte
+   * (o caso do ICT ALGO no FVG) — o preço afastado da entrada é o normal, não
+   * "entrada perdida". Omisso = a mercado.
+   */
+  entryType?: 'market' | 'limit';
 
   /**
    * Convicção em 0..1.
