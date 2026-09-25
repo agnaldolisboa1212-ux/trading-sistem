@@ -4,6 +4,11 @@
  * formato de `data/backtest/histdata/` (tempo em ms UTC).
  *
  *   node scripts/backtest/baixar-histdata.mjs AUDJPY CADJPY --desde 2021
+ *   node scripts/backtest/baixar-histdata.mjs GBPJPY --tfs 3m,5m   (só esses timeframes)
+ *
+ * Um ficheiro que já exista com história MAIS ANTIGA do que a descarregada não
+ * é substituído (o GBPJPY de 15M vem de 2016; um download desde 2021 cortava-o).
+ * `--forcar` substitui na mesma.
  *
  * ── PORMENORES QUE MUDAM OS RESULTADOS ─────────────────────────────────────
  *
@@ -17,7 +22,7 @@
  * traz leitor de ZIP, e não vale uma dependência para um ficheiro por pedido.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inflateRawSync } from 'node:zlib';
@@ -29,7 +34,12 @@ mkdirSync(DESTINO, { recursive: true });
 const args = process.argv.slice(2);
 const iDesde = args.indexOf('--desde');
 const desde = iDesde >= 0 ? Number(args[iDesde + 1]) : 2021;
-const pares = args.filter((a, k) => !a.startsWith('--') && k !== iDesde + 1).map((a) => a.toUpperCase());
+const iTfs = args.indexOf('--tfs');
+const PASSOS = { '1m': 60_000, '3m': 180_000, '5m': 300_000, '15m': 900_000, '1h': 3_600_000 };
+const tfs = (iTfs >= 0 ? args[iTfs + 1] : '15m,1h').split(',').filter((t) => PASSOS[t]);
+const forcar = args.includes('--forcar');
+const valores = new Set([iDesde + 1, iTfs + 1].filter((k) => k > 0));
+const pares = args.filter((a, k) => !a.startsWith('--') && !valores.has(k)).map((a) => a.toUpperCase());
 if (pares.length === 0) {
   console.log('uso: node scripts/backtest/baixar-histdata.mjs PAR [PAR...] [--desde ANO]');
   process.exit(1);
@@ -157,9 +167,21 @@ for (const par of pares) {
 
   minutos.sort((a, b) => a.time - b.time);
   const unicos = minutos.filter((m, k) => k === 0 || m.time !== minutos[k - 1].time);
-  for (const [tf, passo] of [['15m', 900_000], ['1h', 3_600_000]]) {
-    const velas = agregar(unicos, passo);
-    writeFileSync(join(DESTINO, `${par}_${tf}.json`), JSON.stringify(velas));
+  for (const tf of tfs) {
+    const velas = agregar(unicos, PASSOS[tf]);
+    const ficheiro = join(DESTINO, `${par}_${tf}.json`);
+    if (!forcar && existsSync(ficheiro) && velas.length > 0) {
+      try {
+        const antigo = JSON.parse(readFileSync(ficheiro, 'utf8'));
+        if (antigo.length > 0 && antigo[0].time < velas[0].time) {
+          console.log(`${par} ${tf}: já existe com história desde ${new Date(antigo[0].time).toISOString().slice(0, 10)} — mantido (--forcar para substituir)`);
+          continue;
+        }
+      } catch {
+        /* ficheiro ilegível: substitui-se */
+      }
+    }
+    writeFileSync(ficheiro, JSON.stringify(velas));
     console.log(
       `${par} ${tf}: ${velas.length} velas, ${velas.length ? new Date(velas[0].time).toISOString().slice(0, 10) : '-'} → ${velas.length ? new Date(velas[velas.length - 1].time).toISOString().slice(0, 10) : '-'}`,
     );
