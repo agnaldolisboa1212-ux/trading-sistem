@@ -300,7 +300,7 @@ test('placar: só conta operações fechadas até ao instante da decisão', () =
 test('placar: a quarentena tira um modelo da escolha, nunca acrescenta', () => {
   const h1 = serieSintetica(1800, Date.UTC(2024, 0, 1), HORA, 17);
   const e = prepararEstruturas(entrada(h1, { simbolo: 'GBPUSD', velas: serieSintetica(1800, Date.UTC(2024, 0, 1), HORA, 117) }));
-  const todosDeQuarentena = ['venom', 'crt', 'reaper-ifvg', 'silver-bullet', 'unicorn', 'turtle-soup', 'continuacao'].map(
+  const todosDeQuarentena = TODOS_OS_MODELOS.map(
     (modelo) => ({ modelo, n: 20, media: -0.5, quarentena: true }),
   );
   for (let i = 700; i < h1.length; i++) {

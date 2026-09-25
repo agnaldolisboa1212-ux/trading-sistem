@@ -126,7 +126,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'ict-algo',
     nome: 'ICT ALGO',
     descricao:
-      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo do site que corresponde (Venom, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE).',
+      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). Só envia com confirmação em 5M (CHoCH/MSS e estrutura de 5M a favor).',
     instrumentos: ICT_ALGO_EM_TESTE,
     // Os três timeframes de execução do algoritmo (os medidos no backtest).
     timeframes: ['15m', '1h', '4h'],
@@ -146,7 +146,8 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres. Pares JPY e USDCAD.',
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
-    entrada: 'A mercado no primeiro fecho além do último swing antes do extremo da manipulação (MSS), entre as 08:00 e as 10:00 de Londres.',
+    entrada:
+      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 3M (CHoCH/MSS e estrutura de 3M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
     saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
     emTeste: {
       desde: '2026-09-25',

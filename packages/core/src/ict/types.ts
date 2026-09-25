@@ -298,7 +298,8 @@ export type ModeloIct =
   | 'silver-bullet'
   | 'unicorn'
   | 'turtle-soup'
-  | 'continuacao';
+  | 'continuacao'
+  | 'mentorship-2022';
 
 /** Nome legível de cada modelo. */
 export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
@@ -309,12 +310,14 @@ export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
   unicorn: 'Unicorn',
   'turtle-soup': 'Turtle Soup',
   continuacao: 'Continuação (OTE + PD array)',
+  'mentorship-2022': 'ICT 2022 Mentorship',
 };
 
 /** Um passo da análise top-down, para a explicação que vai ao utilizador. */
 export interface PassoTopDown {
   numero: number;
-  timeframe: Timeframe | 'tempo';
+  /** '3m': a confirmação do Asia Range Algo (a Deriv serve 3M; o sistema não o usa como timeframe). */
+  timeframe: Timeframe | 'tempo' | '3m';
   titulo: string;
   veredicto: 'ok' | 'falhou' | 'espera';
   detalhe: string;
@@ -442,6 +445,17 @@ export interface AnaliseIct {
     rotulo: string;
     origem: 'liquidez' | 'pd-array';
     desde: number;
+  } | null;
+  /**
+   * A confirmação em 5M do sinal (ver `confirmacao.ts`), quando quem chama tem
+   * velas de 5M. Sem `ok`, o sinal não é enviado — é só análise.
+   */
+  confirmacao?: {
+    ok: boolean;
+    tipo: 'bos' | 'choch' | 'mss' | null;
+    time: number | null;
+    nivel: number | null;
+    detalhe: string;
   } | null;
   avisos: string[];
 }

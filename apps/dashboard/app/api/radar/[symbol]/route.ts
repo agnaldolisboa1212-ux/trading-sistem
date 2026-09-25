@@ -167,13 +167,24 @@ export async function GET(
     let extra: DadosExtra = {};
     if (temAlgo) {
       const parSim = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
-      const [diarias, parVelas] = await Promise.all([
+      const temIct = estrategias.some((e) => e.id === 'ict-algo');
+      const temAsia = estrategias.some((e) => e.id === 'asia-range-algo');
+      const [diarias, parVelas, ltf, ltf3] = await Promise.all([
         velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 300),
         parSim ? velasFechadas(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
+        // 5M: a confirmação do ICT ALGO.
+        temIct ? velasFechadas(s.deriv, 300, 300).catch(() => []) : Promise.resolve([]),
+        // 3M: a confirmação do Asia Range Algo.
+        temAsia ? velasFechadas(s.deriv, 180, 300).catch(() => []) : Promise.resolve([]),
       ]);
       extra = {
         ...extra,
-        algo: { diarias, par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null },
+        algo: {
+          diarias,
+          par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null,
+          ltf,
+          ltf3,
+        },
       };
     }
     if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {

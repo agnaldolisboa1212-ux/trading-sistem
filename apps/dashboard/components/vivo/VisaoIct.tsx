@@ -280,10 +280,12 @@ function CartaoSinalIct({
   s,
   fmt,
   aoNegociar,
+  confirmacao,
 }: {
   s: SinalIct;
   fmt: (v: number) => string;
   aoNegociar?: (plano: PlanoParaOrdem) => void;
+  confirmacao?: AnaliseIct['confirmacao'];
 }) {
   const compra = s.direccao === 'bullish';
   return (
@@ -294,6 +296,13 @@ function CartaoSinalIct({
         <span className="grow" />
         <span className="analise-viva__r">{s.rr.toFixed(1)}R</span>
       </div>
+      {confirmacao && (
+        <div className={`analise-viva__nota ${confirmacao.ok ? 'bull-t' : 'warn-t'}`}>
+          {confirmacao.ok
+            ? `✓ Confirmado em 5M: ${confirmacao.detalhe}.`
+            : `À espera de confirmação em 5M (${confirmacao.detalhe}). Sem ela o sinal não é enviado nem entra na lista.`}
+        </div>
+      )}
       <div className="analise-viva__estado vivo">
         Regime {NOME_REGIME[s.regime]?.toLowerCase()} ·{' '}
         {s.tipoEntrada === 'pendente' ? 'ordem pendente: entra no regresso do preço à zona' : 'entrada a mercado, no fecho da vela de rejeição'}
@@ -400,7 +409,7 @@ export function VisaoIct({
       )}
 
       {a.sinal ? (
-        <CartaoSinalIct s={a.sinal} fmt={fmt} aoNegociar={aoNegociar} />
+        <CartaoSinalIct s={a.sinal} fmt={fmt} aoNegociar={aoNegociar} confirmacao={a.confirmacao} />
       ) : (
         <div className="empty">
           <strong>Sem setup neste momento.</strong>

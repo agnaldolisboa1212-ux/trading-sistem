@@ -41,16 +41,19 @@ export async function GET(_pedido: Request, ctx: { params: Promise<{ symbol: str
   }
   const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
   try {
-    const [velas, diarias, parVelas] = await Promise.all([
+    const [velas, diarias, parVelas, ltf] = await Promise.all([
       fechadas(s.deriv, M15, 400),
       fechadas(s.deriv, 86_400, 300),
       parSimbolo ? fechadas(parSimbolo.deriv, M15, 400).catch(() => []) : Promise.resolve([]),
+      // 3M: a confirmação (a mesma que o motor exige para enviar o sinal).
+      fechadas(s.deriv, 180, 300).catch(() => []),
     ]);
     const analise = analisarAsiaRange({
       simbolo: s.codigo,
       velas,
       diarias,
       par: parSimbolo && parVelas.length > 0 ? { simbolo: parSimbolo.codigo, velas: parVelas } : null,
+      ltf,
     });
     return NextResponse.json({ simbolo: s.codigo, analise, em }, semCache);
   } catch (e) {

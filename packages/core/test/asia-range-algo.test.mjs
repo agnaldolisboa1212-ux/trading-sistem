@@ -2,7 +2,7 @@
  * Asia Range Algo — a estratégia do journal.
  *
  *   1. o cenário das notas dá o sinal, com o stop e o alvo das regras
- *   2. sem SMT, ou à sexta-feira, não dá
+ *   2. sem SMT não dá; à sexta-feira dá (desde 25/09/2026)
  *   3. LOOK-AHEAD: a decisão numa vela não muda quando o futuro é removido
  *   4. sem `extra.algo` (o caso do cliente) a estratégia não corre
  */
@@ -54,8 +54,27 @@ function cenario(parVarre, deslocarDias = 0) {
   return { v, p, diarias };
 }
 
-const analisar = (v, p, diarias, i) =>
-  analisarAsiaRange({ simbolo: 'GBPJPY', velas: v.slice(0, i + 1), diarias, par: { simbolo: 'USDJPY', velas: p }, viesForcado: VIES });
+/**
+ * 3M a partir das velas de 15M: cada uma partida em cinco, do abertura ao fecho
+ * a passar pelo mínimo e pelo máximo (compra: mínimo primeiro).
+ */
+function em3m(v15) {
+  const out = [];
+  for (const c of v15) {
+    const sobe = c.close >= c.open;
+    const pontos = sobe ? [c.open, c.low, (c.low + c.high) / 2, c.high, c.close] : [c.open, c.high, (c.low + c.high) / 2, c.low, c.close];
+    let ant = c.open;
+    for (let k = 0; k < 5; k++) {
+      const alvo = k === 4 ? c.close : pontos[k + 1];
+      out.push(vela(c.time + k * 180_000, ant, Math.max(ant, alvo), Math.min(ant, alvo), alvo));
+      ant = alvo;
+    }
+  }
+  return out;
+}
+
+const analisar = (v, p, diarias, i, ltf = em3m(v)) =>
+  analisarAsiaRange({ simbolo: 'GBPJPY', velas: v.slice(0, i + 1), diarias, par: { simbolo: 'USDJPY', velas: p }, viesForcado: VIES, ltf });
 
 test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na máxima da Ásia', () => {
   const { v, p, diarias } = cenario(false);
@@ -75,7 +94,7 @@ test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na m�
   assert.ok(relogioLondres(s.time).minutos + 15 < 10 * 60, 'fecha antes das 10:00 de Londres');
 });
 
-test('Asia Range Algo: sem SMT não há sinal, e na sexta também não', () => {
+test('Asia Range Algo: sem SMT não há sinal; à sexta-feira há', () => {
   const { v, p, diarias } = cenario(true);
   const razoes = new Set();
   for (let i = 224; i < v.length; i++) {
@@ -86,7 +105,9 @@ test('Asia Range Algo: sem SMT não há sinal, e na sexta também não', () => {
   assert.ok(razoes.has('sem divergência SMT na abertura de Londres'), [...razoes].join(' | '));
 
   const sexta = cenario(false, 3);
-  for (let i = 224; i < sexta.v.length; i++) assert.equal(analisar(sexta.v, sexta.p, sexta.diarias, i).sinal, null);
+  let naSexta = 0;
+  for (let i = 224; i < sexta.v.length; i++) if (analisar(sexta.v, sexta.p, sexta.diarias, i).sinal) naSexta++;
+  assert.equal(naSexta, 1, 'à sexta-feira o setup também sai');
 });
 
 test('Asia Range Algo: o TESTE DO CORTE — o futuro removido não muda a decisão', () => {
@@ -98,6 +119,8 @@ test('Asia Range Algo: o TESTE DO CORTE — o futuro removido não muda a decis�
       diarias,
       par: { simbolo: 'USDJPY', velas: p.slice(0, i + 1) },
       viesForcado: VIES,
+      // 3M só até ao fim da vela i: o futuro de 3M também fica de fora.
+      ltf: em3m(v.slice(0, i + 1)),
     });
     const comFuturoDoPar = analisar(v, p, diarias, i);
     assert.deepEqual(cortada.sinal, comFuturoDoPar.sinal, `vela ${i}: o par do futuro mudou a decisão`);
@@ -109,4 +132,15 @@ test('Asia Range Algo e ICT ALGO: sem extra.algo (o cliente) não correm', () =>
   const { v } = cenario(false);
   const r = executarEstrategiasValidadas(v, { symbol: 'GBPJPY', timeframe: '15m' }, {});
   assert.equal(r.filter((s) => s.strategy === 'asia-range-algo' || s.strategy === 'ict-algo').length, 0);
+});
+
+test('Asia Range Algo: sem velas de 3M (sem confirmação) não há sinal', () => {
+  const { v, p, diarias } = cenario(false);
+  const razoes = new Set();
+  for (let i = 224; i < v.length; i++) {
+    const a = analisar(v, p, diarias, i, []);
+    assert.equal(a.sinal, null);
+    razoes.add(a.porqueNao);
+  }
+  assert.ok(razoes.has('à espera de confirmação 3M'), [...razoes].join(' | '));
 });

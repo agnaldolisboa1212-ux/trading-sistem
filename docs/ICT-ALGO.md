@@ -271,6 +271,22 @@ do `jpy-londres.mjs` ("alvo na Ásia"), fixada antes de correr; falta correr com
 os dados do HistData. A entrada em 5M precisa de dados de 5M, que o script de
 descarga ainda não gera.
 
+### ICT 2022 Mentorship e confirmação em 5M (25/09/2026)
+
+**Modelo ICT 2022 Mentorship** (`modelos/mentorship-2022.ts`): viés diário →
+varrimento de qualquer poça de liquidez contra o viés → MSS com deslocamento →
+a FVG que o deslocamento deixou, em desconto (compra) ou prémio (venda) da perna
+varrimento→MSS → ordem pendente na FVG, stop no extremo varrido, alvo na
+liquidez do outro lado (≥ 2R). No mapa de regimes: manipulação (a seguir ao
+Venom — é o mesmo movimento sem SMT) e reversão (a seguir ao Unicorn). Fixado
+pela descrição do modelo, antes de medir.
+
+**Confirmação em 5M** (`confirmacao.ts`): o sinal do ICT ALGO só é enviado (e
+só entra na lista) se, em 5M, a última quebra de estrutura for no sentido do
+sinal e tiver havido uma CHoCH ou um MSS nesse sentido nas últimas 3 horas. Sem
+isso fica só como análise, e a aba do gráfico diz "à espera de confirmação em
+5M".
+
 ### Asia Range Algo — estratégia à parte (`strategies/asia-range-algo.ts`, em teste desde 25/09/2026)
 
 O modelo do journal é uma **estratégia própria**, não um modelo do ICT ALGO:
@@ -281,10 +297,15 @@ asiática 00:00–08:00 de Londres → Londres passa o extremo asiático contra 
 viés → o par correlacionado não passa o seu (SMT) → primeiro fecho além do
 último swing antes do extremo (MSS), entrada a mercado. Stop no extremo da
 manipulação. Alvo: a máxima/mínima oposta da Ásia ou o **POI de Londres**, o
-mais próximo que pague 2R. Só 15M, GBPJPY/USDJPY/EURJPY e USDCAD (SMT contra o USDCHF), nada às sextas, um
+mais próximo que pague 2R. Só 15M, GBPJPY/USDJPY/EURJPY e USDCAD (SMT contra o USDCHF), também às sextas, um
 setup por dia e sentido. A vela do MSS fecha antes das 10:00 de Londres (fim
 da killzone de Londres; o backtest aceitava também a das 09:45).
 **Sem vantagem medida** — o aviso segue em cada sinal.
+
+**Confirmação em 3M** (desde 25/09/2026): depois do MSS de 15M, o sinal só sai
+com CHoCH/MSS e estrutura de 3M a favor (a mesma regra da confirmação do ICT em
+5M, `confirmacaoLtf` com passo de 3M). Pode chegar até 45 min depois do MSS; o
+sinal sai na primeira vela de 15M confirmada, ao fecho dela, e nunca duas vezes.
 
 ### ICT ALGO também gera sinais (desde 25/09/2026)
 

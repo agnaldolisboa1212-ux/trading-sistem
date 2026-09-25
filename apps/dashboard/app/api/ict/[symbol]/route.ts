@@ -22,7 +22,7 @@
 
 import { NextResponse } from 'next/server';
 import { velasDeriv } from '@trading/data';
-import { agregar, correrIctAlgo, paresSmtIct, type Candle, type Timeframe } from '@trading/core';
+import { agregar, confirmacaoLtf, correrIctAlgo, paresSmtIct, type Candle, type Timeframe } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { clienteServidor } from '@/lib/supabase/servidor';
 
@@ -94,10 +94,12 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
 
   try {
     const gran = GRANULARIDADE_S[tf]!;
-    const [execucao, diarias, parVelas] = await Promise.all([
+    const [execucao, diarias, parVelas, velas5m] = await Promise.all([
       fechadas(s.deriv, gran, VELAS_EXECUCAO),
       fechadas(s.deriv, 86_400, 400),
       parSimbolo ? fechadas(parSimbolo.deriv, gran, VELAS_EXECUCAO).catch(() => []) : Promise.resolve([]),
+      // 5M: a confirmação do sinal (a mesma que o motor exige para o enviar).
+      fechadas(s.deriv, 300, 300).catch(() => []),
     ]);
 
     // A Deriv não serve velas semanais: agregam-se das diárias, alinhadas ao
@@ -116,6 +118,14 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
       par: parSimbolo && parVelas.length > 0 ? { simbolo: parSimbolo.codigo, velas: parVelas } : null,
       portfolio,
     });
+    if (analise.sinal) {
+      const ult = execucao[execucao.length - 1];
+      analise.confirmacao = confirmacaoLtf(
+        velas5m,
+        analise.sinal.direccao,
+        (ult?.time ?? Date.now()) + GRANULARIDADE_S[tf]! * 1000,
+      );
+    }
 
     return NextResponse.json({ simbolo: s.codigo, nome: s.nome, timeframe: tf, par: parCodigo, analise, em }, semCache);
   } catch (e) {
