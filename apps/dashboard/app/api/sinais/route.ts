@@ -24,7 +24,7 @@ import {
 } from '@trading/core';
 import { velasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
-import type { EstadoPlano } from '@/lib/estado-sinal';
+import { planoVivo, type EstadoPlano } from '@/lib/estado-sinal';
 import { clienteServidor } from '@/lib/supabase/servidor';
 
 export const dynamic = 'force-dynamic';
@@ -111,8 +111,40 @@ async function velasDesde(simbolo: string, timeframe: string, desdeMs: number): 
     memoriaVelas.set(chave, { ate: Date.now() + 60_000, velas });
     return velas;
   } catch {
-    return null;
+    // Velas antigas continuam a ser velas fechadas: um stop que elas mostram
+    // atingido continua atingido. Melhor do que nenhum estado.
+    return guardado?.velas ?? null;
   }
+}
+
+/*
+ * ── PORQUE SE GUARDAM OS ESTADOS FINAIS ────────────────────────────────────
+ *
+ * Medido: com a Deriv a responder `RateLimit` a `ticks_history`, `velasDesde`
+ * devolvia `null`, o estado ficava por calcular e a lista mostrava como
+ * ACTIVOS sinais que tinham ido ao stop dias antes.
+ *
+ * Um sinal fechado (alvo, stop, sem entrada, expirado) nunca volta a abrir.
+ * Guardado aqui, deixa de precisar de velas: os pedidos à Deriv passam a ser só
+ * para os sinais ainda vivos, e uma falha da Deriv já não o ressuscita.
+ */
+interface EstadoFinal {
+  estado: EstadoPlano;
+  resultadoR: number | null;
+  stopActual: number | null;
+  ultimoEvento: string | null;
+}
+const estadosFinais = new Map<string, EstadoFinal>();
+
+/** Quantos grupos instrumento/timeframe pedem velas ao mesmo tempo. */
+const PEDIDOS_EM_PARALELO = 3;
+
+async function emLotes<T>(itens: T[], n: number, fn: (x: T) => Promise<void>): Promise<void> {
+  let i = 0;
+  const trabalhador = async () => {
+    while (i < itens.length) await fn(itens[i++]!);
+  };
+  await Promise.all(Array.from({ length: Math.min(n, itens.length) }, trabalhador));
 }
 
 export async function GET() {
@@ -202,46 +234,61 @@ export async function GET() {
       emTeste: estrategiaEmTeste(l.estrategia as string) !== undefined,
     }));
 
-  // Estado: um pedido de velas por instrumento/timeframe, desde o sinal mais antigo.
+  // Sinais já fechados: o estado guardado basta, sem velas.
+  for (const s of sinais) {
+    const f = estadosFinais.get(s.id);
+    if (f) Object.assign(s, f);
+  }
+
+  // Estado dos restantes: um pedido de velas por instrumento/timeframe, desde o
+  // sinal mais antigo, poucos de cada vez para não esbarrar no limite da Deriv.
   const grupos = new Map<string, SinalDaConta[]>();
   for (const s of sinais) {
+    if (s.estado !== null) continue;
     const k = `${s.simbolo}|${s.timeframe}`;
     grupos.set(k, [...(grupos.get(k) ?? []), s]);
   }
-  await Promise.all(
-    [...grupos.values()].map(async (lista) => {
-      const primeiro = lista[0]!;
-      const maisAntigo = Math.min(...lista.map((s) => Date.parse(s.geradoEm)));
-      const velas = await velasDesde(primeiro.simbolo, primeiro.timeframe, maisAntigo);
-      if (!velas) return;
-      const casas = acharSimbolo(primeiro.simbolo)?.casas ?? 2;
-      for (const s of lista) {
-        // A mesma leitura que o motor usa para avisar o andamento.
-        const a = acompanharOperacao(
-          {
-            estrategia: s.estrategia,
-            direccao: s.direccao,
-            entrada: s.entrada,
-            stop: s.stop,
-            alvos: s.alvos,
-            geradoEm: Date.parse(s.geradoEm),
-          },
-          velas,
-        );
-        s.estado = estadoDaLista(a);
-        s.resultadoR = a.resultadoR;
-        s.stopActual = a.stopActual;
-        const ultimo = a.eventos[a.eventos.length - 1];
-        s.ultimoEvento = ultimo ? fraseEvento(ultimo, casas, s.estrategia).titulo : null;
-        const agora = velas[velas.length - 1]?.close;
-        const risco = Math.abs(s.entrada - s.stop);
-        s.distanciaR =
-          agora !== undefined && risco > 0
-            ? ((agora - s.entrada) * (s.direccao === 'bullish' ? 1 : -1)) / risco
-            : null;
+  await emLotes([...grupos.values()], PEDIDOS_EM_PARALELO, async (lista) => {
+    const primeiro = lista[0]!;
+    const maisAntigo = Math.min(...lista.map((s) => Date.parse(s.geradoEm)));
+    const velas = await velasDesde(primeiro.simbolo, primeiro.timeframe, maisAntigo);
+    if (!velas) return;
+    const casas = acharSimbolo(primeiro.simbolo)?.casas ?? 2;
+    for (const s of lista) {
+      // A mesma leitura que o motor usa para avisar o andamento.
+      const a = acompanharOperacao(
+        {
+          estrategia: s.estrategia,
+          direccao: s.direccao,
+          entrada: s.entrada,
+          stop: s.stop,
+          alvos: s.alvos,
+          geradoEm: Date.parse(s.geradoEm),
+        },
+        velas,
+      );
+      s.estado = estadoDaLista(a);
+      s.resultadoR = a.resultadoR;
+      s.stopActual = a.stopActual;
+      const ultimo = a.eventos[a.eventos.length - 1];
+      s.ultimoEvento = ultimo ? fraseEvento(ultimo, casas, s.estrategia).titulo : null;
+      const agora = velas[velas.length - 1]?.close;
+      const risco = Math.abs(s.entrada - s.stop);
+      s.distanciaR =
+        agora !== undefined && risco > 0
+          ? ((agora - s.entrada) * (s.direccao === 'bullish' ? 1 : -1)) / risco
+          : null;
+      if (!planoVivo(s.estado)) {
+        if (estadosFinais.size > 2000) estadosFinais.clear();
+        estadosFinais.set(s.id, {
+          estado: s.estado,
+          resultadoR: s.resultadoR,
+          stopActual: s.stopActual,
+          ultimoEvento: s.ultimoEvento,
+        });
       }
-    }),
-  );
+    }
+  });
 
   return NextResponse.json(
     { portfolio, timeframes, sinais, ocultarDisponivel },

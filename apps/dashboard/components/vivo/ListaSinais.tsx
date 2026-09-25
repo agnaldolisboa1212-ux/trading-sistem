@@ -68,7 +68,21 @@ export function ListaSinais() {
       const r = await fetch('/api/sinais', { cache: 'no-store' });
       const j = (await r.json()) as typeof dados & { erro?: string };
       if (!r.ok || !j) throw new Error(j?.erro ?? `HTTP ${r.status}`);
-      setDados(j);
+      // Se a Deriv falhou nesta sondagem, um sinal vem sem estado. Mantém-se o
+      // último estado conhecido em vez de o devolver a "activo".
+      setDados((antes) => {
+        if (!antes) return j;
+        const conhecidos = new Map(antes.sinais.map((s) => [s.id, s]));
+        return {
+          ...j,
+          sinais: j.sinais.map((s) => {
+            const velho = conhecidos.get(s.id);
+            if (s.estado !== null || !velho?.estado) return s;
+            const { estado, resultadoR, stopActual, ultimoEvento, distanciaR } = velho;
+            return { ...s, estado, resultadoR, stopActual, ultimoEvento, distanciaR };
+          }),
+        };
+      });
       setErro(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -117,7 +131,11 @@ export function ListaSinais() {
     );
   }
 
+  // Sem estado = a Deriv não deu as velas para o calcular. Aparece na lista com
+  // a etiqueta "a verificar", mas não conta como activo: pode já ter ido ao stop.
   const activos = dados.sinais.filter((s) => s.estado === null || planoVivo(s.estado));
+  const porConfirmar = activos.filter((s) => s.estado === null).length;
+  const vivos = activos.length - porConfirmar;
   const terminados = dados.sinais.filter((s) => s.estado !== null && !planoVivo(s.estado));
 
   const tfs = (dados.timeframes ?? []).map((t) => t.toUpperCase()).join(' · ');
@@ -129,7 +147,8 @@ export function ListaSinais() {
         <span className="grow" />
         <span className="section-note">
           {tfs ? `${tfs} · ` : ''}
-          {activos.length} activo{activos.length === 1 ? '' : 's'}
+          {vivos} activo{vivos === 1 ? '' : 's'}
+          {porConfirmar > 0 ? ` · ${porConfirmar} a verificar` : ''}
         </span>
       </div>
 
@@ -251,7 +270,13 @@ function LinhaSinal({
         <span className="sinal-tr__id">
           <strong>
             {s.simbolo} · {s.timeframe}
-            {estado && <span className={`etiqueta-estado ${classeEstado}`}>{ROTULO_PLANO[estado]}</span>}
+            {estado ? (
+              <span className={`etiqueta-estado ${classeEstado}`}>{ROTULO_PLANO[estado]}</span>
+            ) : (
+              <span className="etiqueta-estado" title="Não foi possível obter as velas para calcular o estado">
+                a verificar
+              </span>
+            )}
           </strong>
           <em>
             entrada {formatarPreco(s.entrada, casas)} · stop{' '}

@@ -56,6 +56,41 @@ export interface Resultado {
 
 type Estado = 'espera' | 'corre' | 'passou' | 'falhou';
 
+/*
+ * ── PORQUE SE REPETE ───────────────────────────────────────────────────────
+ *
+ * Medido: com o gráfico, os sinais e este painel abertos, a Deriv respondia
+ * `RateLimit` a `ticks_history` a meio da passagem, e os pedidos seguintes
+ * morriam com "Failed to fetch" (a ligação caía enquanto o servidor ainda
+ * esperava). Metade das linhas ficava vermelha por uma falha de segundos.
+ *
+ * Um erro passageiro — rede, RateLimit, timeout — espera um pouco e tenta de
+ * novo. Um erro permanente (símbolo desconhecido) não se repete.
+ */
+const RECUOS_MS = [2_000, 5_000];
+
+function passageiro(msg: string): boolean {
+  return /RateLimit|rate limit|Failed to fetch|NetworkError|Load failed|timeout|HTTP 5\d\d|ligação|WebSocket/i.test(msg);
+}
+
+async function pedirRadar(simbolo: string, timeframe: string, cancelado: () => boolean): Promise<Resultado> {
+  for (let tentativa = 0; ; tentativa++) {
+    let resultado: Resultado;
+    try {
+      const r = await fetch(`/api/radar/${encodeURIComponent(simbolo)}?tf=${encodeURIComponent(timeframe)}`, {
+        cache: 'no-store',
+      });
+      resultado = r.ok || r.status < 500 ? ((await r.json()) as Resultado) : { simbolo, erro: `HTTP ${r.status}` };
+    } catch (err) {
+      resultado = { simbolo, erro: err instanceof Error ? err.message : String(err) };
+    }
+    if (!resultado.erro || !passageiro(resultado.erro) || tentativa >= RECUOS_MS.length || cancelado()) {
+      return resultado;
+    }
+    await new Promise((r) => setTimeout(r, RECUOS_MS[tentativa]));
+  }
+}
+
 /** Em intradiário a vela fecha a cada poucos minutos: repetir mais depressa. */
 const INTRADIARIO = new Set(['1m', '5m', '15m', '30m']);
 
@@ -99,6 +134,8 @@ export function PainelAgentes({
   const [aCorrer, setACorrer] = useState(false);
   const [terminadoEm, setTerminadoEm] = useState<number | null>(null);
   const cancelado = useRef(false);
+  /** Último resultado sem erro por símbolo+timeframe. */
+  const ultimosBons = useRef(new Map<string, Resultado>());
 
   const varrer = useCallback(async () => {
     if (simbolos.length === 0) return;
@@ -111,26 +148,17 @@ export function PainelAgentes({
       if (cancelado.current) break;
       setEstados((m) => new Map(m).set(s, 'corre'));
 
-      try {
-        const r = await fetch(
-          `/api/radar/${encodeURIComponent(s)}?tf=${encodeURIComponent(timeframe)}`,
-          { cache: 'no-store' },
-        );
-        const j = (await r.json()) as Resultado;
-        if (cancelado.current) break;
+      const j = await pedirRadar(s, timeframe, () => cancelado.current);
+      if (cancelado.current) break;
 
-        setResultados((m) => new Map(m).set(s, j));
-        setEstados((m) => new Map(m).set(s, j.erro ? 'falhou' : 'passou'));
-      } catch (err) {
-        if (cancelado.current) break;
-        setResultados((m) =>
-          new Map(m).set(s, {
-            simbolo: s,
-            erro: err instanceof Error ? err.message : String(err),
-          }),
-        );
-        setEstados((m) => new Map(m).set(s, 'falhou'));
-      }
+      // Uma falha passageira não apaga uma análise boa da passagem anterior.
+      const chave = `${s}|${timeframe}`;
+      const anterior = ultimosBons.current.get(chave);
+      const final = j.erro && anterior ? anterior : j;
+      if (!j.erro) ultimosBons.current.set(chave, j);
+
+      setResultados((m) => new Map(m).set(s, final));
+      setEstados((m) => new Map(m).set(s, final.erro ? 'falhou' : 'passou'));
     }
 
     if (!cancelado.current) {
