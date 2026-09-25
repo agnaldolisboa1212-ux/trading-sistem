@@ -176,13 +176,14 @@ export async function GET(
       const parSim = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
       const temIct = estrategias.some((e) => e.id === 'ict-algo');
       const temAsia = estrategias.some((e) => e.id === 'asia-range-algo');
-      const [diarias, parVelas, ltf, ltf3] = await Promise.all([
+      const [diarias, parVelas, ltf, ltf1] = await Promise.all([
         velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 300),
         parSim ? velasFechadas(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
         // 5M: a confirmação do ICT ALGO.
         temIct ? velasFechadas(s.deriv, 300, 300).catch(() => []) : Promise.resolve([]),
-        // 3M: a confirmação do Asia Range Algo.
-        temAsia ? velasFechadas(s.deriv, 180, 300).catch(() => []) : Promise.resolve([]),
+        // 1M: a confirmação do Asia Range Algo — as mesmas 300 velas fechadas que o
+        // motor usa (5 h: a janela de 3 h mais os 45 min de atraso), a mesma estrutura.
+        temAsia ? velasFechadas(s.deriv, 60, 301).catch(() => []) : Promise.resolve([]),
       ]);
       extra = {
         ...extra,
@@ -190,7 +191,7 @@ export async function GET(
           diarias,
           par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null,
           ltf,
-          ltf3,
+          ltf1,
         },
       };
     }

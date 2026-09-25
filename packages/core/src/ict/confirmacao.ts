@@ -39,7 +39,7 @@ const nome = (t: QuebraEstrutura['tipo']) => (t === 'mss' ? 'MSS' : t === 'choch
 
 /**
  * `agora`: instante da decisão (ms). Só entram velas que fecharam até lá.
- * `passoMs`: o timeframe das velas — 5M no ICT ALGO, 3M no Asia Range Algo.
+ * `passoMs`: o timeframe das velas — 5M no ICT ALGO, 1M no Asia Range Algo.
  */
 export function confirmacaoLtf(
   velas5m: readonly Candle[] | undefined,

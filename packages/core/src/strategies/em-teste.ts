@@ -147,7 +147,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
     entrada:
-      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 3M (CHoCH/MSS e estrutura de 3M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
+      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 1M (CHoCH/MSS e estrutura de 1M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
     saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
     emTeste: {
       desde: '2026-09-25',

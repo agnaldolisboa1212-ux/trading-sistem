@@ -55,25 +55,31 @@ function cenario(parVarre, deslocarDias = 0) {
 }
 
 /**
- * 3M a partir das velas de 15M: cada uma partida em cinco, do abertura ao fecho
+ * 1M a partir das velas de 15M: cada uma partida em quinze, da abertura ao fecho
  * a passar pelo mínimo e pelo máximo (compra: mínimo primeiro).
  */
-function em3m(v15) {
+function em1m(v15) {
   const out = [];
   for (const c of v15) {
     const sobe = c.close >= c.open;
-    const pontos = sobe ? [c.open, c.low, (c.low + c.high) / 2, c.high, c.close] : [c.open, c.high, (c.low + c.high) / 2, c.low, c.close];
+    const [a, b] = sobe ? [c.low, c.high] : [c.high, c.low];
+    // Abertura → primeiro extremo (5 velas) → segundo extremo (5) → fecho (5).
+    const troco = (de, ate, k) => de + ((ate - de) * k) / 5;
+    const pontos = [];
+    for (let k = 1; k <= 5; k++) pontos.push(troco(c.open, a, k));
+    for (let k = 1; k <= 5; k++) pontos.push(troco(a, b, k));
+    for (let k = 1; k <= 5; k++) pontos.push(troco(b, c.close, k));
     let ant = c.open;
-    for (let k = 0; k < 5; k++) {
-      const alvo = k === 4 ? c.close : pontos[k + 1];
-      out.push(vela(c.time + k * 180_000, ant, Math.max(ant, alvo), Math.min(ant, alvo), alvo));
+    for (let k = 0; k < 15; k++) {
+      const alvo = pontos[k];
+      out.push(vela(c.time + k * 60_000, ant, Math.max(ant, alvo), Math.min(ant, alvo), alvo));
       ant = alvo;
     }
   }
   return out;
 }
 
-const analisar = (v, p, diarias, i, ltf = em3m(v)) =>
+const analisar = (v, p, diarias, i, ltf = em1m(v)) =>
   analisarAsiaRange({ simbolo: 'GBPJPY', velas: v.slice(0, i + 1), diarias, par: { simbolo: 'USDJPY', velas: p }, viesForcado: VIES, ltf });
 
 test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na máxima da Ásia', () => {
@@ -119,8 +125,8 @@ test('Asia Range Algo: o TESTE DO CORTE — o futuro removido não muda a decis�
       diarias,
       par: { simbolo: 'USDJPY', velas: p.slice(0, i + 1) },
       viesForcado: VIES,
-      // 3M só até ao fim da vela i: o futuro de 3M também fica de fora.
-      ltf: em3m(v.slice(0, i + 1)),
+      // 1M só até ao fim da vela i: o futuro de 1M também fica de fora.
+      ltf: em1m(v.slice(0, i + 1)),
     });
     const comFuturoDoPar = analisar(v, p, diarias, i);
     assert.deepEqual(cortada.sinal, comFuturoDoPar.sinal, `vela ${i}: o par do futuro mudou a decisão`);
@@ -134,7 +140,7 @@ test('Asia Range Algo e ICT ALGO: sem extra.algo (o cliente) não correm', () =>
   assert.equal(r.filter((s) => s.strategy === 'asia-range-algo' || s.strategy === 'ict-algo').length, 0);
 });
 
-test('Asia Range Algo: sem velas de 3M (sem confirmação) não há sinal', () => {
+test('Asia Range Algo: sem velas de 1M (sem confirmação) não há sinal', () => {
   const { v, p, diarias } = cenario(false);
   const razoes = new Set();
   for (let i = 224; i < v.length; i++) {
@@ -142,5 +148,5 @@ test('Asia Range Algo: sem velas de 3M (sem confirmação) não há sinal', () =
     assert.equal(a.sinal, null);
     razoes.add(a.porqueNao);
   }
-  assert.ok(razoes.has('à espera de confirmação 3M'), [...razoes].join(' | '));
+  assert.ok(razoes.has('à espera de confirmação 1M'), [...razoes].join(' | '));
 });

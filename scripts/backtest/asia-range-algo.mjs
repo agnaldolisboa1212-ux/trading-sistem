@@ -3,7 +3,7 @@
  *
  * Não reimplementa nada: chama `analisarAsiaRange` de `@trading/core`, a MESMA
  * função que o motor e o radar usam, em cada vela de 15M da janela de Londres
- * (08:00–10:00), com a confirmação em 3M incluída. Um sinal conta só na vela em
+ * (08:00–10:00), com a confirmação em 1M incluída. Um sinal conta só na vela em
  * que a função o dá; um por dia e por sentido, como ao vivo.
  *
  * Simulação: entrada a mercado no fecho da vela do sinal, stop e alvo do sinal;
@@ -14,8 +14,8 @@
  * (`paresSmtIct`). Controlo: AUDJPY, CADJPY, CHFJPY, NZDJPY contra o USDJPY —
  * nunca entraram em escolha nenhuma.
  *
- * Precisa de SIMBOLO_15m.json e SIMBOLO_3m.json (scripts/backtest/baixar-histdata.mjs
- * com --tfs 3m,15m) e de SIMBOLO_1h.json para o diário.
+ * Precisa de SIMBOLO_15m.json e SIMBOLO_1m.json (scripts/backtest/baixar-histdata.mjs
+ * com --tfs 1m) e de SIMBOLO_1h.json para o diário. CONF_TF=3m mede a regra antiga.
  */
 
 import { readFileSync } from 'node:fs';
@@ -36,6 +36,8 @@ const M15 = 900_000;
 const HORA = 3_600_000;
 /** Velas de 15M dadas à função em cada chamada: ~12 dias chegam para as estruturas. */
 const JANELA_15M = 1200;
+/** Velas de confirmação por chamada: 300, como o motor ao vivo. */
+const LTF_VELAS = 300;
 
 const AO_VIVO = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD'];
 const CONTROLO = ['AUDJPY', 'CADJPY', 'CHFJPY', 'NZDJPY'];
@@ -74,9 +76,9 @@ const razoes = new Map();
 
 function correr(par) {
   const v = ler(par, '15m');
-  const v3 = ler(par, '3m');
+  const v3 = ler(par, process.env.CONF_TF ?? '1m');
   const h1 = ler(par, '1h');
-  if (!v || !v3 || !h1) return { erro: `faltam dados (${!v ? '15m ' : ''}${!v3 ? '3m ' : ''}${!h1 ? '1h' : ''})` };
+  if (!v || !v3 || !h1) return { erro: `faltam dados (${!v ? '15m ' : ''}${!v3 ? `${process.env.CONF_TF ?? '1m'} ` : ''}${!h1 ? '1h' : ''})` };
   // O primeiro par de SMT com dados de 15M, como no motor.
   // O primeiro par de SMT com dados de 15M, como no motor. Os pares de controlo
   // não estão na lista do código: os cruzados de iene usam o USDJPY, como nas notas.
@@ -98,7 +100,9 @@ function correr(par) {
     const velas = v.slice(i - JANELA_15M + 1, i + 1);
     const agora = v[i].time + M15;
     const parVelas = ref.slice(primeira(ref, velas[0].time), primeira(ref, agora));
-    const ltf = v3.slice(primeira(v3, agora - 8 * HORA), primeira(v3, agora));
+    // As mesmas 300 velas fechadas de 1M que o motor pede à Deriv (INTRADAY_CANDLES).
+    const ateLtf = primeira(v3, agora);
+    const ltf = v3.slice(Math.max(0, ateLtf - LTF_VELAS), ateLtf);
     const dias = diarias.slice(0, primeira(diarias, agora));
 
     const a = analisarAsiaRange({ simbolo: par, velas, diarias: dias, par: { simbolo: refNome, velas: parVelas }, ltf });
@@ -149,7 +153,7 @@ for (const [titulo, lista] of [
   ['AO VIVO (os pares da estratégia)', AO_VIVO],
   ['CONTROLO (pares que nunca entraram em escolha)', CONTROLO],
 ]) {
-  console.log(`\n== Asia Range Algo · ${titulo} · 15M + confirmação 3M · 2022+ · custos\n${cab}`);
+  console.log(`\n== Asia Range Algo · ${titulo} · 15M + confirmação ${process.env.CONF_TF ?? '1m'} · 2022+ · custos\n${cab}`);
   const todas = [];
   for (const par of lista) {
     const t0 = Date.now();

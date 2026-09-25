@@ -29,8 +29,8 @@ export interface DadosAlgo {
    * estrutura de 5M a favor). Sem elas o ICT ALGO não envia sinal.
    */
   ltf?: readonly Candle[];
-  /** Velas de 3M do próprio instrumento: a confirmação do Asia Range Algo. */
-  ltf3?: readonly Candle[];
+  /** Velas de 1M do próprio instrumento: a confirmação do Asia Range Algo. */
+  ltf1?: readonly Candle[];
 }
 
 interface Contexto {
@@ -92,7 +92,7 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
 
 export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
   if (!algo || ctx.timeframe !== '15m') return [];
-  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, diarias: algo.diarias, par: algo.par, ltf: algo.ltf3 });
+  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, diarias: algo.diarias, par: algo.par, ltf: algo.ltf1 });
   const s = a.sinal;
   if (!s || s.index !== velas.length - 1) return [];
   const u = velas[s.index]!;
