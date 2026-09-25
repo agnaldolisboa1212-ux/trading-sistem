@@ -18,7 +18,8 @@
  *
  * ── O INTERRUPTOR ──────────────────────────────────────────────────────────
  *
- *   ICT_ALGO_NOTIFICAR=1       envia os avisos (Telegram e push)
+ *   ICT_ALGO_NOTIFICAR         sem efeito desde 25/09/2026: os avisos saem do
+ *                              motor de tempo real (estratégia `ict-algo`)
  *   ICT_ALGO_TIMEFRAMES=15m    timeframes de execução, separados por vírgula
  *
  * Desligado por omissão: o backtest de 2022–2026 com custos não mostrou
@@ -129,7 +130,11 @@ async function fechadas(derivSymbol: string, gran: number, quantas: number): Pro
 
 export async function correrIctTempoReal(db: SupabaseClient | null): Promise<RelatorioIct> {
   const erros: string[] = [];
-  const notificar = process.env['ICT_ALGO_NOTIFICAR'] === '1';
+  // Desde 25/09/2026 os sinais do ICT ALGO saem pelo motor de tempo real (a
+  // estratégia `ict-algo`, em teste): lista de sinais, Telegram e push. Esta
+  // passagem fica só a registar em `ict-algo-sinais.jsonl`; avisar daqui outra
+  // vez duplicava cada aviso. `ICT_ALGO_NOTIFICAR` deixou de ter efeito.
+  const notificar = false;
   const tfs = (process.env['ICT_ALGO_TIMEFRAMES'] ?? '15m')
     .split(',')
     .map((x) => x.trim())
@@ -184,7 +189,7 @@ export async function correrIctTempoReal(db: SupabaseClient | null): Promise<Rel
         console.log(
           `[ICT ALGO] ${sinal.simbolo} ${tf} · ${NOME_MODELO[sinal.modelo]} · ${sinal.direccao === 'bullish' ? 'COMPRA' : 'VENDA'} ` +
             `${sinal.entrada} / stop ${sinal.stop} / alvo ${sinal.alvo} (${sinal.rr.toFixed(1)}R)` +
-            (notificar ? '' : ' — aviso desligado (ICT_ALGO_NOTIFICAR)'),
+            (notificar ? '' : ' — o aviso sai do motor de tempo real'),
         );
 
         if (notificar) {

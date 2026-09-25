@@ -29,9 +29,12 @@ test('em teste: forex e ouro intradiário, nunca como validadas', () => {
   assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), []);
   assert.equal(estrategiaActiva('vwap-forex-teste'), undefined);
   assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), []);
-  assert.deepEqual(estrategiasPara('XAUUSD', '15m').map((e) => e.id), []);
+  // Em 15M só os dois algos, em teste desde 25/09/2026.
+  assert.deepEqual(estrategiasPara('XAUUSD', '15m').map((e) => e.id), ['ict-algo']);
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);
-  assert.equal(estrategiasPara('USDJPY', '15m').length, 0);
+  assert.deepEqual(estrategiasPara('USDJPY', '15m').map((e) => e.id), ['ict-algo', 'asia-range-algo']);
+  assert.equal(estrategiaValidada('ict-algo'), undefined);
+  assert.equal(estrategiaValidada('asia-range-algo'), undefined);
   assert.equal(estrategiaValidada('tendencia-baixa-cripto'), undefined);
   assert.equal(estrategiaActiva('tendencia-baixa-cripto')?.id, 'tendencia-baixa-cripto');
   // O SMT foi retirado em 22/09/2026: não é estratégia nenhuma.

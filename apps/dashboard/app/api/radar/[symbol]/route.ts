@@ -32,6 +32,7 @@ import {
   estrategiaEmTeste,
   estrategiasPara,
   executarEstrategiasValidadas,
+  paresSmtIct,
   type Candle,
   type DadosExtra,
   type Timeframe,
@@ -53,8 +54,8 @@ const GRANULARIDADE_S: Record<string, number> = {
 /** Abaixo disto as estratégias recusam-se (a mesma regra do motor). */
 const MIN_VELAS = 60;
 
-async function velasFechadas(derivSymbol: string, gran: number): Promise<Candle[]> {
-  const brutas = await velasDeriv(derivSymbol, gran, 320);
+async function velasFechadas(derivSymbol: string, gran: number, quantas = 320): Promise<Candle[]> {
+  const brutas = await velasDeriv(derivSymbol, gran, quantas);
   // A Deriv devolve a vela em formação no fim: cortá-la é o motor a fazer o mesmo.
   return brutas.filter((c) => c.time + gran * 1000 <= Date.now());
 }
@@ -106,7 +107,9 @@ export async function GET(
 
   try {
     const gran = GRANULARIDADE_S[tf]!;
-    const fechadas = await velasFechadas(s.deriv, gran);
+    // Os algos (ICT ALGO, Asia Range) precisam de história, diário e par — como no motor.
+    const temAlgo = estrategias.some((e) => e.id === 'ict-algo' || e.id === 'asia-range-algo');
+    const fechadas = await velasFechadas(s.deriv, gran, temAlgo ? 1500 : 320);
     const ultima = fechadas.at(-1);
     if (!ultima || fechadas.length < MIN_VELAS) {
       return NextResponse.json(
@@ -127,6 +130,17 @@ export async function GET(
     // a mesma lógica de `tempo-real.ts`, sem o cache entre passagens (aqui é
     // um pedido isolado).
     let extra: DadosExtra = {};
+    if (temAlgo) {
+      const parSim = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
+      const [diarias, parVelas] = await Promise.all([
+        velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 300),
+        parSim ? velasFechadas(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
+      ]);
+      extra = {
+        ...extra,
+        algo: { diarias, par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null },
+      };
+    }
     if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
       extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
     }

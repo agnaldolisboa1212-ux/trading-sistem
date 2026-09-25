@@ -56,6 +56,7 @@ import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
 import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
+import { planAsiaRangeAlgo, planIctAlgo } from './algos.js';
 import {
   ESTRATEGIAS_EM_TESTE,
   planAberturaDaxTeste,
@@ -681,9 +682,12 @@ export function executarEstrategiasValidadas(
   velas: readonly Candle[],
   ctx: Contexto,
   extra: DadosExtra = {},
+  /** Só estas estratégias (por id); por omissão, todas as que se aplicam. */
+  apenas?: readonly string[],
 ): StrategySignal[] {
   const out: StrategySignal[] = [];
   for (const e of estrategiasPara(ctx.symbol, ctx.timeframe)) {
+    if (apenas && !apenas.includes(e.id)) continue;
     if (e.id === 'compra-vwap-indices') out.push(...planCompraVwapIndices(velas, ctx, extra));
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
@@ -692,6 +696,8 @@ export function executarEstrategiasValidadas(
     if (e.id === 'rompimento-4h') out.push(...planRompimento4h(velas, ctx));
     if (e.id === 'tendencia-baixa-cripto') out.push(...planTendenciaBaixaCripto(velas, ctx));
     if (e.id === 'abertura-dax-teste') out.push(...planAberturaDaxTeste(velas, ctx, extra));
+    if (e.id === 'ict-algo') out.push(...planIctAlgo(velas, ctx, extra.algo));
+    if (e.id === 'asia-range-algo') out.push(...planAsiaRangeAlgo(velas, ctx, extra.algo));
   }
   return out;
 }

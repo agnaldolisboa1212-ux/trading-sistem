@@ -411,14 +411,6 @@ export const ESTRATEGIAS: EstrategiaDisponivel[] = [
     pronta: true,
   },
   {
-    id: 'supply-demand',
-    nome: 'Oferta e procura',
-    descricao:
-      'Zonas onde um desequilíbrio deixou ordens por preencher, mais níveis por toques repetidos, flips e números redondos.',
-    escala: 'Intradiário a swing',
-    pronta: true,
-  },
-  {
     id: 'institucional',
     nome: 'Fluxo institucional',
     descricao:

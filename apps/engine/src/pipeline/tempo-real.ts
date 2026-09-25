@@ -40,6 +40,7 @@ import {
   estrategiasPara,
   executarEstrategiasValidadas,
   fraseEvento,
+  paresSmtIct,
   planoVivo,
   proximidadeDosSinais,
   riscoDeNoticias,
@@ -95,6 +96,12 @@ export const VIGILANCIA_OMISSAO = [
 
 /** Abaixo disto as estratégias recusam-se (S&R exige histórico mínimo). */
 const MIN_VELAS = 60;
+
+/** As estratégias que trazem o seu próprio timeframe e precisam de diário e par. */
+const ALGOS: readonly string[] = ['ict-algo', 'asia-range-algo'];
+const TIMEFRAMES_ALGOS: readonly string[] = ['15m'];
+/** Velas de execução para os algos (o ICT ALGO percorre a história para o placar). */
+const VELAS_ALGO = 1500;
 
 /**
  * Última vela fechada já analisada, por `símbolo|timeframe`.
@@ -614,6 +621,20 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     erros.push(`sem cotação na Deriv, ignorados: ${vigilancia.ignorados.join(', ')}`);
   }
 
+  // Os algos (ICT ALGO, Asia Range Algo) trazem o seu timeframe (15M): quem
+  // segue o instrumento recebe-os mesmo sem ter escolhido 15M — mas só eles; as
+  // outras regras de 15M continuam a depender da escolha do perfil.
+  const soAlgos = new Set<string>();
+  for (const [codigo, tfs] of vigilancia.pares) {
+    for (const tf of TIMEFRAMES_ALGOS) {
+      if (tfs.includes(tf)) continue;
+      if (estrategiasPara(codigo, tf).some((e) => ALGOS.includes(e.id))) {
+        tfs.push(tf);
+        soAlgos.add(`${codigo}|${tf}`);
+      }
+    }
+  }
+
   const registo = lerRegisto();
   const vistos = new Set(registo.ids);
 
@@ -686,6 +707,10 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
       // Abertura da vela que DEVIA ser a última fechada, pelo relógio. As velas
       // da Deriv alinham a múltiplos exactos da granularidade.
       const chave = `${s.codigo}|${tf}`;
+      // Num timeframe que o perfil não escolheu, só correm os algos.
+      const apenas = soAlgos.has(chave) ? ALGOS : undefined;
+      const aplicaveis = estrategiasPara(s.codigo, tf).filter((e) => !apenas || apenas.includes(e.id));
+      const temAlgo = aplicaveis.some((e) => ALGOS.includes(e.id));
       const passo = gran * 1000;
       const esperada = Math.floor(Date.now() / passo) * passo - passo;
       if (ultimaFechadaVista.get(chave) === esperada) {
@@ -722,7 +747,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
       try {
         // --- 2 e 3. velas fechadas ----------------------------------------
         const agora = Date.now();
-        const brutas = await velasDeriv(s.deriv, gran, cfg.velas + 1);
+        // O ICT ALGO precisa de história para o placar dos modelos.
+        const brutas = await velasDeriv(s.deriv, gran, (temAlgo ? Math.max(cfg.velas, VELAS_ALGO) : cfg.velas) + 1);
         const fechadas = cortarVelaAberta(brutas, gran, agora);
         // Já se pediram estas velas: servem de referência a outro par sem novo pedido.
         referenciasCache.set(`${s.codigo}|${gran}`, { esperada, velas: fechadas });
@@ -762,7 +788,21 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // A convicção é a taxa medida no backtest; não há limite de R nem de
         // convicção a aplicar por cima — a regra da estratégia já é o filtro.
         let extra: DadosExtra = {};
-        const aplicaveis = estrategiasPara(s.codigo, tf);
+        if (temAlgo) {
+          // Diário (viés) e o primeiro par correlacionado com dados (SMT).
+          const diarias = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);
+          const parSim = paresSmtIct(s.codigo)
+            .map((c) => acharSimbolo(c))
+            .find((x) => x);
+          const parVelas = parSim ? await fechadasDe(parSim.codigo, gran) : null;
+          extra = {
+            ...extra,
+            algo: {
+              diarias: diarias ?? [],
+              par: parSim && parVelas ? { simbolo: parSim.codigo, velas: parVelas } : null,
+            },
+          };
+        }
         if (aplicaveis.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
           // Diárias do próprio instrumento: a EMA 20 da abertura do DAX e a média
           // de 200 dias que confirma o regime no VWAP. Com o cache, uma vez por dia.
@@ -770,11 +810,11 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           extra = { ...extra, velas1d: velas1d ?? undefined };
         }
         // O que falta para cada regra disparar neste par — alimenta o boletim.
-        for (const p of proximidadeDosSinais(
-          fechadas,
-          { symbol: s.codigo, timeframe: tf as Timeframe, casas: s.casas },
-          extra,
-        )) {
+        // Num timeframe só dos algos não há boletim: o perfil não o escolheu.
+        const perto = apenas
+          ? []
+          : proximidadeDosSinais(fechadas, { symbol: s.codigo, timeframe: tf as Timeframe, casas: s.casas }, extra);
+        for (const p of perto) {
           if (p.distanciaAtr <= 1.5) atencao.push(p);
         }
 
@@ -782,6 +822,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           fechadas,
           { symbol: s.codigo, timeframe: tf as Timeframe },
           extra,
+          apenas,
         ).filter((x) => x.generatedAt === ultima.time);
         analise.sinaisFrescos = frescos.length;
 

@@ -64,18 +64,22 @@ export type VisaoInstitucional =
  * gráfico: ambos precisam de séries de vários timeframes e de um par
  * correlacionado, que o cliente não tem em mãos.
  */
-export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm' | 'ict-algo';
+export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm' | 'ict-algo' | 'asia-range-algo';
+
+/** As visões que vêm do servidor (não se calculam sobre as velas do gráfico). */
+export const VISOES_DO_SERVIDOR: readonly VisaoId[] = ['mmxm', 'ict-algo', 'asia-range-algo'];
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
-  { id: 'ict-algo', nome: 'ICT ALGO (Venom)', curto: 'ICT ALGO' },
+  { id: 'ict-algo', nome: 'ICT ALGO', curto: 'ICT ALGO' },
+  { id: 'asia-range-algo', nome: 'Asia Range Algo', curto: 'Asia Range' },
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
   { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
   { id: 'rompimento-4h', nome: 'Rompimento de 20 velas (4h)', curto: 'Rompimento' },
   { id: 'abertura-dax-teste', nome: 'Abertura de Londres (DAX)', curto: 'Abertura' },
-  { id: 'supply-demand', nome: 'Oferta e procura', curto: 'Oferta/procura', contexto: true },
-  { id: 'support-resistance', nome: 'Suporte e resistência', curto: 'S/R', contexto: true },
+  // Oferta/procura e S/R saíram das abas a 25/09/2026: eram só contexto (sem
+  // sinais) e enchiam a barra. O cálculo continua disponível no core.
   { id: 'volume-profile', nome: 'Perfil de volume', curto: 'Perfil', contexto: true },
   { id: 'mmxm', nome: 'MMXM + SMT', curto: 'MMXM', contexto: true },
   { id: 'smt', nome: 'Divergência SMT (análise)', curto: 'SMT', contexto: true },
@@ -101,6 +105,8 @@ const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'vwap-forex-teste': 'vwap-bands',
   'rompimento-4h': 'rompimento-4h',
   'abertura-dax-teste': 'abertura-dax-teste',
+  'ict-algo': 'ict-algo',
+  'asia-range-algo': 'asia-range-algo',
 };
 
 export function visaoValida(bruto: string | null | undefined): VisaoId {

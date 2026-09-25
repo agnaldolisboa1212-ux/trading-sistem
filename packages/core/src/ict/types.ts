@@ -298,8 +298,7 @@ export type ModeloIct =
   | 'silver-bullet'
   | 'unicorn'
   | 'turtle-soup'
-  | 'continuacao'
-  | 'asia-londres';
+  | 'continuacao';
 
 /** Nome legível de cada modelo. */
 export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
@@ -310,7 +309,6 @@ export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
   unicorn: 'Unicorn',
   'turtle-soup': 'Turtle Soup',
   continuacao: 'Continuação (OTE + PD array)',
-  'asia-londres': 'Asia Range · Londres',
 };
 
 /** Um passo da análise top-down, para a explicação que vai ao utilizador. */

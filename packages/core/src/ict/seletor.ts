@@ -38,7 +38,6 @@ import { avaliarSilverBullet } from './modelos/silver-bullet.js';
 import { avaliarUnicorn } from './modelos/unicorn.js';
 import { avaliarTurtleSoup } from './modelos/turtle-soup.js';
 import { avaliarContinuacao } from './modelos/continuacao.js';
-import { avaliarAsiaLondres } from './modelos/asia-londres.js';
 
 /**
  * O mapa regime → modelos, por ordem de prioridade.
@@ -54,20 +53,14 @@ import { avaliarAsiaLondres } from './modelos/asia-londres.js';
  *   consolidação  Turtle Soup nos extremos iguais da faixa; CRT entre os
  *                 extremos da vela de referência.
  *
- * Asia Range · Londres (o modelo do journal do Agnaldo) entra em todos os
- * regimes com direcção, por último — excepto na manipulação, onde vai primeiro:
- * o varrimento da Ásia na abertura de Londres É a manipulação do Power of 3.
- * É um ciclo diário com as suas próprias portas (viés, Ásia, SMT, MSS), não uma
- * leitura de regime; o regime não o deve esconder. Fixado antes de medir.
- *
  * Dentro de cada regime, o primeiro da lista que montar setup é o escolhido: a
  * prioridade é a do modelo mais exigente para o menos, e é fixa.
  */
 export const MODELOS_DO_REGIME: Readonly<Record<RegimeIct, readonly ModeloIct[]>> = {
-  manipulacao: ['asia-londres', 'venom', 'crt', 'reaper-ifvg', 'silver-bullet'],
-  reversao: ['unicorn', 'turtle-soup', 'reaper-ifvg', 'asia-londres'],
-  tendencia: ['continuacao', 'silver-bullet', 'asia-londres'],
-  consolidacao: ['turtle-soup', 'crt', 'asia-londres'],
+  manipulacao: ['venom', 'crt', 'reaper-ifvg', 'silver-bullet'],
+  reversao: ['unicorn', 'turtle-soup', 'reaper-ifvg'],
+  tendencia: ['continuacao', 'silver-bullet'],
+  consolidacao: ['turtle-soup', 'crt'],
   indefinido: [],
 };
 
@@ -79,7 +72,6 @@ export const AVALIADORES: Readonly<Record<ModeloIct, Avaliador>> = {
   unicorn: avaliarUnicorn,
   'turtle-soup': avaliarTurtleSoup,
   continuacao: avaliarContinuacao,
-  'asia-londres': avaliarAsiaLondres,
 };
 
 export const TODOS_OS_MODELOS: readonly ModeloIct[] = [
@@ -90,7 +82,6 @@ export const TODOS_OS_MODELOS: readonly ModeloIct[] = [
   'unicorn',
   'turtle-soup',
   'continuacao',
-  'asia-londres',
 ];
 
 /** Operações fechadas que contam para o placar. */

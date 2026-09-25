@@ -9,8 +9,9 @@ com as estratégias validadas do sistema.
 
 > **Estado medido (ler antes de tudo):** no backtest de 2022–2026, com custos,
 > o algoritmo **não tem vantagem** — perde em média por operação nos mercados
-> principais e nos de controlo. Ver [Medição](#medição). Por isso o aviso para o
-> telemóvel está **desligado por omissão** (`ICT_ALGO_NOTIFICAR`).
+> principais e nos de controlo. Ver [Medição](#medição). Desde 25/09/2026, a
+> pedido, gera sinais como estratégia **em teste** (`ict-algo`), com esse aviso
+> em cada sinal — ver "ICT ALGO também gera sinais".
 
 ---
 
@@ -126,7 +127,7 @@ Correções feitas por esta regra durante a construção (para não se repetirem
 
 | Variável | Efeito |
 |---|---|
-| `ICT_ALGO_NOTIFICAR=1` | envia os avisos (por omissão: só regista em `ict-algo-sinais.jsonl`) |
+| `ICT_ALGO_NOTIFICAR` | sem efeito desde 25/09/2026 — os avisos saem do motor de tempo real |
 | `ICT_ALGO_TIMEFRAMES=15m` | timeframes de execução, separados por vírgula |
 | `ICT_ALGO_SIMBOLOS=EURUSD,GBPUSD` | substitui os portfólios dos perfis |
 | `ICT_ALGO_DESLIGADO=1` | não agenda a passagem |
@@ -269,32 +270,47 @@ do `jpy-londres.mjs` ("alvo na Ásia"), fixada antes de correr; falta correr com
 os dados do HistData. A entrada em 5M precisa de dados de 5M, que o script de
 descarga ainda não gera.
 
-### Modelo Asia Range · Londres (`modelos/asia-londres.ts`, ao vivo desde 25/09/2026)
+### Asia Range Algo — estratégia à parte (`strategies/asia-range-algo.ts`, em teste desde 25/09/2026)
 
-O modelo do journal, dentro do ICT ALGO, com as regras da "entrada 2" do
+O modelo do journal é uma **estratégia própria**, não um modelo do ICT ALGO:
+usa as peças do ICT (estruturas, viés diário, POI) como biblioteca, mas tem o
+seu nome, os seus sinais e a sua contabilidade. Regras da "entrada 2" do
 `jpy-londres.mjs` (a única com resultado positivo): viés diário → faixa
 asiática 00:00–08:00 de Londres → Londres passa o extremo asiático contra o
 viés → o par correlacionado não passa o seu (SMT) → primeiro fecho além do
 último swing antes do extremo (MSS), entrada a mercado. Stop no extremo da
 manipulação. Alvo: a máxima/mínima oposta da Ásia ou o **POI de Londres**, o
-mais próximo que pague 2R. Só 15M, nada às sextas, um setup por dia e sentido.
-A vela do MSS tem de fechar antes das 10:00 de Londres (fim da killzone do
-site; o backtest aceitava também a das 09:45).
+mais próximo que pague 2R. Só 15M, GBPJPY/USDJPY/EURJPY, nada às sextas, um
+setup por dia e sentido. A vela do MSS fecha antes das 10:00 de Londres (fim
+da killzone de Londres; o backtest aceitava também a das 09:45).
+**Sem vantagem medida** — o aviso segue em cada sinal.
 
-Entra no mapa de regimes em primeiro na manipulação e em último nos outros
-com direcção. **Sem vantagem medida**: o aviso segue em cada sinal. Medir com
-`TF=15m node scripts/backtest/ict-algo.mjs` (os pares desse script são os dele:
-USDJPY↔EURJPY, EURJPY↔GBPJPY).
+### ICT ALGO também gera sinais (desde 25/09/2026)
+
+O ICT ALGO entrou no catálogo como estratégia **em teste** (`ict-algo`, 15M,
+os instrumentos medidos), ao lado do Asia Range Algo. Os dois correm no motor
+de tempo real como as outras regras: lista de Sinais, Telegram e push,
+anti-repintagem, filtro de notícias e acompanhamento da operação. A automação
+de ordens só os executa se forem escolhidos explicitamente.
+
+- Trazem o seu timeframe (15M): o motor corre-os para quem segue o instrumento
+  mesmo sem 15M no perfil — só eles; as outras regras de 15M continuam a
+  depender da escolha.
+- Precisam de diário e do par correlacionado (`extra.algo`), que só o servidor
+  entrega. No cliente (as abas calculadas vela a vela) devolvem vazio.
+- A passagem própria do ICT (`pipeline/ict-algo.ts`) continua a registar em
+  `ict-algo-sinais.jsonl`, mas já não avisa: `ICT_ALGO_NOTIFICAR` deixou de ter
+  efeito (duplicaria os avisos).
 
 **POI de Londres** (`poi.ts`): no sentido do viés, o destino mais próximo para
 lá do extremo oposto da Ásia — uma poça por tomar ou a borda de um PD array
-contrário não mitigado. Vai na análise (`AnaliseIct.poi`), no painel e no
-gráfico, haja sinal ou não.
+contrário não mitigado. Vai na análise do ICT (`AnaliseIct.poi`) e na do Asia
+Range, no painel e no gráfico, haja sinal ou não.
 
 **Pares de SMT** (`paresSmtIct`): o universo MMXM não dava par ao GBPJPY nem
 ao EURJPY, e ao USDJPY dava o DXY, que a Deriv não serve — o SMT nunca podia
-ser verificado nos pares do journal. O ICT ALGO usa agora GBPJPY↔USDJPY e
-EURJPY→USDJPY, e só depois a lista do universo.
+ser verificado nos pares do journal. O ICT ALGO e o Asia Range Algo usam agora
+GBPJPY↔USDJPY e EURJPY→USDJPY, e só depois a lista do universo.
 
 **Gráfico.** Os prints do journal (TradingView) serviram de modelo ao desenho
 do ICT ALGO: caixas das sessões, máximo e mínimo da Ásia como linhas a partir

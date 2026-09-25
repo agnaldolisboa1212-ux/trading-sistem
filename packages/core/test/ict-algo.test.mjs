@@ -23,7 +23,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AVALIADORES,
   TODOS_OS_MODELOS,
   agregar,
   avaliarVela,
@@ -442,107 +441,9 @@ test('viés diário: devolve sempre as cinco perguntas respondidas', () => {
   for (const r of v.respostas) assert.ok(r.pergunta && r.detalhe && ['bullish', 'bearish', 'neutral'].includes(r.resposta));
 });
 
-// ── Asia Range · Londres (o modelo do journal) ──────────────────────────────
-
 const M15 = 15 * 60_000;
 
-/**
- * Um dia construído à mão, em Janeiro (Londres = UTC): Ásia entre 99,8 e 101,6;
- * às 08:00 Londres cai a 99,6 (varre a mínima da Ásia) e depois fecha acima do
- * último swing antes do extremo. O par faz o mesmo, a não ser que `parVarre`
- * seja falso — aí fica acima da sua mínima asiática (SMT).
- */
-function diaAsiaLondres(parVarre) {
-  const inicio = Date.UTC(2024, 0, 15, 0, 0); // segunda
-  const v = [];
-  const p = [];
-  const push = (arr, t, o, c, extra = 0.05) => arr.push(vela(t, o, Math.max(o, c) + extra, Math.min(o, c) - extra, c));
-  let t = inicio;
-  // Segunda: oscila à volta de 100,5.
-  for (let k = 0; k < 96; k++, t += M15) {
-    const a = 100.5 + 0.3 * Math.sin(k / 4);
-    const b = 100.5 + 0.3 * Math.sin((k + 1) / 4);
-    push(v, t, a, b);
-    push(p, t, a + 50, b + 50);
-  }
-  // Terça 00:00–08:00: Ásia, máximo 101,6 às 03:00, mínimo 99,8 às 06:00.
-  const asia = (k) => (k < 12 ? 100.4 + (k / 12) * 1.2 : k < 24 ? 101.6 - ((k - 12) / 12) * 1.8 : 99.8 + ((k - 24) / 8) * 0.3);
-  for (let k = 0; k < 32; k++, t += M15) {
-    push(v, t, asia(k), asia(k + 1), 0.02);
-    push(p, t, asia(k) + 50, asia(k + 1) + 50, 0.02);
-  }
-  // 08:00–10:00: bump a 100,15 (swing), queda a 99,6, subida com fecho acima.
-  const londres = [100.1, 100.15, 100.05, 99.9, 99.75, 99.65, 99.9, 100.25, 100.4, 100.5, 100.6];
-  for (let k = 0; k < londres.length - 1; k++, t += M15) {
-    push(v, t, londres[k], londres[k + 1], 0.02);
-    // Sem SMT o par acompanha; com SMT fica acima da sua mínima asiática (149,8).
-    const q = parVarre ? londres : londres.map((x) => Math.max(x, 99.95));
-    push(p, t, q[k] + 50, q[k + 1] + 50, 0.02);
-  }
-  return { v, p };
-}
-
-function ctxAsia(v, p, i) {
-  return {
-    simbolo: 'GBPJPY',
-    timeframe: '15m',
-    velas: v,
-    i,
-    atr: serieAtrIct(v, 14),
-    tendencias: new Int8Array(v.length),
-    vies: { direccao: 'bullish', aFavor: 4, contra: 1, respostas: [], dol: null, estruturaSemanal: 'bullish' },
-    regime: { regime: 'manipulacao', direccao: 'bullish', leitura: [] },
-    rc: null,
-    swings: swingsConfirmados(v, 1),
-    varrimentos: [],
-    quebras: [],
-    fvgs: [],
-    obs: [],
-    breakers: [],
-    pocas: [],
-    par: { simbolo: 'USDJPY', velas: p },
-  };
-}
-
-test('Asia Range · Londres: varrimento da Ásia + SMT + MSS dá compra com alvo na máxima da Ásia', () => {
-  const { v, p } = diaAsiaLondres(false);
-  const avaliar = AVALIADORES['asia-londres'];
-  const sinais = [];
-  for (let i = 128; i < v.length; i++) {
-    const r = avaliar(ctxAsia(v, p, i), 'bullish');
-    if (r.sinal) sinais.push(r.sinal);
-  }
-  assert.equal(sinais.length, 1, 'um setup por dia');
-  const s = sinais[0];
-  assert.equal(s.direccao, 'bullish');
-  assert.equal(s.modelo, 'asia-londres');
-  assert.ok(Math.abs(s.stop - 99.63) < 1e-9, `stop no extremo da manipulação (${s.stop})`);
-  assert.ok(Math.abs(s.alvo - 101.62) < 1e-9, `alvo na máxima da Ásia (${s.alvo})`);
-  assert.ok(s.rr >= 2);
-  assert.ok(s.entrada > 100.15, 'entrada depois do fecho acima do swing');
-  assert.ok(relogioLondres(s.time).minutos + 15 < 10 * 60, 'fecha antes das 10:00 de Londres');
-});
-
-test('Asia Range · Londres: sem SMT não há sinal, e na sexta também não', () => {
-  const { v, p } = diaAsiaLondres(true);
-  const avaliar = AVALIADORES['asia-londres'];
-  const razoes = new Set();
-  for (let i = 128; i < v.length; i++) {
-    const r = avaliar(ctxAsia(v, p, i), 'bullish');
-    assert.equal(r.sinal, null);
-    razoes.add(r.porqueNao);
-  }
-  assert.ok(razoes.has('sem divergência SMT na abertura de Londres'), [...razoes].join(' | '));
-
-  // O mesmo dia deslocado para sexta-feira.
-  const sexta = (arr) => arr.map((c) => ({ ...c, time: c.time + 3 * DIA }));
-  const { v: v2, p: p2 } = diaAsiaLondres(false);
-  const vs = sexta(v2);
-  const ps = sexta(p2);
-  for (let i = 128; i < vs.length; i++) assert.equal(avaliar(ctxAsia(vs, ps, i), 'bullish').sinal, null);
-});
-
-test('O TESTE DO CORTE em 15M: todos os modelos, incluindo o Asia Range', () => {
+test('O TESTE DO CORTE em 15M: todos os modelos', () => {
   const completa = serieSintetica(6000, Date.UTC(2024, 0, 1), M15, 5);
   const parCompleta = serieSintetica(6000, Date.UTC(2024, 0, 1), M15, 6);
   const e15 = (velas, par) => prepararEstruturas(entrada(velas, { simbolo: 'GBPUSD', velas: par }, { timeframe: '15m' }));
