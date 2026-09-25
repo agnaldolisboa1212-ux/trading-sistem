@@ -43,8 +43,15 @@ export interface GraficoVivoProps {
    * `ate: Infinity` estende até ao presente. `tipo`: bull, bear, neutro, entrada.
    */
   zonas?: Array<{ de: number; ate: number; topo: number; base: number; tipo: string; rotulo?: string }>;
-  /** Linhas horizontais. `tipo`: entrada, stop, alvo, poc, nivel. */
-  linhas?: Array<{ preco: number; rotulo: string; tipo: string }>;
+  /**
+   * Faixas de preço no tempo. `tipo`: bull, bear, neutro, entrada — ou
+   * sessao-asia, sessao-londres, sessao-ny: caixas de sessão com o nome DENTRO
+   * da caixa, como no TradingView.
+   */
+  /** Linhas horizontais. `tipo`: entrada, stop, alvo, poc, nivel. Com `de`, começam nesse instante. */
+  linhas?: Array<{ preco: number; rotulo: string; tipo: string; de?: number }>;
+  /** Marcas pontuais (SMT, MSS, varrimento) num instante e preço. */
+  marcadores?: Array<{ t: number; p: number; rotulo: string; tipo: string }>;
   /** Curvas no tempo, como o VWAP e as suas bandas. `tipo`: vwap, banda1, banda2. */
   curvas?: Array<{ pontos: Array<{ t: number; p: number }>; tipo: string; rotulo?: string }>;
   /** Timeframes oferecidos na barra; por omissão todos os da Deriv. */
@@ -73,6 +80,7 @@ export function GraficoVivo({
   zonas = [],
   linhas = [],
   curvas = [],
+  marcadores = [],
   timeframes,
   altura = 340,
   aoMudarTimeframe,
@@ -279,9 +287,27 @@ export function GraficoVivo({
       if (Number.isFinite(z.ate) && janela[0] && z.ate < janela[0].t) continue;
       const x0 = antes ? 0 : i0 * passo;
       const x1 = (i1 === -1 ? janela.length : i1) * passo;
-      const base = corDoTipo(z.tipo);
       const yTopo = y(z.topo);
       const alturaZona = Math.max(2, y(z.base) - yTopo);
+      if (z.tipo.startsWith('sessao')) {
+        // Caixa de sessão: tinta leve, contorno fino e o nome no canto de cima.
+        const corSessao = z.tipo === 'sessao-londres' ? alta : z.tipo === 'sessao-ny' ? aviso : texto;
+        cx.fillStyle = corComAlfa(corSessao, 0.07);
+        cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
+        cx.strokeStyle = corComAlfa(corSessao, 0.35);
+        cx.lineWidth = 1;
+        cx.strokeRect(Math.round(x0) + 0.5, Math.round(yTopo) + 0.5, Math.max(2, x1 - x0) - 1, alturaZona - 1);
+        if (z.rotulo && x1 - x0 > 30) {
+          cx.fillStyle = corComAlfa(corSessao, 0.9);
+          cx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
+          cx.textAlign = 'left';
+          cx.textBaseline = 'bottom';
+          cx.fillText(z.rotulo, x0 + 4, yTopo - 2);
+          cx.textBaseline = 'middle';
+        }
+        continue;
+      }
+      const base = corDoTipo(z.tipo);
       cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' ? 0.14 : 0.1);
       cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
       if (z.rotulo) {
@@ -351,6 +377,14 @@ export function GraficoVivo({
 
     // --- linhas da análise ------------------------------------------------
     for (const l of linhas) {
+      // Com `de`, a linha começa no instante do plano (como a ferramenta de
+      // posição do TradingView) em vez de atravessar o gráfico inteiro.
+      let xInicio = 0;
+      if (l.de !== undefined && janela.length > 0) {
+        if (l.de > janela[janela.length - 1]!.t) continue;
+        const k = janela.findIndex((v) => v.t >= l.de!);
+        xInicio = l.de < janela[0]!.t || k < 0 ? 0 : k * passo + passo / 2;
+      }
       const yy = Math.round(y(l.preco)) + 0.5;
       cx.strokeStyle =
         l.tipo === 'stop'
@@ -365,14 +399,41 @@ export function GraficoVivo({
       cx.lineWidth = l.tipo === 'poc' || l.tipo === 'entrada' ? 1.4 : 1;
       cx.setLineDash(l.tipo === 'poc' ? [] : [5, 4]);
       cx.beginPath();
-      cx.moveTo(0, yy);
+      cx.moveTo(xInicio, yy);
       cx.lineTo(largura, yy);
       cx.stroke();
       cx.setLineDash([]);
       cx.fillStyle = cx.strokeStyle;
       cx.textAlign = 'left';
       cx.font = '9.5px ui-sans-serif, system-ui, sans-serif';
-      cx.fillText(l.rotulo, 4, yy - 6);
+      cx.fillText(l.rotulo, Math.min(xInicio + 4, largura - 60), yy - 6);
+    }
+
+    // --- marcadores (SMT, MSS, varrimento) ------------------------------
+    for (const m of marcadores) {
+      if (janela.length === 0 || m.t < janela[0]!.t || m.t > janela[janela.length - 1]!.t) continue;
+      const k = janela.findIndex((v) => v.t >= m.t);
+      if (k < 0) continue;
+      const mx = k * passo + passo / 2;
+      const my = y(m.p);
+      const corM = m.tipo === 'smt' ? aviso : m.tipo === 'mss' ? textoForte : m.tipo === 'entrada' ? acento : texto;
+      cx.fillStyle = corM;
+      cx.beginPath();
+      cx.arc(mx, my, 2.5, 0, Math.PI * 2);
+      cx.fill();
+      cx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
+      const lg = cx.measureText(m.rotulo).width + 8;
+      // Por cima do ponto se estiver na metade de baixo, por baixo se na de cima.
+      const acima = my > MARGEM_TOPO + altoUtil / 2;
+      const ty = acima ? my - 16 : my + 5;
+      const tx = Math.min(Math.max(2, mx - lg / 2), largura - lg - 2);
+      cx.fillStyle = corComAlfa(superficie, 0.88);
+      arredondado(cx, tx, ty, lg, 13, 3);
+      cx.fill();
+      cx.fillStyle = corM;
+      cx.textAlign = 'left';
+      cx.textBaseline = 'middle';
+      cx.fillText(m.rotulo, tx + 4, ty + 6.5);
     }
 
     // --- linha do último preço, com etiqueta -----------------------------
@@ -445,7 +506,7 @@ export function GraficoVivo({
       cx.textAlign = 'left';
       cx.fillText(etiqueta, largura + 7, mira.y);
     }
-  }, [janela, casas, linhas, zonas, curvas, mira, timeframe]);
+  }, [janela, casas, linhas, zonas, curvas, marcadores, mira, timeframe]);
 
   /*
    * Loop de animação.

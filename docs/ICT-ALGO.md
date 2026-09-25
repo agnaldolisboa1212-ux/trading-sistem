@@ -119,7 +119,8 @@ Correções feitas por esta regra durante a construção (para não se repetirem
 | Estilos | `apps/dashboard/app/vivo.css` (bloco `ICT ALGO`) |
 | Motor de tempo real (passagem própria) | `apps/engine/src/pipeline/ict-algo.ts` (+ `index.ts`) |
 | Mensagens Telegram/push "ICT ALGO" | `packages/notify/src/index.ts` (`formatarSinalIct`, `difundirSinalIct`) |
-| Medição | `scripts/backtest/ict-algo.mjs` |
+| Medição | `scripts/backtest/ict-algo.mjs`, `scripts/backtest/jpy-londres.mjs` |
+| Dados HistData (1 minuto → 15M/1H) | `scripts/backtest/baixar-histdata.mjs` |
 
 ### Variáveis do motor
 
@@ -194,6 +195,43 @@ setup fugiu depois de o preço chegar ao alvo.
 
 Os modelos crus mais fracos: Reaper IFVG (−0,52R nos principais, −1,10R no
 controlo, em 15M) e Turtle Soup. O menos mau: Unicorn (≈ 0).
+
+### O método das notas "Estudos do JPY" (medido a 25/09/2026)
+
+As notas do Notion descrevem um método próprio, diferente dos modelos do site:
+Power of 3 + SMT nos pares JPY, na abertura de Londres. Foi posto em regras
+**antes** de medir (ver o cabeçalho de `scripts/backtest/jpy-londres.mjs`):
+
+1. viés diário; sem viés não se opera
+2. faixa asiática 00:00–08:00 de Londres
+3. entre 08:00 e 10:00 de Londres o par passa o extremo asiático contra o viés
+   (as notas estão num TradingView em UTC+2, escritas no Verão: "9:00" = 08:00
+   de Londres, "11H" = 10:00, saída "13:30–14:00" = 12:30–13:00)
+4. SMT: a referência (USDJPY; GBPJPY para o USDJPY) não passa o seu extremo asiático
+5. entrada 1 no fecho de volta para dentro da faixa, alvo 3R; entrada 2 no MSS, alvo 3,5R
+6. break-even a +1,2R, saída às 13:00 de Londres, uma operação por dia, nada às sextas
+
+15M, 2022+, com custos:
+
+| | Pares das notas (GBPJPY, EURJPY, USDJPY) | Controlo (AUDJPY, CADJPY, CHFJPY, NZDJPY) |
+|---|---|---|
+| entrada 1 (SMT na abertura) | 392 op · −0,151R · t=−2,0 | 399 · −0,256R · t=−3,7 |
+| entrada 2 (confirmação MSS) | 71 · +0,117R · t=1,1 (acerto 55%; 2.ª met. −0,080) | 66 · −0,018R · t=−0,2 |
+| combinada ½ + ½ | 392 · −0,065R · t=−1,6 | 399 · −0,130R · t=−3,5 |
+| + radar AUDJPY/NZDJPY | 102 · +0,003R · t=0,0 | (CADJPY/CHFJPY) 52 · −0,026R |
+| versão refinada (OTE de 1H + estocástico 5,3,3) | 6 operações em 4,7 anos | 6 |
+
+Os dados repetem a lição que as próprias notas registam — entrar à abertura
+perde, esperar pela confirmação acerta mais — mas nenhuma versão tem vantagem
+mensurável, e a versão refinada quase nunca acontece (o varrimento da Ásia raramente cai no OTE da perna de 1H
+com divergência no estocástico ao mesmo tempo).
+
+Nota sobre os pares JPY no ICT ALGO: USDJPY e EURJPY foram os melhores mercados
+nas medições do algoritmo, mas o GBPJPY — o único par JPY que não entrou em
+escolha nenhuma — perdeu em todos os modos de entrada (−0,255R a −0,839R). Não
+há um "efeito JPY" que sobreviva fora da amostra.
+
+Dados dos quatro pares de controlo: `node scripts/backtest/baixar-histdata.mjs AUDJPY CADJPY CHFJPY NZDJPY --desde 2021`.
 
 ---
 

@@ -106,6 +106,33 @@ export function faseAmd(t: number): FaseAmd {
   return 'fora';
 }
 
+/** Último domingo de um mês, à meia-noite UTC. */
+function ultimoDomingo(ano: number, mes: number): number {
+  const ultimoDia = new Date(Date.UTC(ano, mes + 1, 0));
+  return Date.UTC(ano, mes, ultimoDia.getUTCDate() - ultimoDia.getUTCDay());
+}
+
+/**
+ * Hora e minuto em Londres, com o horário de verão europeu (último domingo de
+ * Março à 01:00 UTC até ao último domingo de Outubro à 01:00 UTC).
+ *
+ * A abertura de Londres é às 08:00 HORA DE LONDRES o ano inteiro; num relógio
+ * fixo (UTC, ou o UTC+2 de um TradingView) ela anda uma hora entre o Verão e o
+ * Inverno. Regras escritas em hora local de Londres não mudam de sentido com a
+ * estação.
+ */
+export function relogioLondres(t: number): { hora: number; minuto: number; diaSemana: number; minutos: number } {
+  const ano = new Date(t).getUTCFullYear();
+  const verao = t >= ultimoDomingo(ano, 2) + HORA && t < ultimoDomingo(ano, 9) + HORA;
+  const d = new Date(t + (verao ? HORA : 0));
+  return {
+    hora: d.getUTCHours(),
+    minuto: d.getUTCMinutes(),
+    diaSemana: d.getUTCDay(),
+    minutos: d.getUTCHours() * 60 + d.getUTCMinutes(),
+  };
+}
+
 /**
  * A janela Silver Bullet em que o instante cai, se alguma.
  *

@@ -36,6 +36,7 @@ import {
   prepararEstruturas,
   quebrasDeEstrutura,
   relogioNy,
+  relogioLondres,
   serieAtrIct,
   simularSinal,
   swingsConfirmados,
@@ -381,6 +382,15 @@ test('hora de Nova Iorque bate com Intl, incluindo nos dias de transição', () 
   const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', hour12: false });
   for (let t = Date.UTC(2023, 0, 1); t < Date.UTC(2026, 0, 1); t += 7 * HORA) {
     assert.equal(relogioNy(t).hora, Number(fmt.format(new Date(t))) % 24, new Date(t).toISOString());
+  }
+});
+
+test('hora de Londres bate com Intl, incluindo nas mudanças de hora', () => {
+  const fmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hour12: false });
+  for (let t = Date.UTC(2021, 0, 1); t < Date.UTC(2027, 0, 1); t += 5 * HORA + 15 * 60_000) {
+    const [h, m] = fmt.format(new Date(t)).split(':').map(Number);
+    const l = relogioLondres(t);
+    assert.equal(l.hora * 60 + l.minuto, (h % 24) * 60 + m, new Date(t).toISOString());
   }
 });
 

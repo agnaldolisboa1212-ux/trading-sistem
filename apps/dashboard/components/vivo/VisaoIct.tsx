@@ -19,7 +19,7 @@
 
 import { useEffect, useState } from 'react';
 import type { AnaliseIct, ModeloIct, PassoTopDown, SinalIct } from '@trading/core';
-import { NOME_MODELO } from '@trading/core';
+import { NOME_MODELO, relogioLondres } from '@trading/core';
 import { formatarPreco } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
 import type { PlanoParaOrdem } from './Negociar';
@@ -93,37 +93,106 @@ export function usarIct(codigo: string, tf: string, activo: boolean): Estado | n
 }
 
 /** O que a secção desenha no gráfico. */
-export function desenhoIct(a: AnaliseIct | null): Desenho {
+/** Uma vela, no mínimo que as caixas de sessão precisam. */
+type VelaSimples = { time: number; high: number; low: number };
+
+/** As sessões, em hora de Londres: [início, fim) em minutos do dia. */
+const SESSOES = [
+  { tipo: 'sessao-asia', rotulo: 'Ásia', de: 0, ate: 8 * 60 },
+  { tipo: 'sessao-londres', rotulo: 'Londres', de: 8 * 60, ate: 13 * 60 },
+  { tipo: 'sessao-ny', rotulo: 'Nova Iorque', de: 13 * 60, ate: 21 * 60 },
+] as const;
+
+/**
+ * Caixas das sessões dos últimos `dias` dias: cada uma do máximo ao mínimo que
+ * o preço fez dentro dela. É a leitura das notas "Estudos do JPY" — Ásia a
+ * acumular, Londres a manipular e a distribuir, Nova Iorque a mudar a sessão.
+ */
+function caixasDeSessao(velas: readonly VelaSimples[], dias: number): Desenho['zonas'] {
+  type Caixa = { tipo: string; rotulo: string; de: number; ate: number; topo: number; base: number; dia: number };
+  const out: Caixa[] = [];
+  if (velas.length === 0) return [];
+  const limite = velas[velas.length - 1]!.time - dias * 86_400_000;
+  let actual: Caixa | null = null;
+  for (const v of velas) {
+    if (v.time < limite) continue;
+    const l = relogioLondres(v.time);
+    if (l.diaSemana === 6 || (l.diaSemana === 0 && l.minutos < 21 * 60)) continue;
+    const sessao = SESSOES.find((s) => l.minutos >= s.de && l.minutos < s.ate);
+    // Dia de calendário de Londres: o desvio face a UTC é 0 ou 60 minutos.
+    const minutosUtc = new Date(v.time).getUTCHours() * 60 + new Date(v.time).getUTCMinutes();
+    const desvioMin = (l.minutos - minutosUtc + 1440) % 1440;
+    const dia = Math.floor((v.time + desvioMin * 60_000) / 86_400_000);
+    if (!sessao) {
+      if (actual) out.push(actual);
+      actual = null;
+      continue;
+    }
+    if (actual && actual.tipo === sessao.tipo && actual.dia === dia) {
+      actual.ate = v.time;
+      actual.topo = Math.max(actual.topo, v.high);
+      actual.base = Math.min(actual.base, v.low);
+    } else {
+      if (actual) out.push(actual);
+      actual = { tipo: sessao.tipo, rotulo: sessao.rotulo, de: v.time, ate: v.time, topo: v.high, base: v.low, dia };
+    }
+  }
+  if (actual) out.push(actual);
+  return out.map(({ dia: _dia, ...z }) => z);
+}
+
+/**
+ * O que a secção desenha no gráfico — limpo, como nas notas do Notion:
+ *
+ *   · as caixas das sessões (Ásia, Londres, Nova Iorque)
+ *   · com setup: a zona de entrada e três linhas curtas (entrada, stop, alvo)
+ *     que começam no sinal, como a ferramenta de posição do TradingView
+ *   · sem setup: só o alvo do dia (draw on liquidity)
+ *   · duas marcas: o último varrimento ("SMT" quando houve divergência) e o MSS
+ *
+ * Nada mais. Os PD arrays e as poças de liquidez continuam na análise, por
+ * escrito; no gráfico eram dezenas de linhas que tapavam o preço.
+ */
+export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] = [], tf = '1h'): Desenho {
   if (!a) return DESENHO_VAZIO;
-  const d: Desenho = { zonas: [], linhas: [], curvas: [] };
+  const intradiario = tf === '15m' || tf === '30m' || tf === '1h' || tf === '5m';
+  const d: Desenho = {
+    zonas: intradiario ? caixasDeSessao(velas, tf === '1h' ? 4 : 2) : [],
+    linhas: [],
+    curvas: [],
+    marcas: [],
+  };
   const s = a.sinal;
-
-  // PD arrays por mitigar, os mais recentes — o que o algoritmo está a vigiar.
-  const arrays = [...a.pdArrays].sort((x, y) => y.index - x.index).slice(0, 6);
-  for (const p of arrays) {
-    d.zonas.push({ de: p.time, ate: Infinity, topo: p.alto, base: p.baixo, tipo: p.lado === 'bullish' ? 'bull' : 'bear', rotulo: p.rotulo });
-  }
-
-  // Liquidez de calendário e máximos/mínimos iguais: os destinos e os alvos.
-  const importantes = a.pocas.filter((p) => p.origem !== 'swing').slice(-8);
-  for (const p of importantes) {
-    d.linhas.push({ preco: p.preco, rotulo: `${p.lado === 'buy-side' ? 'BSL' : 'SSL'} · ${p.rotulo}`, tipo: 'nivel' });
-  }
-  if (a.vies?.dol) d.linhas.push({ preco: a.vies.dol.preco, rotulo: `DOL · ${a.vies.dol.rotulo}`, tipo: 'poc' });
 
   if (s) {
     d.zonas.push({
-      de: s.pdArray.time,
+      de: s.time,
       ate: Infinity,
       topo: s.zonaEntradaAlta,
       base: s.zonaEntradaBaixa,
       tipo: 'entrada',
       rotulo: `ICT ALGO · ${NOME_MODELO[s.modelo]}`,
     });
-    d.linhas.push({ preco: s.entrada, rotulo: `ICT ALGO · entrada ${s.tipoEntrada === 'pendente' ? '(ordem pendente)' : '(a mercado)'}`, tipo: 'entrada' });
-    d.linhas.push({ preco: s.stop, rotulo: `stop · ${s.rotuloStop}`, tipo: 'stop' });
-    d.linhas.push({ preco: s.alvo, rotulo: `alvo ${s.rr.toFixed(1)}R · ${s.rotuloAlvo}`, tipo: 'alvo' });
+    d.linhas.push({ preco: s.entrada, rotulo: `ENTRADA ${s.tipoEntrada === 'pendente' ? '(pendente)' : ''}`, tipo: 'entrada', de: s.time });
+    d.linhas.push({ preco: s.stop, rotulo: 'STOP', tipo: 'stop', de: s.time });
+    d.linhas.push({ preco: s.alvo, rotulo: `ALVO ${s.rr.toFixed(1)}R`, tipo: 'alvo', de: s.time });
+    if (s.varrimento) {
+      d.marcas!.push({
+        t: s.varrimento.time,
+        p: s.varrimento.extremo,
+        rotulo: s.modelo === 'venom' ? 'SMT' : 'varrimento',
+        tipo: s.modelo === 'venom' ? 'smt' : 'varrimento',
+      });
+    }
+    if (s.quebra) d.marcas!.push({ t: s.quebra.time, p: s.quebra.nivel, rotulo: s.quebra.tipo.toUpperCase(), tipo: 'mss' });
+    return d;
   }
+
+  if (a.vies?.dol) d.linhas.push({ preco: a.vies.dol.preco, rotulo: `alvo do dia · ${a.vies.dol.rotulo}`, tipo: 'poc' });
+  const v = a.regime?.ultimoVarrimento;
+  if (v) d.marcas!.push({ t: v.time, p: v.extremo, rotulo: 'varrimento', tipo: 'varrimento' });
+  const q = a.regime?.ultimaQuebra;
+  if (q) d.marcas!.push({ t: q.time, p: q.nivel, rotulo: q.tipo.toUpperCase(), tipo: 'mss' });
   return d;
 }
 
@@ -301,7 +370,7 @@ export function VisaoIct({
         </details>
       )}
 
-      <details className="ict__bloco" open={!a.sinal}>
+      <details className="ict__bloco">
         <summary>Os sete modelos, agora</summary>
         <ul className="ict__modelos">
           {a.modelos.map((m) => {

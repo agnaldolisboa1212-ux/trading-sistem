@@ -223,6 +223,7 @@ function Terminal() {
       zonas={desenho.zonas}
       linhas={linhasComPosicoes}
       curvas={desenho.curvas}
+      marcadores={desenho.marcas}
       // No computador o gráfico enche a altura da janela ao lado do painel.
       altura={alturaCalculada}
       cheio={cheio}

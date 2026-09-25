@@ -229,11 +229,11 @@ export function AnaliseAoVivo({
     visao === 'mmxm'
       ? `mmxm|${mmxmActivo?.titulo ?? ''}|${mmxmActivo?.desenho.linhas.length ?? 0}`
       : visao === 'ict-algo'
-        ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}`
+        ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}|${chave}`
         : `${chave}|${visao}`;
   useEffect(() => {
     if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
-    else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null));
+    else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null, candles, tf));
     else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);

@@ -129,6 +129,16 @@ export interface LinhaDesenho {
   rotulo: string;
   /** 'entrada' | 'stop' | 'alvo' | 'poc' | 'nivel' */
   tipo: string;
+  /** Instante em que a linha começa; sem ele, atravessa o gráfico. */
+  de?: number;
+}
+
+/** Uma marca pontual no gráfico: 'smt' | 'mss' | 'varrimento' | 'entrada'. */
+export interface MarcaDesenho {
+  t: number;
+  p: number;
+  rotulo: string;
+  tipo: string;
 }
 
 export interface CurvaDesenho {
@@ -142,6 +152,8 @@ export interface Desenho {
   zonas: ZonaDesenho[];
   linhas: LinhaDesenho[];
   curvas: CurvaDesenho[];
+  /** Opcional: só algumas visões (o ICT ALGO) marcam pontos. */
+  marcas?: MarcaDesenho[];
 }
 
 export const DESENHO_VAZIO: Desenho = { zonas: [], linhas: [], curvas: [] };
