@@ -154,6 +154,19 @@ export interface Desenho {
   curvas: CurvaDesenho[];
   /** Opcional: só algumas visões (o ICT ALGO) marcam pontos. */
   marcas?: MarcaDesenho[];
+  /** Opcional: segmentos entre dois pontos (a linha do SMT/varrimento). */
+  segmentos?: SegmentoDesenho[];
+}
+
+/** Uma linha de (t0, p0) a (t1, p1), como a linha de SMT desenhada à mão. */
+export interface SegmentoDesenho {
+  t0: number;
+  p0: number;
+  t1: number;
+  p1: number;
+  rotulo: string;
+  /** 'smt' | 'varrimento' */
+  tipo: string;
 }
 
 export const DESENHO_VAZIO: Desenho = { zonas: [], linhas: [], curvas: [] };

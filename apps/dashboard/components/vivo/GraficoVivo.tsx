@@ -52,6 +52,11 @@ export interface GraficoVivoProps {
   linhas?: Array<{ preco: number; rotulo: string; tipo: string; de?: number }>;
   /** Marcas pontuais (SMT, MSS, varrimento) num instante e preço. */
   marcadores?: Array<{ t: number; p: number; rotulo: string; tipo: string }>;
+  /**
+   * Segmentos entre dois pontos: a linha tracejada que liga o nível varrido ao
+   * pavio que o varreu, com "SMT" escrito ao meio — como no TradingView.
+   */
+  segmentos?: Array<{ t0: number; p0: number; t1: number; p1: number; rotulo: string; tipo: string }>;
   /** Curvas no tempo, como o VWAP e as suas bandas. `tipo`: vwap, banda1, banda2. */
   curvas?: Array<{ pontos: Array<{ t: number; p: number }>; tipo: string; rotulo?: string }>;
   /** Timeframes oferecidos na barra; por omissão todos os da Deriv. */
@@ -81,6 +86,7 @@ export function GraficoVivo({
   linhas = [],
   curvas = [],
   marcadores = [],
+  segmentos = [],
   timeframes,
   altura = 340,
   aoMudarTimeframe,
@@ -307,6 +313,26 @@ export function GraficoVivo({
         }
         continue;
       }
+      if (z.tipo === 'posicao-alvo' || z.tipo === 'posicao-risco') {
+        // A ferramenta de posição do TradingView: verde do preço de entrada ao
+        // alvo, vermelho da entrada ao stop, com o rótulo dentro da caixa.
+        const corPos = z.tipo === 'posicao-alvo' ? alta : baixa;
+        const largPos = Math.max(2, x1 - x0);
+        cx.fillStyle = corComAlfa(corPos, 0.16);
+        cx.fillRect(x0, yTopo, largPos, alturaZona);
+        cx.strokeStyle = corComAlfa(corPos, 0.45);
+        cx.lineWidth = 1;
+        cx.strokeRect(Math.round(x0) + 0.5, Math.round(yTopo) + 0.5, largPos - 1, alturaZona - 1);
+        if (z.rotulo && largPos > 40 && alturaZona > 12) {
+          cx.fillStyle = corComAlfa(corPos, 0.95);
+          cx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
+          cx.textAlign = 'left';
+          cx.textBaseline = z.tipo === 'posicao-alvo' ? 'top' : 'bottom';
+          cx.fillText(z.rotulo, x0 + 4, z.tipo === 'posicao-alvo' ? yTopo + 3 : yTopo + alturaZona - 3);
+          cx.textBaseline = 'middle';
+        }
+        continue;
+      }
       const base = corDoTipo(z.tipo);
       cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' ? 0.14 : 0.1);
       cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
@@ -409,6 +435,43 @@ export function GraficoVivo({
       cx.fillText(l.rotulo, Math.min(xInicio + 4, largura - 60), yy - 6);
     }
 
+    // --- segmentos (a linha do SMT / varrimento) ------------------------
+    const xDoTempo = (t: number): number | null => {
+      if (janela.length === 0) return null;
+      if (t < janela[0]!.t) return 0;
+      if (t > janela[janela.length - 1]!.t) return null;
+      const k = janela.findIndex((v) => v.t >= t);
+      return k < 0 ? null : k * passo + passo / 2;
+    };
+    for (const sg of segmentos) {
+      const xa = xDoTempo(sg.t0);
+      const xb = xDoTempo(sg.t1);
+      if (xa === null || xb === null || xb - xa < 4) continue;
+      const ya = y(sg.p0);
+      const yb = y(sg.p1);
+      const corS = sg.tipo === 'smt' ? aviso : texto;
+      cx.strokeStyle = corComAlfa(corS, 0.85);
+      cx.lineWidth = 1.2;
+      cx.setLineDash([3, 3]);
+      cx.beginPath();
+      cx.moveTo(xa, ya);
+      cx.lineTo(xb, yb);
+      cx.stroke();
+      cx.setLineDash([]);
+      // O rótulo ao meio, por baixo da linha se ela ligar mínimos, por cima se máximos.
+      const baixo = sg.p1 <= sg.p0;
+      cx.save();
+      cx.translate((xa + xb) / 2, (ya + yb) / 2);
+      cx.rotate(Math.atan2(yb - ya, xb - xa));
+      cx.fillStyle = corS;
+      cx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      cx.textAlign = 'center';
+      cx.textBaseline = baixo ? 'top' : 'bottom';
+      cx.fillText(sg.rotulo, 0, baixo ? 3 : -3);
+      cx.restore();
+      cx.textBaseline = 'middle';
+    }
+
     // --- marcadores (SMT, MSS, varrimento) ------------------------------
     for (const m of marcadores) {
       if (janela.length === 0 || m.t < janela[0]!.t || m.t > janela[janela.length - 1]!.t) continue;
@@ -506,7 +569,7 @@ export function GraficoVivo({
       cx.textAlign = 'left';
       cx.fillText(etiqueta, largura + 7, mira.y);
     }
-  }, [janela, casas, linhas, zonas, curvas, marcadores, mira, timeframe]);
+  }, [janela, casas, linhas, zonas, curvas, marcadores, segmentos, mira, timeframe]);
 
   /*
    * Loop de animação.

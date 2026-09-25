@@ -82,6 +82,7 @@ export function GraficoInstrumento({
       linhas={desenho.linhas}
       curvas={desenho.curvas}
       marcadores={desenho.marcas}
+      segmentos={desenho.segmentos}
       altura={cheio ? 0 : ecra.largo ? Math.max(420, ecra.alturaJanela - 320) : Math.max(320, Math.floor(ecra.alturaJanela * 0.55))}
       cheio={cheio}
       titulo={`${codigo} · ${nome}`}
