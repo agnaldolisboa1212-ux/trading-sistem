@@ -4013,3 +4013,24 @@ body:has(.terminal--cheio) .bottomnav {
   border-left: 3px solid var(--warn);
   padding-left: var(--s2);
 }
+
+/* Voltar à última vela — aparece quando a vista está no passado (TradingView: »). */
+.grafico__presente {
+  position: absolute;
+  right: 70px;
+  bottom: 30px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--text) 18%, transparent);
+}
+
+.grafico__presente:hover {
+  background: color-mix(in srgb, var(--text) 8%, var(--surface));
+}

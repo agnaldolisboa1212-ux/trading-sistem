@@ -20,8 +20,18 @@
  *     ecrã, e não a cada mensagem que chega
  *   · a escala vertical INTERPOLA entre o alvo e o valor atual, por isso o eixo
  *     desliza em vez de saltar quando uma vela nova alarga o intervalo
- *   · arrastar desloca, roda do rato e pinça aproximam
- *   · a mira segue o dedo/rato com etiquetas de preço e de tempo
+ *   · a vista é contínua: píxeis por vela e um deslocamento em velas
+ *     fraccionárias — arrastar é suave, e ao soltar continua por inércia
+ *   · há espaço vazio à direita da última vela, e pode-se arrastar para lá dela
+ *   · roda do rato e pinça aproximam em volta do cursor / do meio dos dedos;
+ *     no trackpad, dois dedos na horizontal deslocam
+ *   · arrastar o EIXO DE PREÇOS estica a escala na vertical (e a partir daí o
+ *     arrasto também desloca na vertical); duplo clique no eixo volta à
+ *     escala automática
+ *   · arrastar o EIXO DO TEMPO estica na horizontal
+ *   · a olhar para o passado, uma vela nova não mexe na vista; no presente, a
+ *     vista acompanha
+ *   · a mira segue o rato com etiquetas de preço e de tempo
  *
  * ── CORES ──────────────────────────────────────────────────────────────────
  *
@@ -30,9 +40,9 @@
  * ficar dessincronizado quando a paleta mudar.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Vela } from '@/lib/deriv/live';
-import { formatarPreco, TIMEFRAMES, type Timeframe } from '@/lib/deriv/simbolos';
+import { formatarPreco, segundosDe, TIMEFRAMES, type Timeframe } from '@/lib/deriv/simbolos';
 
 export interface GraficoVivoProps {
   velas: Vela[];
@@ -78,6 +88,56 @@ const MARGEM_DIR = 62;
 const MARGEM_BAIXO = 22;
 const MARGEM_TOPO = 8;
 
+/** Velas de espaço vazio à direita da última, como no TradingView. */
+const DESVIO_PADRAO = 6;
+/** Velas no ecrã ao abrir. */
+const VELAS_PADRAO = 90;
+/** Limites da largura de uma vela, em píxeis. */
+const ESPACO_MIN = 1.5;
+const ESPACO_MAX = 60;
+const limitar = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
+
+/**
+ * A vista: tudo o que os gestos mexem. Vive numa ref e não em estado — muda a
+ * cada movimento do rato, e o canvas lê-a no frame seguinte sem um render do
+ * React por píxel.
+ */
+interface Vista {
+  /** Píxeis por vela. 0 = ainda não medido (o primeiro desenho decide). */
+  espaco: number;
+  /** Velas entre a última vela e a borda direita: >0 espaço vazio, <0 passado. */
+  desvio: number;
+  /** Escala de preços fixada ao esticar o eixo; null = automática. */
+  manual: Escala | null;
+  /** Velas da série no último desenho — para seguir o presente ou ficar no passado. */
+  n: number;
+  /**
+   * Abertura da última vela no último desenho. É a âncora: o painel guarda um
+   * histórico de tamanho fixo (entra uma vela no fim, sai uma no início), por
+   * isso o ÍNDICE de uma vela muda a cada vela nova — a hora não.
+   */
+  ultimaT: number;
+  /** Inércia do arrasto, em velas por milissegundo. */
+  inercia: number;
+  ultimoFrame: number;
+}
+
+/** O que o último desenho mediu — os gestos precisam disto para converter píxeis. */
+interface Geometria {
+  largura: number;
+  altoUtil: number;
+  alto: number;
+  direita: number;
+  esc: Escala;
+}
+
+/** Um gesto em curso. */
+type Gesto =
+  | { tipo: 'arrasto'; x0: number; y0: number; desvio0: number; escala0: Escala | null; rasto: Array<{ t: number; x: number }> }
+  | { tipo: 'eixo-preco'; y0: number; escala0: Escala }
+  | { tipo: 'eixo-tempo'; x0: number; espaco0: number }
+  | { tipo: 'pinca'; dist0: number; espaco0: number; barra: number; xCentro: number };
+
 export function GraficoVivo({
   velas,
   casas,
@@ -97,10 +157,13 @@ export function GraficoVivo({
   const caixa = useRef<HTMLDivElement | null>(null);
   const tela = useRef<HTMLCanvasElement | null>(null);
 
-  /** Quantas velas cabem no ecrã. Estado porque os botões de zoom mexem nele. */
-  const [visiveis, setVisiveis] = useState(90);
-  /** Quantas velas de deslocamento a partir do fim. 0 = colado ao presente. */
-  const [recuo, setRecuo] = useState(0);
+  const vista = useRef<Vista>({ espaco: 0, desvio: DESVIO_PADRAO, manual: null, n: 0, ultimaT: 0, inercia: 0, ultimoFrame: 0 });
+  const geo = useRef<Geometria | null>(null);
+  const gesto = useRef<Gesto | null>(null);
+  const ponteiros = useRef(new Map<number, { x: number; y: number }>());
+  /** Só o que os botões precisam de saber — muda raramente, não a cada frame. */
+  const [estadoVista, setEstadoVista] = useState({ passado: false, manual: false, alterado: false });
+  const estadoRef = useRef({ passado: false, manual: false, alterado: false });
   const [mira, setMira] = useState<{ x: number; y: number } | null>(null);
 
   /*
@@ -122,14 +185,17 @@ export function GraficoVivo({
    * porque todas caíam fora do intervalo desenhado.
    */
   const escalaActual = useRef<Escala>({ min: Number.NaN, max: Number.NaN });
-  const arrasto = useRef<{ x: number; recuo: number } | null>(null);
-  const pinca = useRef<{ dist: number; visiveis: number } | null>(null);
 
-  const janela = useMemo(() => {
-    const fim = Math.max(1, velas.length - recuo);
-    const inicio = Math.max(0, fim - visiveis);
-    return velas.slice(inicio, fim);
-  }, [velas, visiveis, recuo]);
+  // Trocar de timeframe ou de instrumento é outra série: a vista volta ao
+  // presente e a escala de preços ao automático (o preço é outro).
+  useEffect(() => {
+    const v = vista.current;
+    v.espaco = 0;
+    v.desvio = DESVIO_PADRAO;
+    v.manual = null;
+    v.inercia = 0;
+    v.n = 0;
+  }, [timeframe, titulo]);
 
   /** Redesenha. Chamado pelo loop de animação, não pelo React. */
   const desenhar = useCallback(() => {
@@ -151,6 +217,43 @@ export function GraficoVivo({
     }
     cx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx.clearRect(0, 0, L, A);
+
+    // --- a vista: quantas velas, onde, e a inércia do último arrasto -------
+    const largura = L - MARGEM_DIR;
+    const v = vista.current;
+    const n = velas.length;
+    if (v.espaco === 0) v.espaco = limitar(largura / VELAS_PADRAO, ESPACO_MIN, ESPACO_MAX);
+    const ultimaT = velas[n - 1]?.t ?? 0;
+    if (n !== v.n || ultimaT !== v.ultimaT) {
+      if (v.n > 0 && v.desvio < -0.5) {
+        // A olhar para o passado: as mesmas velas ficam no mesmo sítio, mesmo que
+        // a série tenha andado (vela nova no fim, vela velha a sair no início).
+        const j = indiceDoTempo(velas, v.ultimaT);
+        if (j >= 0) v.desvio = v.n - 1 + v.desvio + (j - (v.n - 1)) - (n - 1);
+        else v.desvio = DESVIO_PADRAO; // a âncora saiu da série: volta ao presente
+      }
+      // No presente (desvio >= 0) não se faz nada: a vista acompanha as velas novas.
+      v.n = n;
+      v.ultimaT = ultimaT;
+    }
+    const agoraFrame = performance.now();
+    const dt = v.ultimoFrame ? Math.min(64, agoraFrame - v.ultimoFrame) : 16;
+    v.ultimoFrame = agoraFrame;
+    if (v.inercia !== 0 && !gesto.current) {
+      v.desvio += v.inercia * dt;
+      v.inercia *= Math.pow(0.92, dt / 16);
+      if (Math.abs(v.inercia) < 0.0004) v.inercia = 0;
+    }
+    const barras = largura / v.espaco;
+    // Sempre algumas velas à vista: nem o presente sai pela esquerda, nem o
+    // início da série sai pela direita.
+    v.desvio = limitar(v.desvio, -(n - 5), barras * 0.85);
+    const direita = n - 1 + v.desvio;
+    const esquerda = direita - barras;
+    const i0 = Math.max(0, Math.floor(esquerda));
+    const janela = velas.slice(i0, Math.min(n, Math.floor(direita) + 2));
+    /** Centro da vela `i` da janela, em x. */
+    const xi = (i: number) => largura - (direita - (i0 + i)) * v.espaco;
 
     if (janela.length === 0) return;
 
@@ -205,7 +308,7 @@ export function GraficoVivo({
       }
     }
     const folga = (max - min) * 0.08 || Math.abs(max) * 0.001 || 1;
-    const alvo: Escala = { min: min - folga, max: max + folga };
+    const alvo: Escala = v.manual ?? { min: min - folga, max: max + folga };
 
     /*
      * Interpolação exponencial em direção ao alvo.
@@ -228,7 +331,7 @@ export function GraficoVivo({
       Number.isFinite(a.min) &&
       (Math.abs(alvo.min - a.min) > amplitudeAlvo || Math.abs(alvo.max - a.max) > amplitudeAlvo);
 
-    if (!Number.isFinite(a.min) || Math.abs(a.max - a.min) < 1e-12 || saltoGrande) {
+    if (v.manual || !Number.isFinite(a.min) || Math.abs(a.max - a.min) < 1e-12 || saltoGrande) {
       escalaActual.current = alvo;
     } else {
       const k = 0.18;
@@ -241,12 +344,12 @@ export function GraficoVivo({
     }
     const esc = escalaActual.current;
 
-    const largura = L - MARGEM_DIR;
     const altoUtil = A - MARGEM_BAIXO - MARGEM_TOPO;
     const y = (p: number) =>
       MARGEM_TOPO + ((esc.max - p) / (esc.max - esc.min || 1)) * altoUtil;
-    const passo = largura / janela.length;
-    const larguraVela = Math.max(1, Math.min(14, passo * 0.68));
+    const passo = v.espaco;
+    const larguraVela = Math.max(1, Math.min(40, passo * 0.7));
+    geo.current = { largura, altoUtil, alto: A, direita, esc };
 
     // --- grelha e eixo de preço ------------------------------------------
     cx.font =
@@ -297,13 +400,13 @@ export function GraficoVivo({
               ? aviso
               : texto;
     for (const z of zonas) {
-      const i0 = janela.findIndex((v) => v.t >= z.de);
+      const z0 = janela.findIndex((c) => c.t >= z.de);
       const antes = janela[0] && z.de < janela[0].t;
-      if (i0 === -1 && !antes) continue;
-      const i1 = Number.isFinite(z.ate) ? janela.findIndex((v) => v.t > z.ate) : -1;
+      if (z0 === -1 && !antes) continue;
+      const z1 = Number.isFinite(z.ate) ? janela.findIndex((c) => c.t > z.ate) : -1;
       if (Number.isFinite(z.ate) && janela[0] && z.ate < janela[0].t) continue;
-      const x0 = antes ? 0 : i0 * passo;
-      const x1 = (i1 === -1 ? janela.length : i1) * passo;
+      const x0 = antes ? 0 : xi(z0) - passo / 2;
+      const x1 = z1 === -1 ? largura : xi(z1) - passo / 2;
       const yTopo = y(z.topo);
       const alturaZona = Math.max(2, y(z.base) - yTopo);
       if (z.tipo.startsWith('sessao')) {
@@ -355,7 +458,7 @@ export function GraficoVivo({
 
     // --- curvas (VWAP e bandas) -----------------------------------------
     if (curvas.length > 0 && janela.length > 1) {
-      const indice = new Map(janela.map((v, i) => [v.t, i]));
+      const indice = new Map(janela.map((c, i) => [c.t, i]));
       for (const cv of curvas) {
         cx.strokeStyle = cv.tipo === 'vwap' ? aviso : corComAlfa(aviso, cv.tipo === 'banda1' ? 0.55 : 0.3);
         cx.lineWidth = cv.tipo === 'vwap' ? 1.6 : 1;
@@ -367,7 +470,7 @@ export function GraficoVivo({
         for (const pt of cv.pontos) {
           const i = indice.get(pt.t);
           if (i === undefined) continue;
-          const xx = i * passo + passo / 2;
+          const xx = xi(i);
           const yy = y(pt.p);
           if (comecou) cx.lineTo(xx, yy);
           else cx.moveTo(xx, yy);
@@ -388,9 +491,13 @@ export function GraficoVivo({
     cx.restore();
 
     // --- velas ------------------------------------------------------------
-    janela.forEach((v, i) => {
-      const x = i * passo + passo / 2;
-      const sobe = v.c >= v.o;
+    cx.save();
+    cx.beginPath();
+    cx.rect(0, 0, largura, A);
+    cx.clip();
+    janela.forEach((vl, i) => {
+      const x = xi(i);
+      const sobe = vl.c >= vl.o;
       const c = sobe ? alta : baixa;
       cx.strokeStyle = c;
       cx.fillStyle = c;
@@ -398,15 +505,16 @@ export function GraficoVivo({
       // Mecha
       cx.lineWidth = Math.max(1, larguraVela * 0.16);
       cx.beginPath();
-      cx.moveTo(Math.round(x) + 0.5, y(v.h));
-      cx.lineTo(Math.round(x) + 0.5, y(v.l));
+      cx.moveTo(Math.round(x) + 0.5, y(vl.h));
+      cx.lineTo(Math.round(x) + 0.5, y(vl.l));
       cx.stroke();
 
       // Corpo. Um doji tem altura zero e desapareceria — força-se 1 px.
-      const topo = y(Math.max(v.o, v.c));
-      const alturaCorpo = Math.max(1, Math.abs(y(v.o) - y(v.c)));
+      const topo = y(Math.max(vl.o, vl.c));
+      const alturaCorpo = Math.max(1, Math.abs(y(vl.o) - y(vl.c)));
       cx.fillRect(x - larguraVela / 2, topo, larguraVela, alturaCorpo);
     });
+    cx.restore();
 
     // --- linhas da análise ------------------------------------------------
     for (const l of linhas) {
@@ -415,8 +523,8 @@ export function GraficoVivo({
       let xInicio = 0;
       if (l.de !== undefined && janela.length > 0) {
         if (l.de > janela[janela.length - 1]!.t) continue;
-        const k = janela.findIndex((v) => v.t >= l.de!);
-        xInicio = l.de < janela[0]!.t || k < 0 ? 0 : k * passo + passo / 2;
+        const k = janela.findIndex((c) => c.t >= l.de!);
+        xInicio = l.de < janela[0]!.t || k < 0 ? 0 : Math.max(0, xi(k));
       }
       const yy = Math.round(y(l.preco)) + 0.5;
       cx.strokeStyle =
@@ -479,8 +587,8 @@ export function GraficoVivo({
       if (janela.length === 0) return null;
       if (t < janela[0]!.t) return 0;
       if (t > janela[janela.length - 1]!.t) return null;
-      const k = janela.findIndex((v) => v.t >= t);
-      return k < 0 ? null : k * passo + passo / 2;
+      const k = janela.findIndex((c) => c.t >= t);
+      return k < 0 ? null : xi(k);
     };
     for (const sg of segmentos) {
       const xa = xDoTempo(sg.t0);
@@ -514,9 +622,9 @@ export function GraficoVivo({
     // --- marcadores (SMT, MSS, varrimento) ------------------------------
     for (const m of marcadores) {
       if (janela.length === 0 || m.t < janela[0]!.t || m.t > janela[janela.length - 1]!.t) continue;
-      const k = janela.findIndex((v) => v.t >= m.t);
+      const k = janela.findIndex((c) => c.t >= m.t);
       if (k < 0) continue;
-      const mx = k * passo + passo / 2;
+      const mx = xi(k);
       const my = y(m.p);
       const corM = m.tipo === 'smt' ? aviso : m.tipo === 'mss' ? textoForte : m.tipo === 'entrada' ? acento : texto;
       cx.fillStyle = corM;
@@ -539,7 +647,8 @@ export function GraficoVivo({
     }
 
     // --- linha do último preço, com etiqueta -----------------------------
-    const ultima = janela[janela.length - 1];
+    // Sempre a do preço ACTUAL, mesmo com a vista no passado — como no TradingView.
+    const ultima = velas[n - 1];
     if (ultima) {
       const sobe = ultima.c >= ultima.o;
       const c = sobe ? alta : baixa;
@@ -591,13 +700,18 @@ export function GraficoVivo({
     cx.fillStyle = texto;
     cx.font = '10px ui-sans-serif, system-ui, sans-serif';
     cx.textAlign = 'center';
-    const marcas = Math.max(2, Math.floor(largura / 78));
-    for (let i = 0; i < marcas; i++) {
-      const idx = Math.floor((i * (janela.length - 1)) / (marcas - 1 || 1));
-      const v = janela[idx];
-      if (!v) continue;
-      const x = Math.min(largura - 20, Math.max(20, idx * passo + passo / 2));
-      cx.fillText(rotuloTempo(v.t, timeframe), x, A - 8);
+    // As marcas prendem-se a velas (de N em N, N "redondo"): andam com o
+    // arrasto em vez de ficarem paradas no ecrã, e continuam no espaço vazio à
+    // direita com as horas que ainda vão chegar.
+    const passoMs = segundosDe(timeframe) * 1000;
+    const tempoDaBarra = (k: number) =>
+      k < n ? velas[Math.max(0, k)]!.t : velas[n - 1]!.t + (k - (n - 1)) * passoMs;
+    const cada = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512].find((q) => q * passo >= 84) ?? 768;
+    for (let k = Math.ceil(esquerda / cada) * cada; k <= direita; k += cada) {
+      if (k < 0) continue;
+      const x = largura - (direita - k) * passo;
+      if (x < 18 || x > largura - 18) continue;
+      cx.fillText(rotuloTempo(tempoDaBarra(k), timeframe), x, A - 8);
     }
 
     // --- mira -------------------------------------------------------------
@@ -629,8 +743,34 @@ export function GraficoVivo({
       cx.fillStyle = superficie;
       cx.textAlign = 'left';
       cx.fillText(etiqueta, largura + 7, mira.y);
+
+      // E o tempo da vela debaixo do cursor, no eixo de baixo.
+      const kMira = Math.round(direita - (largura - mira.x) / passo);
+      if (kMira >= 0) {
+        const rotuloT = rotuloTempoCompleto(tempoDaBarra(kMira), timeframe);
+        cx.font = '10px ui-sans-serif, system-ui, sans-serif';
+        const lt = cx.measureText(rotuloT).width + 12;
+        const xt = limitar(mira.x - lt / 2, 0, largura - lt);
+        cx.fillStyle = textoForte;
+        arredondado(cx, xt, A - MARGEM_BAIXO + 2, lt, 17, 3);
+        cx.fill();
+        cx.fillStyle = superficie;
+        cx.textAlign = 'center';
+        cx.fillText(rotuloT, xt + lt / 2, A - MARGEM_BAIXO + 10.5);
+      }
     }
-  }, [janela, casas, linhas, zonas, curvas, marcadores, segmentos, mira, timeframe]);
+
+    // Os botões só precisam de saber se a vista saiu do presente ou da escala
+    // automática — actualiza-se o estado só quando isso MUDA, não a cada frame.
+    const passado = v.desvio < DESVIO_PADRAO - 2;
+    const manual = v.manual !== null;
+    const alterado = passado || manual || Math.abs(v.espaco - largura / VELAS_PADRAO) > 0.5;
+    const e0 = estadoRef.current;
+    if (passado !== e0.passado || manual !== e0.manual || alterado !== e0.alterado) {
+      estadoRef.current = { passado, manual, alterado };
+      setEstadoVista({ passado, manual, alterado });
+    }
+  }, [velas, casas, linhas, zonas, curvas, marcadores, segmentos, mira, timeframe]);
 
   /*
    * Loop de animação.
@@ -672,55 +812,185 @@ export function GraficoVivo({
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  /** Onde caiu o ponteiro: área das velas, eixo de preços ou eixo do tempo. */
+  const zonaDe = (p: { x: number; y: number }) => {
+    const g = geo.current;
+    if (!g) return 'grafico' as const;
+    if (p.x > g.largura) return 'eixo-preco' as const;
+    if (p.y > g.alto - MARGEM_BAIXO) return 'eixo-tempo' as const;
+    return 'grafico' as const;
+  };
+
+  const voltarAoPresente = useCallback(() => {
+    const v = vista.current;
+    v.espaco = 0;
+    v.desvio = DESVIO_PADRAO;
+    v.manual = null;
+    v.inercia = 0;
+  }, []);
+
+  /** Aproxima (factor > 1) ou afasta em volta do x dado, mantendo essa vela no sítio. */
+  const aproximar = useCallback((factor: number, x?: number) => {
+    const g = geo.current;
+    const v = vista.current;
+    if (!g) return;
+    const xa = x ?? g.largura;
+    const barra = g.direita - (g.largura - xa) / v.espaco;
+    v.espaco = limitar(v.espaco * factor, ESPACO_MIN, ESPACO_MAX);
+    v.desvio = barra + (g.largura - xa) / v.espaco - (v.n - 1);
+    v.inercia = 0;
+  }, []);
+
+  const comecarGesto = (p: { x: number; y: number }) => {
+    const v = vista.current;
+    const g = geo.current;
+    v.inercia = 0;
+    if (ponteiros.current.size >= 2 && g) {
+      const [a, b] = [...ponteiros.current.values()];
+      const xCentro = (a!.x + b!.x) / 2;
+      gesto.current = {
+        tipo: 'pinca',
+        dist0: Math.hypot(a!.x - b!.x, a!.y - b!.y) || 1,
+        espaco0: v.espaco,
+        xCentro,
+        barra: g.direita - (g.largura - xCentro) / v.espaco,
+      };
+      return;
+    }
+    const zona = zonaDe(p);
+    if (zona === 'eixo-preco' && g) {
+      gesto.current = { tipo: 'eixo-preco', y0: p.y, escala0: v.manual ?? g.esc };
+    } else if (zona === 'eixo-tempo') {
+      gesto.current = { tipo: 'eixo-tempo', x0: p.x, espaco0: v.espaco };
+    } else {
+      gesto.current = { tipo: 'arrasto', x0: p.x, y0: p.y, desvio0: v.desvio, escala0: v.manual, rasto: [{ t: performance.now(), x: p.x }] };
+    }
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    arrasto.current = { x: e.clientX, recuo };
+    const p = posicao(e);
+    if (!p) return;
+    ponteiros.current.set(e.pointerId, p);
+    comecarGesto(p);
+    if (caixa.current && gesto.current?.tipo === 'arrasto') caixa.current.style.cursor = 'grabbing';
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const p = posicao(e);
-    if (p) setMira(p);
+    if (!p) return;
+    const el = caixa.current;
+    if (ponteiros.current.has(e.pointerId)) ponteiros.current.set(e.pointerId, p);
+    const gs = gesto.current;
+    const v = vista.current;
+    const g = geo.current;
 
-    const a = arrasto.current;
-    if (!a) return;
-    const largura = (caixa.current?.clientWidth ?? 1) - MARGEM_DIR;
-    const passo = largura / Math.max(1, visiveis);
-    const delta = Math.round((e.clientX - a.x) / passo);
-    const max = Math.max(0, velas.length - 10);
-    setRecuo(Math.min(max, Math.max(0, a.recuo + delta)));
-  };
-
-  const onPointerUp = () => {
-    arrasto.current = null;
-  };
-
-  const onWheel = (e: React.WheelEvent) => {
-    // Sem `preventDefault`: o React liga o `wheel` como passivo e chamá-lo
-    // dispara um aviso na consola. Limita-se a ajustar o zoom.
-    const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-    setVisiveis((v) => Math.round(Math.min(600, Math.max(20, v * factor))));
-  };
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      pinca.current = { dist: distancia(e.touches), visiveis };
+    if (!gs) {
+      // Sem gesto: só a mira (rato), e o cursor diz o que o arrasto vai fazer.
+      if (e.pointerType !== 'touch') setMira(p);
+      if (el) {
+        const z = zonaDe(p);
+        el.style.cursor = z === 'eixo-preco' ? 'ns-resize' : z === 'eixo-tempo' ? 'ew-resize' : 'crosshair';
+      }
+      return;
     }
-  };
+    if (!g) return;
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2 && pinca.current) {
-      const d = distancia(e.touches);
-      const r = pinca.current.dist / (d || 1);
-      setVisiveis(Math.round(Math.min(600, Math.max(20, pinca.current.visiveis * r))));
+    if (gs.tipo === 'pinca') {
+      const [a, b] = [...ponteiros.current.values()];
+      if (!a || !b) return;
+      const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      v.espaco = limitar(gs.espaco0 * (d / gs.dist0), ESPACO_MIN, ESPACO_MAX);
+      v.desvio = gs.barra + (g.largura - gs.xCentro) / v.espaco - (v.n - 1);
+      return;
     }
+    if (gs.tipo === 'eixo-preco') {
+      // Arrastar para baixo comprime, para cima estica — a partir do meio.
+      const f = Math.exp((p.y - gs.y0) * 0.006);
+      const meio = (gs.escala0.min + gs.escala0.max) / 2;
+      const meia = ((gs.escala0.max - gs.escala0.min) * f) / 2;
+      v.manual = { min: meio - meia, max: meio + meia };
+      return;
+    }
+    if (gs.tipo === 'eixo-tempo') {
+      v.espaco = limitar(gs.espaco0 * Math.exp((p.x - gs.x0) * 0.006), ESPACO_MIN, ESPACO_MAX);
+      return;
+    }
+    // Arrasto: horizontal sempre; vertical só com a escala fixada à mão.
+    v.desvio = gs.desvio0 - (p.x - gs.x0) / v.espaco;
+    if (gs.escala0) {
+      const dp = ((p.y - gs.y0) / g.altoUtil) * (gs.escala0.max - gs.escala0.min);
+      v.manual = { min: gs.escala0.min + dp, max: gs.escala0.max + dp };
+    }
+    const agora = performance.now();
+    gs.rasto.push({ t: agora, x: p.x });
+    while (gs.rasto.length > 2 && agora - gs.rasto[0]!.t > 90) gs.rasto.shift();
+    setMira(null);
   };
 
-  const onTouchEnd = () => {
-    pinca.current = null;
+  const onPointerUp = (e: React.PointerEvent) => {
+    ponteiros.current.delete(e.pointerId);
+    const gs = gesto.current;
+    const v = vista.current;
+    if (gs?.tipo === 'arrasto' && gs.rasto.length >= 2) {
+      // Inércia: a velocidade dos últimos ~90 ms continua depois de soltar.
+      const a = gs.rasto[0]!;
+      const b = gs.rasto[gs.rasto.length - 1]!;
+      const dtr = b.t - a.t;
+      if (dtr > 0 && performance.now() - b.t < 60) {
+        const vel = -((b.x - a.x) / dtr) / v.espaco;
+        if (Math.abs(vel) > 0.002) v.inercia = limitar(vel, -0.6, 0.6);
+      }
+    }
+    gesto.current = null;
+    // Da pinça para um dedo: continua como arrasto a partir daí.
+    const resto = [...ponteiros.current.values()][0];
+    if (resto) comecarGesto(resto);
+    if (caixa.current) caixa.current.style.cursor = 'crosshair';
   };
 
-  const ultima = janela[janela.length - 1];
-  const primeira = janela[0];
+  /*
+   * Roda do rato ligada à mão, com `passive: false`: é a única forma de impedir
+   * que a página role enquanto se aproxima o gráfico (o `onWheel` do React é
+   * passivo). No trackpad, dois dedos na horizontal deslocam e a pinça (que o
+   * browser entrega como roda com Ctrl) aproxima.
+   */
+  useEffect(() => {
+    const el = caixa.current;
+    if (!el) return;
+    const h = (e: WheelEvent) => {
+      const g = geo.current;
+      if (!g) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const v = vista.current;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !e.ctrlKey) {
+        v.desvio += e.deltaX / v.espaco;
+        v.inercia = 0;
+        return;
+      }
+      if (x > g.largura) {
+        const esc = v.manual ?? g.esc;
+        const f = Math.exp(e.deltaY * 0.002);
+        const meio = (esc.min + esc.max) / 2;
+        const meia = ((esc.max - esc.min) * f) / 2;
+        v.manual = { min: meio - meia, max: meio + meia };
+        return;
+      }
+      aproximar(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), x);
+    };
+    el.addEventListener('wheel', h, { passive: false });
+    return () => el.removeEventListener('wheel', h);
+  }, [aproximar]);
+
+  // O cabeçalho mostra a vela debaixo da mira (como no TradingView), ou a última.
+  const gCab = geo.current;
+  const kCab = mira && gCab ? Math.round(gCab.direita - (gCab.largura - mira.x) / vista.current.espaco) : -1;
+  const ultima = (kCab >= 0 && kCab < velas.length ? velas[kCab] : undefined) ?? velas[velas.length - 1];
+  const primeira = gCab
+    ? velas[limitar(Math.floor(gCab.direita - gCab.largura / vista.current.espaco), 0, velas.length - 1)]
+    : velas[0];
   const pct =
     primeira && ultima && primeira.o ? ((ultima.c - primeira.o) / primeira.o) * 100 : null;
 
@@ -745,7 +1015,7 @@ export function GraficoVivo({
           <button
             type="button"
             className="so-largo"
-            onClick={() => setVisiveis((v) => Math.min(600, Math.round(v * 1.4)))}
+            onClick={() => aproximar(1 / 1.4)}
             aria-label="Afastar"
             title="Afastar"
           >
@@ -754,7 +1024,7 @@ export function GraficoVivo({
           <button
             type="button"
             className="so-largo"
-            onClick={() => setVisiveis((v) => Math.max(20, Math.round(v / 1.4)))}
+            onClick={() => aproximar(1.4)}
             aria-label="Aproximar"
             title="Aproximar"
           >
@@ -763,13 +1033,10 @@ export function GraficoVivo({
           <button
             type="button"
             className="so-largo"
-            onClick={() => {
-              setRecuo(0);
-              setVisiveis(90);
-            }}
+            onClick={voltarAoPresente}
             aria-label="Voltar ao presente"
-            title="Voltar ao presente"
-            disabled={recuo === 0 && visiveis === 90}
+            title="Voltar ao presente (e escala automática)"
+            disabled={!estadoVista.alterado}
           >
             ⤒
           </button>
@@ -812,22 +1079,31 @@ export function GraficoVivo({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onPointerLeave={() => {
-          onPointerUp();
-          setMira(null);
+          if (!gesto.current) setMira(null);
         }}
-        onWheel={onWheel}
-        // Toque duplo (ou duplo clique) volta ao presente: no telemóvel é o que
-        // substitui o botão ⤒, que não cabe ao lado dos timeframes.
-        onDoubleClick={() => {
-          setRecuo(0);
-          setVisiveis(90);
+        // Duplo clique no eixo de preços: volta à escala automática. No resto do
+        // gráfico: volta ao presente (no telemóvel substitui o botão ⤒).
+        onDoubleClick={(e) => {
+          const p = posicao(e);
+          if (p && zonaDe(p) === 'eixo-preco') vista.current.manual = null;
+          else voltarAoPresente();
         }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
       >
         <canvas ref={tela} />
+        {estadoVista.passado && (
+          <button
+            type="button"
+            className="grafico__presente"
+            onClick={voltarAoPresente}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-label="Voltar à última vela"
+            title="Voltar à última vela"
+          >
+            »
+          </button>
+        )}
         {velas.length === 0 && (
           <div className="grafico__vazio">
             <span className="brilho" style={{ width: '100%', height: '100%', display: 'block' }} />
@@ -839,13 +1115,6 @@ export function GraficoVivo({
 }
 
 // ---------------------------------------------------------------------------
-
-function distancia(t: React.TouchList): number {
-  const a = t[0];
-  const b = t[1];
-  if (!a || !b) return 0;
-  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-}
 
 /**
  * O nome curto de uma linha, como nas ferramentas do TradingView/cTrader:
@@ -890,6 +1159,28 @@ function arredondado(
  */
 function corComAlfa(cor: string, alfa: number): string {
   return `color-mix(in srgb, ${cor} ${Math.round(alfa * 100)}%, transparent)`;
+}
+
+/** Índice da vela com esta abertura, ou −1 (as velas vêm por ordem de tempo). */
+function indiceDoTempo(velas: readonly Vela[], t: number): number {
+  let lo = 0;
+  let hi = velas.length - 1;
+  while (lo <= hi) {
+    const m = (lo + hi) >> 1;
+    const tm = velas[m]!.t;
+    if (tm === t) return m;
+    if (tm < t) lo = m + 1;
+    else hi = m - 1;
+  }
+  return -1;
+}
+
+/** O tempo completo da vela debaixo da mira: dia, mês e hora. */
+function rotuloTempoCompleto(ms: number, tf: Timeframe): string {
+  const d = new Date(ms);
+  const dia = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (tf === '1d' || tf === '1w') return `${dia}/${d.getFullYear()}`;
+  return `${dia} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function rotuloTempo(ms: number, tf: Timeframe): string {
