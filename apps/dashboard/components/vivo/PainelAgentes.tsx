@@ -27,7 +27,8 @@
  * que daria exatamente o ecrã estático que se queria evitar.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ASIA_RANGE_EM_TESTE, ICT_ALGO_EM_TESTE } from '@trading/core';
 import Link from 'next/link';
 
 export interface Resultado {
@@ -73,11 +74,17 @@ function passageiro(msg: string): boolean {
   return /RateLimit|rate limit|Failed to fetch|NetworkError|Load failed|timeout|HTTP 5\d\d|ligação|WebSocket/i.test(msg);
 }
 
-async function pedirRadar(simbolo: string, timeframe: string, cancelado: () => boolean): Promise<Resultado> {
+async function pedirRadar(
+  simbolo: string,
+  timeframe: string,
+  grupo: Grupo,
+  cancelado: () => boolean,
+): Promise<Resultado> {
   for (let tentativa = 0; ; tentativa++) {
     let resultado: Resultado;
     try {
-      const r = await fetch(`/api/radar/${encodeURIComponent(simbolo)}?tf=${encodeURIComponent(timeframe)}`, {
+      const url = `/api/radar/${encodeURIComponent(simbolo)}?tf=${encodeURIComponent(timeframe)}&grupo=${grupo}`;
+      const r = await fetch(url, {
         cache: 'no-store',
       });
       resultado = r.ok || r.status < 500 ? ((await r.json()) as Resultado) : { simbolo, erro: `HTTP ${r.status}` };
@@ -90,6 +97,14 @@ async function pedirRadar(simbolo: string, timeframe: string, cancelado: () => b
     await new Promise((r) => setTimeout(r, RECUOS_MS[tentativa]));
   }
 }
+
+/**
+ * Os dois grupos do painel:
+ *
+ *   algo     ICT ALGO e Asia Range Algo, sempre em 15M (o timeframe deles)
+ *   basico   as outras estratégias, no timeframe escolhido
+ */
+type Grupo = 'algo' | 'basico';
 
 /** Em intradiário a vela fecha a cada poucos minutos: repetir mais depressa. */
 const INTRADIARIO = new Set(['1m', '5m', '15m', '30m']);
@@ -129,17 +144,61 @@ export function PainelAgentes({
       /* sem armazenamento */
     }
   };
+  const algos = useMemo(
+    () => simbolos.filter((s) => INSTRUMENTOS_ALGOS.has(s.toUpperCase())),
+    [simbolos],
+  );
+
+  return (
+    <>
+      {algos.length > 0 && (
+        <GrupoAgentes titulo="Análises Algo" grupo="algo" simbolos={algos} timeframe="15m" />
+      )}
+      <GrupoAgentes
+        titulo="Análises básicas"
+        grupo="basico"
+        simbolos={simbolos}
+        timeframe={timeframe}
+        aoEscolherTimeframe={escolherTimeframe}
+      />
+    </>
+  );
+}
+
+/** Os instrumentos onde o ICT ALGO ou o Asia Range Algo correm. */
+const INSTRUMENTOS_ALGOS = new Set([...ICT_ALGO_EM_TESTE, ...ASIA_RANGE_EM_TESTE]);
+
+function GrupoAgentes({
+  titulo,
+  grupo,
+  simbolos,
+  timeframe,
+  aoEscolherTimeframe,
+}: {
+  titulo: string;
+  grupo: Grupo;
+  simbolos: string[];
+  timeframe: string;
+  /** Sem isto o grupo tem timeframe fixo (os algos) e não mostra o seletor. */
+  aoEscolherTimeframe?: (tf: string) => void;
+}) {
   const [resultados, setResultados] = useState<Map<string, Resultado>>(new Map());
   const [estados, setEstados] = useState<Map<string, Estado>>(new Map());
   const [aCorrer, setACorrer] = useState(false);
   const [terminadoEm, setTerminadoEm] = useState<number | null>(null);
-  const cancelado = useRef(false);
+  /**
+   * Número da varredura em curso. Ao mudar de timeframe começa outra; a antiga
+   * vê que já não é a actual e pára — antes continuava e escrevia resultados do
+   * timeframe anterior na lista nova (o "ICT ALGO" no separador 4H).
+   */
+  const geracao = useRef(0);
   /** Último resultado sem erro por símbolo+timeframe. */
   const ultimosBons = useRef(new Map<string, Resultado>());
 
   const varrer = useCallback(async () => {
     if (simbolos.length === 0) return;
-    cancelado.current = false;
+    const minha = ++geracao.current;
+    const cancelado = { get current() { return geracao.current !== minha; } };
     setACorrer(true);
     setEstados(new Map(simbolos.map((s) => [s, 'espera' as Estado])));
     setResultados(new Map());
@@ -148,11 +207,11 @@ export function PainelAgentes({
       if (cancelado.current) break;
       setEstados((m) => new Map(m).set(s, 'corre'));
 
-      const j = await pedirRadar(s, timeframe, () => cancelado.current);
+      const j = await pedirRadar(s, timeframe, grupo, () => cancelado.current);
       if (cancelado.current) break;
 
       // Uma falha passageira não apaga uma análise boa da passagem anterior.
-      const chave = `${s}|${timeframe}`;
+      const chave = `${s}|${timeframe}|${grupo}`;
       const anterior = ultimosBons.current.get(chave);
       const final = j.erro && anterior ? anterior : j;
       if (!j.erro) ultimosBons.current.set(chave, j);
@@ -165,12 +224,13 @@ export function PainelAgentes({
       setACorrer(false);
       setTerminadoEm(Date.now());
     }
-  }, [simbolos, timeframe]);
+  }, [simbolos, timeframe, grupo]);
 
   useEffect(() => {
     void varrer();
     return () => {
-      cancelado.current = true;
+      // Desmontar ou mudar de timeframe invalida a varredura em curso.
+      geracao.current++;
     };
   }, [varrer]);
 
@@ -201,7 +261,11 @@ export function PainelAgentes({
     <div className="agentes">
       <div className="agentes__topo">
         <span className="agentes__titulo">
-          {aCorrer ? 'A analisar mercados…' : 'Análise concluída'}
+          {titulo}
+          <em className="faint">
+            {' · '}
+            {aoEscolherTimeframe ? (aCorrer ? 'a analisar…' : 'concluída') : `15M · ${aCorrer ? 'a analisar…' : 'concluída'}`}
+          </em>
         </span>
         <span className="grow" />
         <span className="agente__valor">
@@ -221,13 +285,15 @@ export function PainelAgentes({
         )}
       </div>
 
-      <div className="segmentos agentes__tfs" role="radiogroup" aria-label="Timeframe da análise">
-        {TIMEFRAMES_RADAR.map((tf) => (
-          <button key={tf} type="button" aria-pressed={timeframe === tf} onClick={() => escolherTimeframe(tf)}>
-            {tf.toUpperCase()}
-          </button>
-        ))}
-      </div>
+      {aoEscolherTimeframe && (
+        <div className="segmentos agentes__tfs" role="radiogroup" aria-label="Timeframe da análise">
+          {TIMEFRAMES_RADAR.map((tf) => (
+            <button key={tf} type="button" aria-pressed={timeframe === tf} onClick={() => aoEscolherTimeframe(tf)}>
+              {tf.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={`agentes__barra ${aCorrer ? 'activa' : ''}`} />
 
@@ -248,8 +314,11 @@ export function PainelAgentes({
             hour: '2-digit',
             minute: '2-digit',
           })}
-          . Velas {timeframe} fechadas — as mesmas estratégias que o motor de tempo real usa,
-          repetidas a cada {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
+          . Velas {timeframe} fechadas —{' '}
+          {grupo === 'algo'
+            ? 'ICT ALGO e Asia Range Algo, os mesmos que o motor de tempo real usa'
+            : 'as mesmas estratégias que o motor de tempo real usa'}
+          , repetidas a cada {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
         </div>
       )}
     </div>

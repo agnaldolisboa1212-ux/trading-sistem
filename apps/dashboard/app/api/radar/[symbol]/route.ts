@@ -60,10 +60,24 @@ async function velasFechadas(derivSymbol: string, gran: number, quantas = 320): 
   return brutas.filter((c) => c.time + gran * 1000 <= Date.now());
 }
 
+/**
+ * Os dois grupos do painel de agentes:
+ *
+ *   algo     ICT ALGO e Asia Range Algo — trazem o seu timeframe (15M) e
+ *            precisam de diário e par; correm sempre em 15M
+ *   basico   as outras estratégias, no timeframe escolhido
+ *
+ * Sem `grupo`, correm todas (compatibilidade).
+ */
+const ALGOS = ['ict-algo', 'asia-range-algo'];
+type Grupo = 'algo' | 'basico' | null;
+const doGrupo = (grupo: Grupo) => (e: { id: string }) =>
+  grupo === 'algo' ? ALGOS.includes(e.id) : grupo === 'basico' ? !ALGOS.includes(e.id) : true;
+
 /** "Tente 1H ou 4H." — noutros timeframes deste instrumento há estratégia activa. */
-function outrosTimeframes(codigo: string, actual: string): string {
+function outrosTimeframes(codigo: string, actual: string, grupo: Grupo = null): string {
   const tfs = Object.keys(GRANULARIDADE_S).filter(
-    (tf) => tf !== actual && estrategiasPara(codigo, tf).length > 0,
+    (tf) => tf !== actual && estrategiasPara(codigo, tf).filter(doGrupo(grupo)).length > 0,
   );
   return tfs.length > 0
     ? `Tente ${tfs.map((t) => t.toUpperCase()).join(' ou ')}.`
@@ -76,7 +90,10 @@ export async function GET(
 ) {
   const { symbol } = await ctx.params;
   const url = new URL(pedido.url);
-  const tfBruto = url.searchParams.get('tf') ?? '1d';
+  const grupoBruto = url.searchParams.get('grupo');
+  const grupo: Grupo = grupoBruto === 'algo' || grupoBruto === 'basico' ? grupoBruto : null;
+  // Os algos correm sempre no seu timeframe.
+  const tfBruto = grupo === 'algo' ? '15m' : (url.searchParams.get('tf') ?? '1d');
   const tf = (GRANULARIDADE_S[tfBruto] ? tfBruto : '1d') as Timeframe;
   const canonico = symbol.toUpperCase();
   const em = Date.now();
@@ -89,7 +106,7 @@ export async function GET(
     );
   }
 
-  const estrategias = estrategiasPara(s.codigo, tf);
+  const estrategias = estrategiasPara(s.codigo, tf).filter(doGrupo(grupo));
   if (estrategias.length === 0) {
     return NextResponse.json(
       {
@@ -98,7 +115,10 @@ export async function GET(
         timeframe: tf,
         temEstrategia: false,
         sinal: null,
-        resumo: `Sem estratégia activa em ${tf.toUpperCase()}. ${outrosTimeframes(s.codigo, tf)}`,
+        resumo:
+          grupo === 'algo'
+            ? 'Os algos não correm neste instrumento.'
+            : `Sem estratégia activa em ${tf.toUpperCase()}. ${outrosTimeframes(s.codigo, tf, grupo)}`,
         em,
       },
       { headers: { 'Cache-Control': 'no-store' } },
@@ -149,6 +169,7 @@ export async function GET(
       fechadas,
       { symbol: s.codigo, timeframe: tf },
       extra,
+      estrategias.map((e) => e.id),
     ).filter((x) => x.generatedAt === ultima.time);
 
     // Um sinal por instrumento — como o motor: sentidos opostos não escolhem nenhum.
