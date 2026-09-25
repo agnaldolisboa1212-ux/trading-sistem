@@ -25,6 +25,7 @@ import { velasDeriv } from '@trading/data';
 import { agregar, confirmacaoLtf, correrIctAlgo, paresSmtIct, type Candle, type Timeframe } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { clienteServidor } from '@/lib/supabase/servidor';
+import { guardarCacheVela, lerCacheVela } from '@/lib/cache-vela';
 
 export const dynamic = 'force-dynamic';
 /** Duas séries longas mais o par correlacionado: 60s é folgado mas seguro. */
@@ -92,6 +93,13 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
   const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
   const parCodigo = parSimbolo?.codigo ?? null;
 
+  // Depois do travão de portfólio (que vale para cada pessoa) e antes de pedir
+  // velas à Deriv: até ao fecho da próxima vela a análise é a mesma, e a aba
+  // pergunta a cada minuto (ver lib/cache-vela.ts).
+  const chaveCache = `ict|${s.codigo}|${tf}`;
+  const guardado = lerCacheVela<Record<string, unknown>>(chaveCache, tf);
+  if (guardado) return NextResponse.json(guardado, semCache);
+
   try {
     const gran = GRANULARIDADE_S[tf]!;
     const [execucao, diarias, parVelas, velas5m] = await Promise.all([
@@ -127,7 +135,10 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
       );
     }
 
-    return NextResponse.json({ simbolo: s.codigo, nome: s.nome, timeframe: tf, par: parCodigo, analise, em }, semCache);
+    const corpo = { simbolo: s.codigo, nome: s.nome, timeframe: tf, par: parCodigo, analise, em };
+    const ultimaVela = execucao[execucao.length - 1]?.time;
+    if (ultimaVela !== undefined) guardarCacheVela(chaveCache, tf, ultimaVela, corpo);
+    return NextResponse.json(corpo, semCache);
   } catch (e) {
     return NextResponse.json(
       { simbolo: s.codigo, analise: null, porqueNao: `Falha a obter as velas: ${e instanceof Error ? e.message : String(e)}`, em },

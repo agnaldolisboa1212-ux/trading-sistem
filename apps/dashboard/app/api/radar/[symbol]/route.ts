@@ -38,6 +38,7 @@ import {
   type Timeframe,
 } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
+import { guardarCacheVela, lerCacheVela } from '@/lib/cache-vela';
 
 export const dynamic = 'force-dynamic';
 /** O SMT pode pedir até seis séries de referência; 60s é folgado mas seguro. */
@@ -140,6 +141,12 @@ export async function GET(
     );
   }
 
+  // A análise só muda quando fecha uma vela: o painel pergunta a cada minuto,
+  // mas até ao fecho seguinte a resposta é a mesma (ver lib/cache-vela.ts).
+  const chaveCache = `radar|${s.codigo}|${tf}|${grupo ?? 'todos'}`;
+  const guardado = lerCacheVela<Record<string, unknown>>(chaveCache, tf);
+  if (guardado) return NextResponse.json(guardado, { headers: { 'Cache-Control': 'no-store' } });
+
   try {
     const gran = GRANULARIDADE_S[tf]!;
     // Os algos (ICT ALGO, Asia Range) precisam de história, diário e par — como no motor.
@@ -212,8 +219,7 @@ export async function GET(
         ? escolhido.rationale
         : `${nomesEstrategias.join(', ')} — nenhuma deu sinal na última vela fechada.`;
 
-    return NextResponse.json(
-      {
+    const corpo = {
         simbolo: s.codigo,
         nome: s.nome,
         timeframe: tf,
@@ -235,9 +241,9 @@ export async function GET(
           : null,
         resumo,
         em,
-      },
-      { headers: { 'Cache-Control': 'no-store' } },
-    );
+      };
+    guardarCacheVela(chaveCache, tf, ultima.time, corpo);
+    return NextResponse.json(corpo, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err) {
     return NextResponse.json(
       {
