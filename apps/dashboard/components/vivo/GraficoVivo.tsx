@@ -276,6 +276,13 @@ export function GraficoVivo({
     cx.rect(0, MARGEM_TOPO, largura, altoUtil);
     cx.clip();
 
+    /*
+     * Rótulos das linhas e das zonas: juntam-se aqui e desenham-se no fim, com
+     * fundo e sem se sobreporem. No telemóvel eram escritos uns por cima dos
+     * outros e por cima das velas ("máx. Ásia", "BOS", "ENTRADA" na mesma linha).
+     */
+    const rotulos: Array<{ texto: string; cor: string; x: number; y: number; alinhar: 'left' | 'right' }> = [];
+
     // --- zonas (oferta/procura, níveis, value area, FVG) -----------------
     const corDoTipo = (tipo: string) =>
       tipo.includes('bull')
@@ -339,12 +346,7 @@ export function GraficoVivo({
       cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' || z.tipo === 'poi' ? 0.14 : 0.1);
       cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
       if (z.rotulo) {
-        cx.fillStyle = corComAlfa(base, 0.9);
-        cx.font = '9.5px ui-sans-serif, system-ui, sans-serif';
-        cx.textAlign = 'right';
-        cx.textBaseline = 'top';
-        cx.fillText(z.rotulo, largura - 4, yTopo + 2);
-        cx.textBaseline = 'middle';
+        rotulos.push({ texto: z.rotulo, cor: corComAlfa(base, 0.95), x: largura - 4, y: yTopo + 8, alinhar: 'right' });
       }
     }
 
@@ -431,10 +433,39 @@ export function GraficoVivo({
       cx.lineTo(largura, yy);
       cx.stroke();
       cx.setLineDash([]);
-      cx.fillStyle = cx.strokeStyle;
-      cx.textAlign = 'left';
-      cx.font = '9.5px ui-sans-serif, system-ui, sans-serif';
-      cx.fillText(l.rotulo, Math.min(xInicio + 4, largura - 60), yy - 6);
+      rotulos.push({ texto: l.rotulo, cor: String(cx.strokeStyle), x: Math.min(xInicio + 4, largura - 60), y: yy - 8, alinhar: 'left' });
+    }
+
+    // --- rótulos: com fundo, e sem se tocarem ---------------------------
+    {
+      cx.font = '600 9.5px ui-sans-serif, system-ui, sans-serif';
+      cx.textBaseline = 'middle';
+      const ALTO = 14;
+      const postos: Array<{ x0: number; x1: number; y0: number; y1: number }> = [];
+      const cruza = (r: { x0: number; x1: number; y0: number; y1: number }) =>
+        postos.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
+      for (const r of [...rotulos].sort((a, b) => a.y - b.y)) {
+        const w = Math.min(cx.measureText(r.texto).width + 8, largura - 4);
+        const x0 = r.alinhar === 'right' ? Math.max(2, r.x - w) : Math.max(2, Math.min(r.x - 2, largura - w - 2));
+        let y0 = r.y - ALTO / 2;
+        // Procura o lugar livre mais perto: desce, depois sobe.
+        for (let k = 1; k <= 8 && cruza({ x0, x1: x0 + w, y0, y1: y0 + ALTO }); k++) {
+          const tentativa = r.y - ALTO / 2 + (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2) * (ALTO + 1);
+          y0 = Math.max(MARGEM_TOPO, Math.min(MARGEM_TOPO + altoUtil - ALTO, tentativa));
+        }
+        postos.push({ x0, x1: x0 + w, y0, y1: y0 + ALTO });
+        cx.fillStyle = corComAlfa(superficie, 0.86);
+        arredondado(cx, x0, y0, w, ALTO, 3);
+        cx.fill();
+        cx.fillStyle = r.cor;
+        cx.textAlign = 'left';
+        cx.save();
+        cx.beginPath();
+        cx.rect(x0, y0, w, ALTO);
+        cx.clip();
+        cx.fillText(r.texto, x0 + 4, y0 + ALTO / 2 + 0.5);
+        cx.restore();
+      }
     }
 
     // --- segmentos (a linha do SMT / varrimento) ------------------------
