@@ -70,9 +70,19 @@ async function velasFechadas(derivSymbol: string, gran: number, quantas = 320): 
  * Sem `grupo`, correm todas (compatibilidade).
  */
 const ALGOS = ['ict-algo', 'asia-range-algo'];
-type Grupo = 'algo' | 'basico' | null;
+type Grupo = 'algo' | 'ict' | 'asia' | 'basico' | null;
 const doGrupo = (grupo: Grupo) => (e: { id: string }) =>
-  grupo === 'algo' ? ALGOS.includes(e.id) : grupo === 'basico' ? !ALGOS.includes(e.id) : true;
+  grupo === 'algo'
+    ? ALGOS.includes(e.id)
+    : grupo === 'ict'
+      ? e.id === 'ict-algo'
+      : grupo === 'asia'
+        ? e.id === 'asia-range-algo'
+        : grupo === 'basico'
+          ? !ALGOS.includes(e.id)
+          : true;
+/** O ICT ALGO executa em 15M, 1H e 4H; o Asia Range só em 15M. */
+const TF_ICT = new Set(['15m', '1h', '4h']);
 
 /** "Tente 1H ou 4H." — noutros timeframes deste instrumento há estratégia activa. */
 function outrosTimeframes(codigo: string, actual: string, grupo: Grupo = null): string {
@@ -91,9 +101,14 @@ export async function GET(
   const { symbol } = await ctx.params;
   const url = new URL(pedido.url);
   const grupoBruto = url.searchParams.get('grupo');
-  const grupo: Grupo = grupoBruto === 'algo' || grupoBruto === 'basico' ? grupoBruto : null;
-  // Os algos correm sempre no seu timeframe.
-  const tfBruto = grupo === 'algo' ? '15m' : (url.searchParams.get('tf') ?? '1d');
+  const grupo: Grupo =
+    grupoBruto === 'algo' || grupoBruto === 'ict' || grupoBruto === 'asia' || grupoBruto === 'basico'
+      ? grupoBruto
+      : null;
+  // Os algos correm nos seus timeframes.
+  const tfPedido = url.searchParams.get('tf') ?? '1d';
+  const tfBruto =
+    grupo === 'algo' || grupo === 'asia' ? '15m' : grupo === 'ict' ? (TF_ICT.has(tfPedido) ? tfPedido : '15m') : tfPedido;
   const tf = (GRANULARIDADE_S[tfBruto] ? tfBruto : '1d') as Timeframe;
   const canonico = symbol.toUpperCase();
   const em = Date.now();
@@ -116,8 +131,8 @@ export async function GET(
         temEstrategia: false,
         sinal: null,
         resumo:
-          grupo === 'algo'
-            ? 'Os algos não correm neste instrumento.'
+          grupo === 'algo' || grupo === 'ict' || grupo === 'asia'
+            ? 'Este algo não corre neste instrumento.'
             : `Sem estratégia activa em ${tf.toUpperCase()}. ${outrosTimeframes(s.codigo, tf, grupo)}`,
         em,
       },
@@ -199,6 +214,8 @@ export async function GET(
               direccao: escolhido.direction,
               entrada: escolhido.entryPrice,
               stop: escolhido.stopLoss,
+              alvo: escolhido.targets[0]?.price ?? null,
+              pendente: escolhido.entryType === 'limit',
               rMaximo: escolhido.maxRMultiple,
               conviccao: escolhido.conviction,
               estrategia: escolhido.strategy,

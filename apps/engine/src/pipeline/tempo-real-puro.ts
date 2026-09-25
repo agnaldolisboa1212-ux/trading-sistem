@@ -142,6 +142,13 @@ export function avaliarPrecoActual(p: {
   /** Primeiro alvo; sem ele usa-se 2R. */
   alvo: number | null;
   actual: number;
+  /**
+   * Ordem pendente (limite) na entrada: o preço afastado da entrada, a favor, é
+   * o normal — está à espera do regresso. Só deixa de valer se o preço já
+   * chegou ao stop ou ao alvo. Sem isto os sinais pendentes do ICT ALGO eram
+   * todos descartados como "o preço já passou".
+   */
+  pendente?: boolean;
 }): AvaliacaoPreco {
   const lado = p.direccao === 'bullish' ? 1 : -1;
   const risco = Math.abs(p.entrada - p.stop);
@@ -156,6 +163,11 @@ export function avaliarPrecoActual(p: {
 
   if ((p.actual - p.stop) * lado <= 0) {
     return { estado: 'invalidado', anunciar: false, distanciaR, progresso };
+  }
+  if (p.pendente && desvio > 0) {
+    return progresso >= 1
+      ? { estado: 'passou', anunciar: false, distanciaR, progresso }
+      : { estado: 'a-aguardar', anunciar: true, distanciaR, progresso };
   }
   if (distanciaR >= DISTANCIA_MAXIMA_R) {
     return { estado: 'passou', anunciar: false, distanciaR, progresso };

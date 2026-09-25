@@ -185,6 +185,20 @@ test('preço: compra que já disparou bem acima não é anunciada', () => {
   assert.equal(r.anunciar, false);
 });
 
+test('preço: ordem pendente com o preço afastado espera o regresso e é anunciada', () => {
+  // A mercado, 1,5R acima seria "passou". Numa ordem limite é o normal: o ICT
+  // ALGO põe a entrada no FVG e espera que o preço volte lá.
+  const r = avaliarPrecoActual({ ...compra, actual: 103, pendente: true });
+  assert.equal(r.estado, 'a-aguardar');
+  assert.equal(r.anunciar, true);
+  // Mas se o preço já chegou ao alvo, a ideia acabou.
+  assert.equal(avaliarPrecoActual({ ...compra, actual: 106.5, pendente: true }).anunciar, false);
+  // E o stop tocado continua a invalidar.
+  assert.equal(avaliarPrecoActual({ ...compra, actual: 97.9, pendente: true }).estado, 'invalidado');
+  // Venda espelha.
+  assert.equal(avaliarPrecoActual({ ...venda, actual: 97, pendente: true }).anunciar, true);
+});
+
 test('preço: compra com o stop já tocado não é anunciada', () => {
   const r = avaliarPrecoActual({ ...compra, actual: 97.9 });
   assert.equal(r.estado, 'invalidado');

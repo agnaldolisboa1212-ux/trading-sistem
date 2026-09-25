@@ -99,7 +99,8 @@ const MIN_VELAS = 60;
 
 /** As estratégias que trazem o seu próprio timeframe e precisam de diário e par. */
 const ALGOS: readonly string[] = ['ict-algo', 'asia-range-algo'];
-const TIMEFRAMES_ALGOS: readonly string[] = ['15m'];
+/** Os timeframes em que algum algo corre: ICT ALGO em 15M/1H/4H, Asia Range em 15M. */
+const TIMEFRAMES_ALGOS: readonly string[] = ['15m', '1h', '4h'];
 /** Velas de execução para os algos (o ICT ALGO percorre a história para o placar). */
 const VELAS_ALGO = 1500;
 
@@ -880,6 +881,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
             stop: sinal.stop,
             alvo: sinal.alvos[0]?.preco ?? null,
             actual,
+            pendente: escolha.escolhido.sinal.entryType === 'limit',
           });
           if (!preco.anunciar) {
             analise.nota =

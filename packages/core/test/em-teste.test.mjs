@@ -26,9 +26,10 @@ const vela = (time, open, high, low, close) => ({ time, open, high, low, close, 
 test('em teste: forex e ouro intradiário, nunca como validadas', () => {
   // O VWAP do forex foi DESLIGADO em 23/09/2026 (−0,079R, t=−5,5 em 5487
   // operações). O EURUSD ficou sem estratégia nenhuma, e é a leitura honesta.
-  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), []);
+  // Em 1H o EURUSD só tem o ICT ALGO, em teste.
+  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), ['ict-algo']);
   assert.equal(estrategiaActiva('vwap-forex-teste'), undefined);
-  assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), []);
+  assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), ['ict-algo']);
   // Em 15M só os dois algos, em teste desde 25/09/2026.
   assert.deepEqual(estrategiasPara('XAUUSD', '15m').map((e) => e.id), ['ict-algo']);
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);

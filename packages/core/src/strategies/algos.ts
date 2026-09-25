@@ -64,6 +64,7 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
       stopLoss: s.stop,
       targets: [{ price: s.alvo, rMultiple: s.rr, closeFraction: 1, rationale: s.rotuloAlvo }],
       maxRMultiple: s.rr,
+      entryType: s.tipoEntrada === 'pendente' ? 'limit' : 'market',
       conviction: 0,
       rationale:
         `${modelo}: ${s.tipoEntrada === 'pendente' ? 'ordem pendente na zona' : 'entrada a mercado'}. ` +
