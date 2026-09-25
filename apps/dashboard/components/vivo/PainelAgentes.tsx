@@ -276,7 +276,7 @@ function GrupoAgentes({
   useEffect(() => {
     const id = setInterval(() => {
       if (!document.hidden && !aCorrer) void varrer();
-    }, INTRADIARIO.has(timeframe) ? 60_000 : 300_000);
+    }, grupo !== 'basico' ? 180_000 : INTRADIARIO.has(timeframe) ? 120_000 : 300_000);
     return () => clearInterval(id);
   }, [varrer, aCorrer, timeframe]);
 
@@ -353,7 +353,7 @@ function GrupoAgentes({
             : grupo === 'asia'
               ? 'o Asia Range Algo, o mesmo que o motor de tempo real usa'
               : 'as mesmas estratégias que o motor de tempo real usa'}
-          , repetidas a cada {INTRADIARIO.has(timeframe) ? 'minuto' : '5 minutos'}.
+          , repetidas a cada {grupo !== 'basico' ? '3 minutos' : INTRADIARIO.has(timeframe) ? '2 minutos' : '5 minutos'}.
         </div>
       )}
     </div>

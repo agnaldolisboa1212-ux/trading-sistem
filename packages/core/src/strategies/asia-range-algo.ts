@@ -23,7 +23,9 @@
  *   6  Alvo        o extremo OPOSTO da Ásia ("capturar a alta da sessão
  *                  asiática") ou o POI de Londres, o mais próximo que pague 2R
  *
- * Stop no extremo da manipulação (a pelo menos ¼ de ATR). A vela do MSS tem de
+ * Stop para lá do POI de entrada que cobre o extremo da manipulação (ou do
+ * próprio extremo), com margem de 0,1 ATR — `stopAlemDoPoi` — e a pelo menos
+ * ¼ de ATR. A vela do MSS tem de
  * fechar antes das 10:00 de Londres — o fim da killzone de Londres. Um setup por
  * dia e sentido. Opera também às sextas (a pedido, 25/09/2026 — as notas
  * originais não operavam). Só 15M.
@@ -40,7 +42,7 @@ import { prepararEstruturas, type EstruturasIct } from '../ict/motor.js';
 import { viesDiario } from '../ict/vies.js';
 import { relogioLondres, ultimaFechadaAte } from '../ict/tempo.js';
 import { confirmacaoLtf } from '../ict/confirmacao.js';
-import { faixaAsiaticaLondres, poiLondres, type FaixaAsiatica, type PoiLondres } from '../ict/poi.js';
+import { faixaAsiaticaLondres, poiLondres, stopAlemDoPoi, type FaixaAsiatica, type PoiLondres } from '../ict/poi.js';
 import type { IctDireccao, PassoTopDown } from '../ict/types.js';
 
 const DIA = 86_400_000;
@@ -297,9 +299,13 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
   passos.push(passo(6, '3m', 'Confirmação 3M', 'ok', `${conf.detalhe}.`));
 
   // 6 — Risco e alvo
+  // O stop vai para lá do POI de onde o preço reagiu (OB/FVG/breaker a favor
+  // que cobre o extremo da manipulação); a confirmação de 3M só decide a entrada.
   const entrada = agora.close;
-  const risco = alta ? entrada - extremo : extremo - entrada;
   const atr = e.atr[i] ?? 0;
+  const alemDoPoi = stopAlemDoPoi({ direccao: d, entrada, stop: extremo, zonas: [...e.obs, ...e.fvgs, ...e.breakers], i, atr });
+  const stop = alemDoPoi.stop;
+  const risco = alta ? entrada - stop : stop - entrada;
   if (!(risco > 0) || (atr > 0 && risco < RISCO_MINIMO_ATR * atr)) {
     passos.push(passo(7, '15m', 'Risco', 'falhou', 'Stop demasiado curto — o spread come a operação.'));
     return acabar('stop demasiado curto');
@@ -331,7 +337,7 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
       time: agora.time,
       index: i,
       entrada,
-      stop: extremo,
+      stop,
       alvo: alvo.preco,
       rr,
       rotuloAlvo: alvo.rotulo,

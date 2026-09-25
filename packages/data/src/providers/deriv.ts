@@ -377,7 +377,7 @@ export async function velasDeriv(
 
   // Uma entrada fresca com velas suficientes serve este pedido sem ir a rede.
   const guardada = cacheVelas.get(chave);
-  if (guardada && guardada.count >= count && agora - guardada.em < ttlVelas(granularidade)) {
+  if (guardada && guardada.count >= count && cacheValida(guardada, granularidade, agora)) {
     return guardada.velas.slice(-count);
   }
 
@@ -445,6 +445,48 @@ function ttlVelas(granularidade: number): number {
   return Math.min(60_000, Math.max(15_000, (granularidade * 1000) / 4));
 }
 
+/**
+ * A cópia guardada ainda serve?
+ *
+ * Até 15M: a frescura curta de sempre (o preço da vela em formação conta).
+ * Em 1H, 4H e diário as análises só lêem velas FECHADAS, que só mudam quando
+ * abre uma vela nova: a cópia serve até 1/4 da vela (máx. 15 min) DESDE QUE já
+ * tenha a vela do período actual. Quando abre uma vela nova, pede-se logo.
+ * Medido: com o gráfico, o radar e o motor abertos, os diários e os 4H eram
+ * pedidos de minuto a minuto e a Deriv respondia RateLimit.
+ */
+function cacheValida(g: VelasGuardadas, granularidade: number, agora: number): boolean {
+  const idade = agora - g.em;
+  if (granularidade <= 900) return idade < ttlVelas(granularidade);
+  const passo = granularidade * 1000;
+  const periodoActual = Math.floor(agora / passo) * passo;
+  const ultima = g.velas[g.velas.length - 1];
+  if (!ultima || ultima.time < periodoActual) return idade < ttlVelas(granularidade);
+  return idade < Math.min(15 * 60_000, passo / 4);
+}
+
+/**
+ * No máximo PEDIDOS_EM_SIMULTANEO pedidos de velas à Deriv ao mesmo tempo, os
+ * outros em fila. Dezenas de pedidos em rajada (o radar a varrer, o gráfico a
+ * abrir, o motor a passar) eram o que disparava o limite de `ticks_history`.
+ */
+const PEDIDOS_EM_SIMULTANEO = 3;
+let emVoo = 0;
+const fila: Array<() => void> = [];
+async function naVez<T>(fn: () => Promise<T>): Promise<T> {
+  // O lugar passa directamente de quem sai para o primeiro da fila: ninguém
+  // que chegue entretanto pode passar à frente e exceder o limite.
+  if (emVoo >= PEDIDOS_EM_SIMULTANEO) await new Promise<void>((r) => fila.push(r));
+  else emVoo++;
+  try {
+    return await fn();
+  } finally {
+    const proximo = fila.shift();
+    if (proximo) proximo();
+    else emVoo--;
+  }
+}
+
 const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function pedirVelasComRepeticao(
@@ -452,17 +494,21 @@ async function pedirVelasComRepeticao(
   granularidade: number,
   count: number,
 ): Promise<Candle[]> {
-  const recuos = [1_000, 2_500, 5_000];
+  // O limite da Deriv conta por janela de tempo: esperar mais entre tentativas
+  // passa a janela em vez de voltar a bater nela.
+  const recuos = [2_000, 5_000, 10_000, 15_000];
   for (let tentativa = 0; ; tentativa++) {
-    const resposta = await conexao.send({
-      ticks_history: derivSymbol,
-      adjust_start_time: 1,
-      count,
-      end: 'latest',
-      start: 1,
-      style: 'candles',
-      granularity: granularidade,
-    });
+    const resposta = await naVez(() =>
+      conexao.send({
+        ticks_history: derivSymbol,
+        adjust_start_time: 1,
+        count,
+        end: 'latest',
+        start: 1,
+        style: 'candles',
+        granularity: granularidade,
+      }),
+    );
 
     const erro = resposta['error'] as { code?: string; message?: string } | undefined;
     if (erro) {

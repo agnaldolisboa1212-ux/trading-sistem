@@ -170,7 +170,7 @@ export async function GET(
       const temIct = estrategias.some((e) => e.id === 'ict-algo');
       const temAsia = estrategias.some((e) => e.id === 'asia-range-algo');
       const [diarias, parVelas, ltf, ltf3] = await Promise.all([
-        velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 300),
+        velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 400),
         parSim ? velasFechadas(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
         // 5M: a confirmação do ICT ALGO.
         temIct ? velasFechadas(s.deriv, 300, 300).catch(() => []) : Promise.resolve([]),
@@ -188,7 +188,7 @@ export async function GET(
       };
     }
     if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
-      extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
+      extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 400) };
     }
 
     const frescos = executarEstrategiasValidadas(

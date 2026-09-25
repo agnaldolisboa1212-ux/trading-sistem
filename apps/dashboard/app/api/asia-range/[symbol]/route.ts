@@ -42,9 +42,10 @@ export async function GET(_pedido: Request, ctx: { params: Promise<{ symbol: str
   const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
   try {
     const [velas, diarias, parVelas, ltf] = await Promise.all([
-      fechadas(s.deriv, M15, 400),
-      fechadas(s.deriv, 86_400, 300),
-      parSimbolo ? fechadas(parSimbolo.deriv, M15, 400).catch(() => []) : Promise.resolve([]),
+      // As mesmas quantidades do radar e do ICT: partilham a cache de velas.
+      fechadas(s.deriv, M15, 1500),
+      fechadas(s.deriv, 86_400, 400),
+      parSimbolo ? fechadas(parSimbolo.deriv, M15, 1500).catch(() => []) : Promise.resolve([]),
       // 3M: a confirmação (a mesma que o motor exige para enviar o sinal).
       fechadas(s.deriv, 180, 300).catch(() => []),
     ]);
