@@ -2,7 +2,7 @@
 /**
  * Revê o último sinal de ICT ALGO / Asia Range Algo de um instrumento com as
  * regras ACTUAIS (stop para lá do POI de entrada; a confirmação LTF — 5M no
- * ICT, 3M no Asia — só decide a entrada).
+ * ICT, 1M no Asia — só decide a entrada).
  *
  *   npm run build            (uma vez, para o dist estar em dia)
  *   node scripts/rever-sinal.mjs            # último sinal do US30
@@ -100,9 +100,10 @@ for (const c of paresSmtIct(SIMBOLO)) {
   }
 }
 const ltf = ate(await pedir(SIMBOLO, 300), 300);
-const ltf3 = sinal.estrategia === 'asia-range-algo' ? ate(await pedir(SIMBOLO, 180), 180) : undefined;
+// 1M só cobre ~1 dia com 1500 velas: para sinais mais antigos a confirmação fica sem dados.
+const ltf1 = sinal.estrategia === 'asia-range-algo' ? ate(await pedir(SIMBOLO, 60), 60) : undefined;
 
-const algo = { diarias, par, ltf, ltf3 };
+const algo = { diarias, par, ltf, ltf1 };
 const ctx = { symbol: SIMBOLO, timeframe: tf };
 const [novo] = sinal.estrategia === 'ict-algo' ? planIctAlgo(velas, ctx, algo) : planAsiaRangeAlgo(velas, ctx, algo);
 

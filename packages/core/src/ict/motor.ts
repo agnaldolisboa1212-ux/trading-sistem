@@ -270,6 +270,13 @@ export function percorrerIct(
   ate: number,
   simulacao: OpcoesSimulacao,
   modo: ModoEntrada = 'borda',
+  /**
+   * Filtro opcional sobre o setup escolhido — a confirmação em 5M do caminho ao
+   * vivo (`planIctAlgo`). Um setup recusado não conta como tomado nem ocupa a
+   * carteira: pode sair numa vela seguinte, quando confirmar, como ao vivo.
+   * As sombras (e com elas o placar) não passam pelo filtro, também como ao vivo.
+   */
+  aceitar?: (s: NonNullable<ResultadoModelo['sinal']>, i: number) => boolean,
 ): Percurso {
   const sombras: OperacaoIct[] = [];
   const registos: RegistoOperacao[] = [];
@@ -307,6 +314,7 @@ export function percorrerIct(
       const esc = escolherModelo(av.regime, av.resultados, placar, c.quarentena, c.usadas);
       const s = esc.escolhido?.sinal;
       if (!s) continue;
+      if (aceitar && !aceitar(s, i)) continue;
       c.usadas.add(s.chave);
       const { sim, op } = operacao(s, i);
       if (op) c.ops.push(op);

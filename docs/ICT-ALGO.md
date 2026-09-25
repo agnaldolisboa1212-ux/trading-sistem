@@ -302,10 +302,14 @@ setup por dia e sentido. A vela do MSS fecha antes das 10:00 de Londres (fim
 da killzone de Londres; o backtest aceitava também a das 09:45).
 **Sem vantagem medida** — o aviso segue em cada sinal.
 
-**Confirmação em 3M** (desde 25/09/2026): depois do MSS de 15M, o sinal só sai
-com CHoCH/MSS e estrutura de 3M a favor (a mesma regra da confirmação do ICT em
-5M, `confirmacaoLtf` com passo de 3M). Pode chegar até 45 min depois do MSS; o
-sinal sai na primeira vela de 15M confirmada, ao fecho dela, e nunca duas vezes.
+**Confirmação em 1M** (3M de 25/09/2026 até à mudança pedida no mesmo dia):
+depois do MSS de 15M, o sinal só sai com CHoCH/MSS e estrutura de 1M a favor
+(a mesma regra da confirmação do ICT em 5M, `confirmacaoLtf` com passo de 1M).
+Pode chegar até 45 min depois do MSS; o sinal sai na primeira vela de 15M
+confirmada, ao fecho dela, e nunca duas vezes. O motor, o radar, a rota do
+Asia Range e o backtest usam as mesmas 300 velas fechadas de 1M (5 horas), para
+a estrutura de 1M ser a mesma nos quatro. A entrada continua no fecho da vela
+de 15M: a confirmação só filtra, não muda o preço de entrada nem o RR.
 
 ### ICT ALGO também gera sinais (desde 25/09/2026)
 
@@ -340,6 +344,46 @@ GBPJPY↔USDJPY e EURJPY→USDJPY, e só depois a lista do universo.
 do ICT ALGO: caixas das sessões, máximo e mínimo da Ásia como linhas a partir
 do fim da sessão, a linha tracejada "SMT" do nível varrido ao pavio, e a
 ferramenta de posição (caixa verde até ao alvo, vermelha até ao stop).
+
+### Medições de 25/09/2026 (tarde) — o que só dava para correr com os dados locais
+
+Dados HistData de 3M e 5M descarregados com `baixar-histdata.mjs --tfs 3m,5m`
+(2022+). Todas com custos, metades 2022-01→2024-06 / 2024-07→2026.
+
+| O quê | Principais | Controlo |
+|---|---|---|
+| ICT ALGO **sem custos nenhuns** (15M, antes do Mentorship) | +0,101R · t=1,2 | +0,021R · t=0,2 |
+| `jpy-londres` variante 9 — alvo no extremo oposto da Ásia (o do journal) | 339 op · −0,308R · t=−3,8 | 352 · −0,249R · t=−3,0 |
+| ICT ALGO com Mentorship, sem confirmação (15M) | 543 · +0,048R · t=0,5 | — |
+| **ICT ALGO com Mentorship + confirmação em 5M** (a regra ao vivo) | 259 · **+0,189R** · t=1,3 (+0,283 / +0,012) | 187 · **−0,410R** · t=−3,0 |
+| Asia Range Algo + confirmação em 3M (a regra até à mudança para 1M) | **7 sinais em 4,7 anos**, nos 4 pares | — |
+| Asia Range Algo + confirmação em **1M** (a regra ao vivo) | **8 sinais em 4,7 anos**, os 8 no stop | 8 sinais: 7 stops, 1 alvo |
+
+Leituras:
+
+- **Sem custos o ICT ALGO já está em zero.** Os custos não são o problema: uma
+  conta mais barata não o tornaria lucrativo.
+- **A confirmação em 5M é a melhor versão do ICT ALGO nos mercados principais**
+  — e perde −0,41R nos de controlo. É o mesmo padrão de todas as células que
+  pareceram boas: o controlo desfaz.
+- **O Asia Range Algo quase nunca dá sinal.** Diagnóstico no GBPJPY
+  (`RAZOES=1 node scripts/backtest/asia-range-algo.mjs`): dos setups que chegam
+  ao fim (varrimento + SMT + MSS + confirmação), quase todos param em "RR
+  insuficiente" — depois do MSS o alvo (extremo oposto da Ásia ou POI de
+  Londres) fica quase sempre a menos de 2R, muitas vezes a 0,0–0,5R. A
+  confirmação em 3M só travou 22 casos. Com ~0,4 sinais por ano e por par, não
+  há amostra para medir nada.
+- **Confirmação em 1M** (dados de 1M do HistData, `--tfs 1m`): no GBPJPY trava
+  10 casos em vez de 22 e os sinais passam de 7 para 8 nos quatro pares. Não
+  muda o problema: o RR continua a travar quase tudo, e 8 sinais não são
+  amostra. Dos 16 sinais (principais + controlo), 15 foram ao stop. A alavanca
+  para o RR seria detectar o MSS no próprio 1M (stop mais curto) — isso é outra
+  estratégia, e teria de passar pela mesma medição.
+
+Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
+`planIctAlgo`, via o novo parâmetro `aceitar` de `percorrerIct`) e `CUSTO_MULT`
+(0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção
+vela a vela.
 
 ---
 

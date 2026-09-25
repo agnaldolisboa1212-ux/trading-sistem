@@ -798,15 +798,16 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           const parVelas = parSim ? await fechadasDe(parSim.codigo, gran) : null;
           // 5M: a confirmação do ICT ALGO (CHoCH/MSS e estrutura de 5M a favor).
           const ltf = aplicaveis.some((e) => e.id === 'ict-algo') ? await fechadasDe(s.codigo, 300) : null;
-          // 3M: a confirmação do Asia Range Algo.
-          const ltf3 = aplicaveis.some((e) => e.id === 'asia-range-algo') ? await fechadasDe(s.codigo, 180) : null;
+          // 1M: a confirmação do Asia Range Algo (300 velas = 5 h: cobrem a janela de
+          // 3 h da confirmação mais os 45 min de atraso máximo).
+          const ltf1 = aplicaveis.some((e) => e.id === 'asia-range-algo') ? await fechadasDe(s.codigo, 60) : null;
           extra = {
             ...extra,
             algo: {
               diarias: diarias ?? [],
               par: parSim && parVelas ? { simbolo: parSim.codigo, velas: parVelas } : null,
               ltf: ltf ?? undefined,
-              ltf3: ltf3 ?? undefined,
+              ltf1: ltf1 ?? undefined,
             },
           };
         }

@@ -283,13 +283,20 @@ if (comando === 'scan') {
 
   // Batimento: é o que permite ao painel distinguir "à espera" de "morto".
   let avisouParagem = false;
+  /*
+   * O vigia conta a partir do arranque DESTE agendador, não só da última
+   * passagem gravada. Depois de um deploy (ou de o alojamento parar a aplicação
+   * por falta de visitas), a passagem gravada é de antes do reinício — e o
+   * vigia avisava "MOTOR PARADO" logo ao arrancar, com o motor a funcionar.
+   */
+  const arrancouEm = Date.now();
   setInterval(() => {
     estado.batimento();
 
     // Watchdog do motor tempo-real
     const e = estado.lerEstado();
     if (e && e.tempoReal && e.tempoReal.terminadoEm) {
-      const msDesdeUltimo = Date.now() - Date.parse(e.tempoReal.terminadoEm);
+      const msDesdeUltimo = Date.now() - Math.max(Date.parse(e.tempoReal.terminadoEm), arrancouEm);
       if (msDesdeUltimo > 5 * 60_000) {
         if (!avisouParagem) {
           avisouParagem = true;

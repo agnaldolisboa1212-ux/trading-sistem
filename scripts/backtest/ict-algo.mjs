@@ -23,10 +23,21 @@
  *   TF=15m node scripts/backtest/ict-algo.mjs             em 15M
  *   MERCADO=EURUSD node scripts/backtest/ict-algo.mjs     só um (para correr em paralelo)
  *   SAIDA=ficheiro.json ...                               grava as operações
+ *   CONFIRMAR=1 TF=15m ...                                com a confirmação em 5M do caminho ao
+ *                                                         vivo (precisa de SIMBOLO_5m.json)
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { agregar, custoTipico, opcoesPorTimeframe, percorrerIct, prepararEstruturas } from '../../packages/core/dist/index.js';
+import {
+  agregar,
+  confirmacaoLtf,
+  custoTipico,
+  MODELOS_DO_REGIME,
+  TODOS_OS_MODELOS,
+  opcoesPorTimeframe,
+  percorrerIct,
+  prepararEstruturas,
+} from '../../packages/core/dist/index.js';
 
 const DIR = 'E:/projecto Agnaldo 3.0/sistema de trading/data/backtest/histdata/';
 /**
@@ -101,11 +112,45 @@ function correrMercado([nome, ficheiro, parFicheiro]) {
     timeframeReferencia: '1d',
     par: parVelas ? { simbolo: parFicheiro, velas: parVelas } : null,
   });
-  const custo = custoTipico(nome, velas[velas.length - 1].close);
+  // CUSTO_MULT=0 mede o algoritmo sem custos: separa "não há vantagem" de
+  // "há vantagem e os custos comem-na" — dois problemas com remédios diferentes.
+  const custo = custoTipico(nome, velas[velas.length - 1].close) * Number(process.env.CUSTO_MULT ?? 1);
   const t0 = Date.now();
   let desde = velas.findIndex((c) => c.time >= DESDE);
   if (desde < 300) desde = 300;
-  const p = percorrerIct(e, desde, velas.length - 2, opcoesPorTimeframe(TF, custo), ENTRADA);
+
+  // A confirmação em 5M de `planIctAlgo`: CHoCH/MSS e estrutura de 5M a favor,
+  // com as velas de 5M fechadas até à decisão. Só a janela das últimas horas
+  // interessa à função; cortá-la aqui evita percorrer anos de 5M a cada vela.
+  let aceitar;
+  if (process.env.CONFIRMAR) {
+    let v5;
+    try {
+      v5 = JSON.parse(readFileSync(`${DIR}${ficheiro}_5m.json`, 'utf8'));
+    } catch {
+      return null;
+    }
+    const tfMs = MS[TF];
+    const primeira = (t) => {
+      let lo = 0;
+      let hi = v5.length;
+      while (lo < hi) {
+        const m = (lo + hi) >> 1;
+        if (v5[m].time < t) lo = m + 1;
+        else hi = m;
+      }
+      return lo;
+    };
+    aceitar = (s, i) => {
+      const agora = velas[i].time + tfMs;
+      const janela = v5.slice(primeira(agora - 8 * 3_600_000), primeira(agora));
+      return confirmacaoLtf(janela, s.direccao, agora).ok;
+    };
+    // Sem 5M no início do período, as primeiras velas não confirmam nada.
+    const inicio5m = velas.findIndex((c) => c.time >= v5[0].time + 8 * 3_600_000);
+    if (inicio5m > desde) desde = inicio5m;
+  }
+  const p = percorrerIct(e, desde, velas.length - 2, opcoesPorTimeframe(TF, custo), ENTRADA, aceitar);
   const marca = (ops) => ops.map((o) => ({ ...o, mercado: nome }));
   return {
     nome,
@@ -160,19 +205,15 @@ if (process.env.SAIDA) {
 
 const todas = (k) => resultados.flatMap((r) => r[k]);
 const sombras = todas('sombras');
-const MODELOS = ['venom', 'crt', 'reaper-ifvg', 'silver-bullet', 'unicorn', 'turtle-soup', 'continuacao'];
+// Do core, não copiados: uma cópia à mão já ficou desactualizada uma vez.
+const MODELOS = [...TODOS_OS_MODELOS];
 
 console.log(cabecalho(`ICT ALGO · ${TF} · entrada ${ENTRADA} · ${resultados.length} mercados${process.env.CONTROLO ? ' DE CONTROLO' : ''} · custos incluídos`));
 console.log('\n── cada modelo sozinho, sem regime ──');
 for (const m of MODELOS) console.log(linha(m, sombras.filter((o) => o.modelo === m)));
 
 console.log('\n── cada modelo dentro e fora dos regimes que o mapa lhe dá ──');
-const MAPA = {
-  manipulacao: ['venom', 'crt', 'reaper-ifvg', 'silver-bullet'],
-  reversao: ['unicorn', 'turtle-soup', 'reaper-ifvg'],
-  tendencia: ['continuacao', 'silver-bullet'],
-  consolidacao: ['turtle-soup', 'crt'],
-};
+const MAPA = Object.fromEntries(Object.entries(MODELOS_DO_REGIME).filter(([, ms]) => ms.length > 0));
 for (const m of MODELOS) {
   const dentro = sombras.filter((o) => o.modelo === m && (MAPA[o.regime] ?? []).includes(m));
   const fora = sombras.filter((o) => o.modelo === m && !(MAPA[o.regime] ?? []).includes(m));

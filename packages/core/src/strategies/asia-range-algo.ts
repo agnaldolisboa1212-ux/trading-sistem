@@ -17,7 +17,7 @@
  *                  "divergência entre GBPJPY e USDJPY"
  *   5  MSS         o primeiro fecho além do último swing confirmado antes do
  *                  extremo da manipulação
- *   5b Confirmação CHoCH/MSS e estrutura de 3M a favor (as "sniper entries" do
+ *   5b Confirmação CHoCH/MSS e estrutura de 1M a favor (as "sniper entries" do
  *                  journal); pode chegar até 45 min depois do MSS. Entrada a
  *                  mercado no fecho da vela de 15M em que fica confirmado
  *   6  Alvo        o extremo OPOSTO da Ásia ("capturar a alta da sessão
@@ -54,8 +54,9 @@ export const RR_MINIMO_ASIA = 2;
 /** Distância mínima do stop, em ATR: abaixo disto o spread come a operação. */
 const RISCO_MINIMO_ATR = 0.25;
 const M15 = 900_000;
-const M3 = 180_000;
-/** Velas de 15M depois do MSS em que a confirmação de 3M ainda pode chegar (45 min). */
+/** A confirmação é em 1M (era 3M até 25/09/2026). */
+const M1 = 60_000;
+/** Velas de 15M depois do MSS em que a confirmação de 1M ainda pode chegar (45 min). */
 const ATRASO_MAXIMO = 3;
 
 /** Aviso que acompanha todos os sinais desta estratégia. */
@@ -127,7 +128,7 @@ export interface EntradaAsia {
   /** Velas diárias FECHADAS do próprio instrumento (viés). */
   diarias: readonly Candle[];
   par: { simbolo: string; velas: readonly Candle[] } | null;
-  /** Velas FECHADAS de 3M do próprio instrumento: a confirmação. Sem elas não há sinal. */
+  /** Velas FECHADAS de 1M do próprio instrumento: a confirmação. Sem elas não há sinal. */
   ltf?: readonly Candle[];
   /** Substitui o viés calculado — só para testes com cenários construídos. */
   viesForcado?: { direccao: IctDireccao; aFavor: number };
@@ -277,26 +278,26 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
   }
   passos.push(passo(5, '15m', 'MSS', 'ok', `Fecho em ${px(velas[iMss]!.close)}, além de ${px(nivel)}.`));
 
-  // 6 — Confirmação em 3M (CHoCH/MSS e estrutura de 3M a favor). Pode chegar
+  // 6 — Confirmação em 1M (CHoCH/MSS e estrutura de 1M a favor). Pode chegar
   // até ATRASO_MAXIMO velas de 15M depois do MSS; o sinal sai na PRIMEIRA vela
   // em que está confirmado, e nunca outra vez.
   if (i - iMss > ATRASO_MAXIMO) {
-    passos.push(passo(6, '3m', 'Confirmação 3M', 'falhou', 'A confirmação não chegou a tempo depois do MSS.'));
-    return acabar('sem confirmação 3M a tempo');
+    passos.push(passo(6, '1m', 'Confirmação 1M', 'falhou', 'A confirmação não chegou a tempo depois do MSS.'));
+    return acabar('sem confirmação 1M a tempo');
   }
-  const confEm = (k: number) => confirmacaoLtf(input.ltf, d, velas[k]!.time + M15, M3);
+  const confEm = (k: number) => confirmacaoLtf(input.ltf, d, velas[k]!.time + M15, M1);
   for (let k = iMss; k < i; k++) {
     if (confEm(k).ok) {
-      passos.push(passo(6, '3m', 'Confirmação 3M', 'falhou', 'Já confirmado numa vela anterior — a entrada já foi dada.'));
+      passos.push(passo(6, '1m', 'Confirmação 1M', 'falhou', 'Já confirmado numa vela anterior — a entrada já foi dada.'));
       return acabar('entrada já dada');
     }
   }
   const conf = confEm(i);
   if (!conf.ok) {
-    passos.push(passo(6, '3m', 'Confirmação 3M', 'espera', `À espera: ${conf.detalhe}. Sem ela o sinal não é enviado.`));
-    return acabar('à espera de confirmação 3M');
+    passos.push(passo(6, '1m', 'Confirmação 1M', 'espera', `À espera: ${conf.detalhe}. Sem ela o sinal não é enviado.`));
+    return acabar('à espera de confirmação 1M');
   }
-  passos.push(passo(6, '3m', 'Confirmação 3M', 'ok', `${conf.detalhe}.`));
+  passos.push(passo(6, '1m', 'Confirmação 1M', 'ok', `${conf.detalhe}.`));
 
   // 6 — Risco e alvo
   // O stop vai para lá do POI de onde o preço reagiu (OB/FVG/breaker a favor

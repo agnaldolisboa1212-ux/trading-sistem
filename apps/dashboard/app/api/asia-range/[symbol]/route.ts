@@ -42,12 +42,12 @@ export async function GET(_pedido: Request, ctx: { params: Promise<{ symbol: str
   const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
   try {
     const [velas, diarias, parVelas, ltf] = await Promise.all([
-      // As mesmas quantidades do radar e do ICT: partilham a cache de velas.
-      fechadas(s.deriv, M15, 1500),
-      fechadas(s.deriv, 86_400, 400),
-      parSimbolo ? fechadas(parSimbolo.deriv, M15, 1500).catch(() => []) : Promise.resolve([]),
-      // 3M: a confirmação (a mesma que o motor exige para enviar o sinal).
-      fechadas(s.deriv, 180, 300).catch(() => []),
+      fechadas(s.deriv, M15, 400),
+      fechadas(s.deriv, 86_400, 300),
+      parSimbolo ? fechadas(parSimbolo.deriv, M15, 400).catch(() => []) : Promise.resolve([]),
+      // 1M: a confirmação (a mesma que o motor exige para enviar o sinal), com as
+      // mesmas 300 velas fechadas do motor.
+      fechadas(s.deriv, 60, 301).catch(() => []),
     ]);
     const analise = analisarAsiaRange({
       simbolo: s.codigo,
