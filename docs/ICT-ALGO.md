@@ -233,6 +233,47 @@ há um "efeito JPY" que sobreviva fora da amostra.
 
 Dados dos quatro pares de controlo: `node scripts/backtest/baixar-histdata.mjs AUDJPY CADJPY CHFJPY NZDJPY --desde 2021`.
 
+### O journal do Notion ("Trader's Master Journal", export de 25/09/2026)
+
+126 linhas, 49 ideias depois de juntar o mesmo trade copiado em várias contas
+(mesmo dia + par + lado), 15/07 a 01/10/2025. R de cada ideia = PnL ÷ (risco %
+× tamanho da conta); sem conta, −1R no S/L e o Max R/R no T/P. Todas ao vivo,
+nenhuma em backtest; 119 das 126 no "Model # ASIA RANGE".
+
+| Corte | Ideias | R médio | t |
+|---|---|---|---|
+| todas | 46 | +0,49 | 2,4 |
+| com SMT nas confluências | 23 | +0,79 | 2,9 |
+| sem SMT (order block, high, void) | 23 | +0,19 | 0,7 |
+| bias = narrativa | 33 | +0,68 | 2,9 |
+| sem erro registado | 33 | +0,85 | 3,5 |
+| com erro (emoção, excesso de confiança, contra a leitura) | 14 | −0,41 | — |
+
+Outras leituras (amostras pequenas, só direcção): London Open 41 ideias
++0,62R, Nova Iorque 5 ideias sem nenhum ganho; USDJPY 11 ideias +1,45R contra
+GBPJPY 21 ideias +0,30R; entrada em 5M +0,74R contra 15M +0,26R; posição
+contra o bias 10 ideias ≈ 0R; os 13 fechos por T/P deram +2,24R de média e
+tinham todos o alvo no extremo da sessão asiática.
+
+**O que isto diz e o que não diz.** O journal confirma as regras que o
+`jpy-londres.mjs` já tinha (SMT obrigatório, só a favor do viés, só na
+abertura de Londres). A diferença para o backtest (−0,065R em 4,7 anos) não
+se explica por uma regra que faltasse: 46 ideias em 11 semanas de 2025, com
+escolha discricionária de quais os dias a operar, não chegam para separar
+vantagem de sorte, e os erros registados custaram −5,3R — o algoritmo já os
+elimina por construção.
+
+A única regra do journal que o backtest não tinha é o **alvo**: 3R fixos no
+teste, o extremo oposto da Ásia no journal. Está agora medida como variante 9
+do `jpy-londres.mjs` ("alvo na Ásia"), fixada antes de correr; falta correr com
+os dados do HistData. A entrada em 5M precisa de dados de 5M, que o script de
+descarga ainda não gera.
+
+**Gráfico.** Os prints do journal (TradingView) serviram de modelo ao desenho
+do ICT ALGO: caixas das sessões, máximo e mínimo da Ásia como linhas a partir
+do fim da sessão, a linha tracejada "SMT" do nível varrido ao pavio, e a
+ferramenta de posição (caixa verde até ao alvo, vermelha até ao stop).
+
 ---
 
 ## 7. Para acrescentar um modelo

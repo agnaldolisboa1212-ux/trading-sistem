@@ -18,7 +18,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import type { AnaliseIct, ModeloIct, PassoTopDown, SinalIct } from '@trading/core';
+import type { AnaliseIct, ModeloIct, PassoTopDown, SinalIct, Varrimento } from '@trading/core';
 import { NOME_MODELO, relogioLondres } from '@trading/core';
 import { formatarPreco } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
@@ -141,6 +141,32 @@ function caixasDeSessao(velas: readonly VelaSimples[], dias: number): Desenho['z
   return out.map(({ dia: _dia, ...z }) => z);
 }
 
+const MS_TF: Record<string, number> = { '5m': 300_000, '15m': 900_000, '30m': 1_800_000, '1h': 3_600_000, '4h': 14_400_000 };
+
+/** Um varrimento desenhado como no TradingView: do nível varrido ao pavio. */
+function desenharVarrimento(d: Desenho, v: Varrimento, smt: boolean): void {
+  const rotulo = smt ? 'SMT' : 'varrimento';
+  const tipo = smt ? 'smt' : 'varrimento';
+  if (v.poca.time < v.time) {
+    d.segmentos!.push({ t0: v.poca.time, p0: v.poca.preco, t1: v.time, p1: v.extremo, rotulo, tipo });
+  } else {
+    d.marcas!.push({ t: v.time, p: v.extremo, rotulo, tipo });
+  }
+}
+
+/**
+ * Máximo e mínimo da última sessão asiática, como linhas que começam no fim da
+ * Ásia. No journal do Notion, o alvo dos trades que chegaram ao T/P era quase
+ * sempre este: "capturar a alta da sessão asiática", "SESSION HIGH".
+ */
+function linhasAsia(d: Desenho, caixas: Desenho['zonas'], ultima: number | undefined): void {
+  const asia = [...caixas].reverse().find((z) => z.tipo === 'sessao-asia');
+  // Com a Ásia ainda aberta, o máximo e o mínimo ainda não estão feitos.
+  if (!asia || asia.ate === ultima) return;
+  d.linhas.push({ preco: asia.topo, rotulo: 'máx. Ásia', tipo: 'nivel', de: asia.ate });
+  d.linhas.push({ preco: asia.base, rotulo: 'mín. Ásia', tipo: 'nivel', de: asia.ate });
+}
+
 /**
  * O que a secção desenha no gráfico — limpo, como nas notas do Notion:
  *
@@ -156,12 +182,15 @@ function caixasDeSessao(velas: readonly VelaSimples[], dias: number): Desenho['z
 export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] = [], tf = '1h'): Desenho {
   if (!a) return DESENHO_VAZIO;
   const intradiario = tf === '15m' || tf === '30m' || tf === '1h' || tf === '5m';
+  const caixas = intradiario ? caixasDeSessao(velas, tf === '1h' ? 4 : 2) : [];
   const d: Desenho = {
-    zonas: intradiario ? caixasDeSessao(velas, tf === '1h' ? 4 : 2) : [],
+    zonas: caixas,
     linhas: [],
     curvas: [],
     marcas: [],
+    segmentos: [],
   };
+  if (intradiario) linhasAsia(d, caixas, velas[velas.length - 1]?.time);
   const s = a.sinal;
 
   if (s) {
@@ -173,24 +202,33 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
       tipo: 'entrada',
       rotulo: `ICT ALGO · ${NOME_MODELO[s.modelo]}`,
     });
+    // Ferramenta de posição: caixa do alvo e caixa do risco, 24 velas de largura.
+    const fim = s.time + 24 * (MS_TF[tf] ?? 3_600_000);
+    d.zonas.push({
+      de: s.time,
+      ate: fim,
+      topo: Math.max(s.entrada, s.alvo),
+      base: Math.min(s.entrada, s.alvo),
+      tipo: 'posicao-alvo',
+    });
+    d.zonas.push({
+      de: s.time,
+      ate: fim,
+      topo: Math.max(s.entrada, s.stop),
+      base: Math.min(s.entrada, s.stop),
+      tipo: 'posicao-risco',
+    });
     d.linhas.push({ preco: s.entrada, rotulo: `ENTRADA ${s.tipoEntrada === 'pendente' ? '(pendente)' : ''}`, tipo: 'entrada', de: s.time });
     d.linhas.push({ preco: s.stop, rotulo: 'STOP', tipo: 'stop', de: s.time });
     d.linhas.push({ preco: s.alvo, rotulo: `ALVO ${s.rr.toFixed(1)}R`, tipo: 'alvo', de: s.time });
-    if (s.varrimento) {
-      d.marcas!.push({
-        t: s.varrimento.time,
-        p: s.varrimento.extremo,
-        rotulo: s.modelo === 'venom' ? 'SMT' : 'varrimento',
-        tipo: s.modelo === 'venom' ? 'smt' : 'varrimento',
-      });
-    }
+    if (s.varrimento) desenharVarrimento(d, s.varrimento, s.modelo === 'venom');
     if (s.quebra) d.marcas!.push({ t: s.quebra.time, p: s.quebra.nivel, rotulo: s.quebra.tipo.toUpperCase(), tipo: 'mss' });
     return d;
   }
 
   if (a.vies?.dol) d.linhas.push({ preco: a.vies.dol.preco, rotulo: `alvo do dia · ${a.vies.dol.rotulo}`, tipo: 'poc' });
   const v = a.regime?.ultimoVarrimento;
-  if (v) d.marcas!.push({ t: v.time, p: v.extremo, rotulo: 'varrimento', tipo: 'varrimento' });
+  if (v) desenharVarrimento(d, v, false);
   const q = a.regime?.ultimaQuebra;
   if (q) d.marcas!.push({ t: q.time, p: q.nivel, rotulo: q.tipo.toUpperCase(), tipo: 'mss' });
   return d;

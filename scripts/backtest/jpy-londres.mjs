@@ -32,6 +32,14 @@
  *                Fixada antes de medir; medida uma vez.
  *   8  radar     (variante à parte) só compras com AUDJPY e NZDJPY acima da
  *                abertura do dia; só vendas com os dois abaixo.
+ *   9  journal   (variante à parte, do export do "Trader's Master Journal",
+ *                25/09/2026) o alvo não é 3R fixo: é o extremo OPOSTO da Ásia
+ *                — "capturar a alta da sessão asiática", "SESSION HIGH". Nos 13
+ *                trades fechados por T/P do journal o alvo foi sempre esse, com
+ *                2,24R de média. Regra fixada antes de medir: alvo = máximo da
+ *                Ásia numa compra (mínimo numa venda); sem pelo menos 1,5R até
+ *                lá não se entra; teto de 6R. O resto igual (stop, BE a 1,2R,
+ *                saída às 13:00).
  *
  * Custos de conta normal. Stop e alvo na mesma vela = stop. Metades
  * 2022-01→2024-06 e 2024-07→2026. Controlo: AUDJPY, CADJPY, CHFJPY, NZDJPY —
@@ -52,7 +60,7 @@ import {
   viesDiario,
 } from '../../packages/core/dist/index.js';
 
-const DIR = 'E:/projecto Agnaldo 3.0/sistema de trading/data/backtest/histdata/';
+const DIR = process.env.HISTDATA_DIR ?? 'E:/projecto Agnaldo 3.0/sistema de trading/data/backtest/histdata/';
 const DESDE = Date.UTC(2022, 0, 1);
 const AQUECIMENTO = Date.UTC(2021, 0, 1);
 const CORTE = Date.UTC(2024, 6, 1);
@@ -178,7 +186,14 @@ function correr(par, ref, radar) {
   // Radar: AUDJPY e NZDJPY por tempo.
   const radares = radar ? ['AUDJPY', 'NZDJPY'].map((p) => new Map((ler(p) ?? []).map((c) => [c.time, c]))) : null;
 
-  const ops = { e1: [], e2: [], combinada: [], v2: [], soOte: [], soEstoc: [] };
+  const ops = { e1: [], e2: [], combinada: [], v2: [], soOte: [], soEstoc: [], e1Asia: [], e2Asia: [] };
+  /** Alvo no extremo oposto da Ásia, em R; null se não chega a 1,5R. */
+  const rAteAsia = (alta, entrada, stop, alto, baixo) => {
+    const risco = Math.abs(entrada - stop);
+    const dist = alta ? alto - entrada : entrada - baixo;
+    const r = risco > 0 ? dist / risco : 0;
+    return r >= 1.5 ? Math.min(r, 6) : null;
+  };
   // Índices de cada dia de negociação.
   const porDia = new Map();
   for (let i = 0; i < v.length; i++) {
@@ -327,6 +342,10 @@ function correr(par, ref, radar) {
     if (!(risco1 > 0) || custo / risco1 > 0.5) continue;
     const r1 = simular(v, e1.k, alta, e1.entrada, e1.stop, 3, custo);
     ops.e1.push({ t: v[e1.k].time, r: r1, alta });
+    const alvoAsia1 = rAteAsia(alta, e1.entrada, e1.stop, aAltoP, aBaixoP);
+    if (alvoAsia1 !== null) {
+      ops.e1Asia.push({ t: v[e1.k].time, r: simular(v, e1.k, alta, e1.entrada, e1.stop, alvoAsia1, custo), alta });
+    }
     if (noOte && divEstoc) ops.v2.push({ t: v[e1.k].time, r: r1, alta });
     if (noOte) ops.soOte.push({ t: v[e1.k].time, r: r1, alta });
     if (divEstoc) ops.soEstoc.push({ t: v[e1.k].time, r: r1, alta });
@@ -336,6 +355,10 @@ function correr(par, ref, radar) {
       if (risco2 > 0 && custo / risco2 <= 0.5) {
         r2 = simular(v, e2.k, alta, e2.entrada, e2.stop, 3.5, custo);
         ops.e2.push({ t: v[e2.k].time, r: r2, alta });
+        const alvoAsia2 = rAteAsia(alta, e2.entrada, e2.stop, aAltoP, aBaixoP);
+        if (alvoAsia2 !== null) {
+          ops.e2Asia.push({ t: v[e2.k].time, r: simular(v, e2.k, alta, e2.entrada, e2.stop, alvoAsia2, custo), alta });
+        }
       }
     }
     // Combinada: 0,5% em cada entrada, em R de 1% de risco.
@@ -371,7 +394,7 @@ for (const [titulo, lista, radar] of [
   ['CADJPY/CHFJPY + radar (controlo do radar)', CONTROLO.filter(([p]) => p === 'CADJPY' || p === 'CHFJPY'), true],
 ]) {
   console.log(`\n== ${titulo} · 15M · 2022+ · custos incluídos\n${cab}`);
-  const todas = { e1: [], e2: [], combinada: [], v2: [], soOte: [], soEstoc: [] };
+  const todas = { e1: [], e2: [], combinada: [], v2: [], soOte: [], soEstoc: [], e1Asia: [], e2Asia: [] };
   for (const [par, ref] of lista) {
     const o = correr(par, ref, radar);
     if (!o) {
@@ -383,6 +406,8 @@ for (const [titulo, lista, radar] of [
     console.log(linha(`${par} · entrada 2 (MSS)`, o.e2));
     console.log(linha(`${par} · combinada ½+½`, o.combinada));
     console.log(linha(`${par} · v2 OTE+estocástico`, o.v2));
+    console.log(linha(`${par} · e1 alvo na Ásia`, o.e1Asia));
+    console.log(linha(`${par} · e2 alvo na Ásia`, o.e2Asia));
     if (par === 'GBPJPY') {
       const sem2025 = o.combinada.filter((x) => new Date(x.t).getUTCFullYear() !== 2025);
       console.log(linha(`${par} · combinada sem 2025`, sem2025));
@@ -397,4 +422,7 @@ for (const [titulo, lista, radar] of [
   console.log(linha('TODOS · v2 (OTE + estocástico)', todas.v2));
   console.log(linha('  diagnóstico: só OTE', todas.soOte));
   console.log(linha('  diagnóstico: só estocástico', todas.soEstoc));
+  console.log(linha('TODOS · e1 alvo na Ásia (journal)', todas.e1Asia));
+  console.log(linha('TODOS · e2 alvo na Ásia (journal)', todas.e2Asia));
+  console.log(linha('TODOS · e2 alvo Ásia, compras', todas.e2Asia.filter((o) => o.alta)));
 }
