@@ -22,7 +22,7 @@
 
 import { NextResponse } from 'next/server';
 import { velasDeriv } from '@trading/data';
-import { agregar, correrIctAlgo, smtPairsFor, type Candle, type Timeframe } from '@trading/core';
+import { agregar, correrIctAlgo, paresSmtIct, type Candle, type Timeframe } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { clienteServidor } from '@/lib/supabase/servidor';
 
@@ -88,8 +88,9 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
 
   // O par correlacionado: sem ele o Venom (que exige SMT) não pode emitir. Os
   // outros modelos não precisam dele.
-  const parCodigo = smtPairsFor(s.codigo)[0]?.reference ?? null;
-  const parSimbolo = parCodigo ? acharSimbolo(parCodigo) : null;
+  // O primeiro par correlacionado que a Deriv serve (ver `paresSmtIct`).
+  const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
+  const parCodigo = parSimbolo?.codigo ?? null;
 
   try {
     const gran = GRANULARIDADE_S[tf]!;

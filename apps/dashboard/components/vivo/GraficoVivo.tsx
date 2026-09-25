@@ -284,7 +284,9 @@ export function GraficoVivo({
           ? baixa
           : tipo === 'entrada'
             ? acento
-            : texto;
+            : tipo === 'poi'
+              ? aviso
+              : texto;
     for (const z of zonas) {
       const i0 = janela.findIndex((v) => v.t >= z.de);
       const antes = janela[0] && z.de < janela[0].t;
@@ -334,7 +336,7 @@ export function GraficoVivo({
         continue;
       }
       const base = corDoTipo(z.tipo);
-      cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' ? 0.14 : 0.1);
+      cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' || z.tipo === 'poi' ? 0.14 : 0.1);
       cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
       if (z.rotulo) {
         cx.fillStyle = corComAlfa(base, 0.9);
@@ -417,13 +419,13 @@ export function GraficoVivo({
           ? baixa
           : l.tipo === 'alvo'
             ? alta
-            : l.tipo === 'poc'
+            : l.tipo === 'poc' || l.tipo === 'poi'
               ? aviso
               : l.tipo === 'nivel'
                 ? texto
                 : acento;
-      cx.lineWidth = l.tipo === 'poc' || l.tipo === 'entrada' ? 1.4 : 1;
-      cx.setLineDash(l.tipo === 'poc' ? [] : [5, 4]);
+      cx.lineWidth = l.tipo === 'poc' || l.tipo === 'poi' || l.tipo === 'entrada' ? 1.4 : 1;
+      cx.setLineDash(l.tipo === 'poc' || l.tipo === 'poi' ? [] : [5, 4]);
       cx.beginPath();
       cx.moveTo(xInicio, yy);
       cx.lineTo(largura, yy);
