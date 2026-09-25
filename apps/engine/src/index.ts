@@ -266,8 +266,12 @@ if (comando === 'scan') {
 
   cron.schedule(config.cron, () => void motorPrincipal());
   cron.schedule(config.tempoReal.cron, () => void motorTempoReal());
-  // O ICT ALGO no mesmo ritmo, noutra passagem: um não espera pelo outro.
-  if (process.env['ICT_ALGO_DESLIGADO'] !== '1') cron.schedule(config.tempoReal.cron, () => void motorIct());
+  // A passagem própria do ICT ALGO ficou só de registo desde que os sinais do ICT
+  // saem do tempo real (25/09/2026). Ligada, corria o algoritmo DUAS vezes e
+  // pedia 3500 velas do instrumento e do par a cada vela de 15M — o bastante
+  // para a Deriv responder RateLimit ao tempo real e ao painel. Só com
+  // ICT_ALGO_PASSAGEM=1 (para quem queira o `ict-algo-sinais.jsonl`).
+  if (process.env['ICT_ALGO_PASSAGEM'] === '1') cron.schedule(config.tempoReal.cron, () => void motorIct());
 
   // Ouvinte da conta Deriv: ordens, fechos e depósitos passam a avisos.
   let pararOuvinte: (() => void) | null = null;
