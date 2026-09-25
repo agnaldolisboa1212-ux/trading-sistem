@@ -37,7 +37,7 @@ import {
   agregar,
   correrIctAlgo,
   sinalDaUltimaVela,
-  smtPairsFor,
+  paresSmtIct,
   type Candle,
   type SinalIct,
   type Timeframe,
@@ -155,8 +155,8 @@ export async function correrIctTempoReal(db: SupabaseClient | null): Promise<Rel
       if (ultimaVista.get(chaveVista) === esperada) continue;
 
       try {
-        const parCodigo = smtPairsFor(s.codigo)[0]?.reference ?? null;
-        const parSimbolo = parCodigo ? acharSimbolo(parCodigo) : null;
+        // O primeiro par correlacionado que a Deriv serve (ver `paresSmtIct`).
+        const parSimbolo = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
         const execucao = await fechadas(s.deriv, gran, VELAS_EXECUCAO);
         const diarias = await fechadas(s.deriv, 86_400, 400);
         const parVelas = parSimbolo ? await fechadas(parSimbolo.deriv, gran, VELAS_EXECUCAO).catch(() => []) : [];

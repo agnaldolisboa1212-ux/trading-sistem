@@ -37,6 +37,7 @@ import { opcoesPorTimeframe } from './simular.js';
 import { custoTipico } from './custos.js';
 import { pocasActivasEm } from './liquidez.js';
 import { passo } from './modelos/comum.js';
+import { faixaAsiaticaLondres, poiLondres } from './poi.js';
 
 export type { EntradaIct } from './motor.js';
 
@@ -63,6 +64,7 @@ function vazia(simbolo: string, timeframe: Timeframe, porqueNao: string): Analis
     pdArrays: [],
     varrimentos: [],
     quebras: [],
+    poi: null,
     avisos: [],
   };
 }
@@ -170,11 +172,32 @@ export function correrIctAlgo(input: EntradaIct): AnaliseIct {
     ),
     varrimentos: e.varrimentos.filter((v) => v.index <= i && i - v.index <= 100),
     quebras: e.quebras.filter((q) => q.index <= i && i - q.index <= 100),
+    poi: poiDaAnalise(e, i, av.vies.direccao),
     avisos,
   };
 }
 
 const DIA = 86_400_000;
+
+/**
+ * O POI de Londres para o gráfico: no sentido do viés, a partir do extremo
+ * oposto da Ásia de hoje (ou do preço, se já o passou ou se ainda não há Ásia).
+ */
+function poiDaAnalise(e: ReturnType<typeof prepararEstruturas>, i: number, direccao: string): AnaliseIct['poi'] {
+  if (direccao !== 'bullish' && direccao !== 'bearish') return null;
+  const alta = direccao === 'bullish';
+  const preco = e.velas[i]!.close;
+  const asia = faixaAsiaticaLondres(e.velas, i);
+  const referencia = asia ? (alta ? Math.max(asia.alto, preco) : Math.min(asia.baixo, preco)) : preco;
+  return poiLondres({
+    velas: e.velas,
+    i,
+    direccao,
+    referencia,
+    pocas: e.pocas,
+    pdArrays: [...e.obs, ...e.fvgs, ...e.breakers].filter((a) => i - a.index <= 300),
+  });
+}
 
 /** Início do período que contém `t`, alinhado pelo calendário. */
 function inicioDoPeriodo(t: number, destino: Timeframe): number {

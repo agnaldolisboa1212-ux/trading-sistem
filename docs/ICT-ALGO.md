@@ -269,6 +269,33 @@ do `jpy-londres.mjs` ("alvo na Ásia"), fixada antes de correr; falta correr com
 os dados do HistData. A entrada em 5M precisa de dados de 5M, que o script de
 descarga ainda não gera.
 
+### Modelo Asia Range · Londres (`modelos/asia-londres.ts`, ao vivo desde 25/09/2026)
+
+O modelo do journal, dentro do ICT ALGO, com as regras da "entrada 2" do
+`jpy-londres.mjs` (a única com resultado positivo): viés diário → faixa
+asiática 00:00–08:00 de Londres → Londres passa o extremo asiático contra o
+viés → o par correlacionado não passa o seu (SMT) → primeiro fecho além do
+último swing antes do extremo (MSS), entrada a mercado. Stop no extremo da
+manipulação. Alvo: a máxima/mínima oposta da Ásia ou o **POI de Londres**, o
+mais próximo que pague 2R. Só 15M, nada às sextas, um setup por dia e sentido.
+A vela do MSS tem de fechar antes das 10:00 de Londres (fim da killzone do
+site; o backtest aceitava também a das 09:45).
+
+Entra no mapa de regimes em primeiro na manipulação e em último nos outros
+com direcção. **Sem vantagem medida**: o aviso segue em cada sinal. Medir com
+`TF=15m node scripts/backtest/ict-algo.mjs` (os pares desse script são os dele:
+USDJPY↔EURJPY, EURJPY↔GBPJPY).
+
+**POI de Londres** (`poi.ts`): no sentido do viés, o destino mais próximo para
+lá do extremo oposto da Ásia — uma poça por tomar ou a borda de um PD array
+contrário não mitigado. Vai na análise (`AnaliseIct.poi`), no painel e no
+gráfico, haja sinal ou não.
+
+**Pares de SMT** (`paresSmtIct`): o universo MMXM não dava par ao GBPJPY nem
+ao EURJPY, e ao USDJPY dava o DXY, que a Deriv não serve — o SMT nunca podia
+ser verificado nos pares do journal. O ICT ALGO usa agora GBPJPY↔USDJPY e
+EURJPY→USDJPY, e só depois a lista do universo.
+
 **Gráfico.** Os prints do journal (TradingView) serviram de modelo ao desenho
 do ICT ALGO: caixas das sessões, máximo e mínimo da Ásia como linhas a partir
 do fim da sessão, a linha tracejada "SMT" do nível varrido ao pavio, e a

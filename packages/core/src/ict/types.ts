@@ -298,7 +298,8 @@ export type ModeloIct =
   | 'silver-bullet'
   | 'unicorn'
   | 'turtle-soup'
-  | 'continuacao';
+  | 'continuacao'
+  | 'asia-londres';
 
 /** Nome legível de cada modelo. */
 export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
@@ -309,6 +310,7 @@ export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
   unicorn: 'Unicorn',
   'turtle-soup': 'Turtle Soup',
   continuacao: 'Continuação (OTE + PD array)',
+  'asia-londres': 'Asia Range · Londres',
 };
 
 /** Um passo da análise top-down, para a explicação que vai ao utilizador. */
@@ -431,5 +433,17 @@ export interface AnaliseIct {
   pdArrays: PdArray[];
   varrimentos: Varrimento[];
   quebras: QuebraEstrutura[];
+  /**
+   * O ponto de interesse para onde Londres vai, no sentido do viés (ver
+   * `poi.ts`). Null sem viés ou sem destino à frente.
+   */
+  poi?: {
+    preco: number;
+    alto: number;
+    baixo: number;
+    rotulo: string;
+    origem: 'liquidez' | 'pd-array';
+    desde: number;
+  } | null;
   avisos: string[];
 }

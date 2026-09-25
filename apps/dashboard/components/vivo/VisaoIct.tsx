@@ -168,6 +168,21 @@ function linhasAsia(d: Desenho, caixas: Desenho['zonas'], ultima: number | undef
 }
 
 /**
+ * O POI de Londres: para onde a sessão vai, no sentido do viés. Uma zona quando
+ * é um PD array, uma linha quando é uma poça de liquidez — como nos prints do
+ * journal ("SESSION HIGH", a caixa onde o preço já tinha reagido).
+ */
+function desenharPoi(d: Desenho, poi: AnaliseIct['poi'] | null): void {
+  if (!poi) return;
+  const rotulo = `POI Londres · ${poi.rotulo}`;
+  if (poi.origem === 'pd-array' && poi.alto > poi.baixo) {
+    d.zonas.push({ de: poi.desde, ate: Infinity, topo: poi.alto, base: poi.baixo, tipo: 'poi', rotulo });
+  } else {
+    d.linhas.push({ preco: poi.preco, rotulo, tipo: 'poi', de: poi.desde });
+  }
+}
+
+/**
  * O que a secção desenha no gráfico — limpo, como nas notas do Notion:
  *
  *   · as caixas das sessões (Ásia, Londres, Nova Iorque)
@@ -191,6 +206,7 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
     segmentos: [],
   };
   if (intradiario) linhasAsia(d, caixas, velas[velas.length - 1]?.time);
+  desenharPoi(d, a.poi ?? null);
   const s = a.sinal;
 
   if (s) {
@@ -226,7 +242,9 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
     return d;
   }
 
-  if (a.vies?.dol) d.linhas.push({ preco: a.vies.dol.preco, rotulo: `alvo do dia · ${a.vies.dol.rotulo}`, tipo: 'poc' });
+  if (a.vies?.dol && a.vies.dol.preco !== a.poi?.preco) {
+    d.linhas.push({ preco: a.vies.dol.preco, rotulo: `alvo do dia · ${a.vies.dol.rotulo}`, tipo: 'poc' });
+  }
   const v = a.regime?.ultimoVarrimento;
   if (v) desenharVarrimento(d, v, false);
   const q = a.regime?.ultimaQuebra;
@@ -371,6 +389,13 @@ export function VisaoIct({
       </div>
       {tfDoIct(tf) !== tf && (
         <p className="analise-viva__nota">O algoritmo executa em 15M, 1H ou 4H; neste gráfico de {tf.toUpperCase()} mostra a leitura de 1H.</p>
+      )}
+
+      {a.poi && (
+        <p className="analise-viva__nota">
+          POI de Londres: <b>{fmt(a.poi.preco)}</b> · {a.poi.rotulo}
+          {a.poi.origem === 'pd-array' ? ` (zona ${fmt(a.poi.baixo)} – ${fmt(a.poi.alto)})` : ''}
+        </p>
       )}
 
       {a.sinal ? (
