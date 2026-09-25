@@ -38,6 +38,7 @@ import { avaliarSilverBullet } from './modelos/silver-bullet.js';
 import { avaliarUnicorn } from './modelos/unicorn.js';
 import { avaliarTurtleSoup } from './modelos/turtle-soup.js';
 import { avaliarContinuacao } from './modelos/continuacao.js';
+import { avaliarMentorship2022 } from './modelos/mentorship-2022.js';
 
 /**
  * O mapa regime → modelos, por ordem de prioridade.
@@ -53,12 +54,17 @@ import { avaliarContinuacao } from './modelos/continuacao.js';
  *   consolidação  Turtle Soup nos extremos iguais da faixa; CRT entre os
  *                 extremos da vela de referência.
  *
+ * O modelo da mentoria de 2022 (varrimento → MSS → FVG em desconto/prémio)
+ * entra na manipulação, logo a seguir ao Venom (é o mesmo movimento sem exigir
+ * SMT), e na reversão, a seguir ao Unicorn (um varrimento que parte a estrutura
+ * é uma mudança de mãos). Fixado pela descrição do modelo, antes de medir.
+ *
  * Dentro de cada regime, o primeiro da lista que montar setup é o escolhido: a
  * prioridade é a do modelo mais exigente para o menos, e é fixa.
  */
 export const MODELOS_DO_REGIME: Readonly<Record<RegimeIct, readonly ModeloIct[]>> = {
-  manipulacao: ['venom', 'crt', 'reaper-ifvg', 'silver-bullet'],
-  reversao: ['unicorn', 'turtle-soup', 'reaper-ifvg'],
+  manipulacao: ['venom', 'mentorship-2022', 'crt', 'reaper-ifvg', 'silver-bullet'],
+  reversao: ['unicorn', 'mentorship-2022', 'turtle-soup', 'reaper-ifvg'],
   tendencia: ['continuacao', 'silver-bullet'],
   consolidacao: ['turtle-soup', 'crt'],
   indefinido: [],
@@ -72,6 +78,7 @@ export const AVALIADORES: Readonly<Record<ModeloIct, Avaliador>> = {
   unicorn: avaliarUnicorn,
   'turtle-soup': avaliarTurtleSoup,
   continuacao: avaliarContinuacao,
+  'mentorship-2022': avaliarMentorship2022,
 };
 
 export const TODOS_OS_MODELOS: readonly ModeloIct[] = [
@@ -82,6 +89,7 @@ export const TODOS_OS_MODELOS: readonly ModeloIct[] = [
   'unicorn',
   'turtle-soup',
   'continuacao',
+  'mentorship-2022',
 ];
 
 /** Operações fechadas que contam para o placar. */

@@ -14,6 +14,8 @@ import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
 import { agregar, correrIctAlgo, sinalDaUltimaVela } from '../ict/algo.js';
 import { NOME_MODELO } from '../ict/types.js';
+import { confirmacaoLtf } from '../ict/confirmacao.js';
+import { TIMEFRAME_MS } from '../types/market.js';
 import { AVISO_ASIA_RANGE, analisarAsiaRange } from './asia-range-algo.js';
 
 /** Dados que só o servidor entrega aos algos. */
@@ -22,6 +24,11 @@ export interface DadosAlgo {
   diarias: readonly Candle[];
   /** Velas FECHADAS do par correlacionado, no mesmo timeframe. */
   par: { simbolo: string; velas: readonly Candle[] } | null;
+  /**
+   * Velas de 5M do próprio instrumento: a confirmação do ICT ALGO (CHoCH/MSS e
+   * estrutura de 5M a favor). Sem elas o ICT ALGO não envia sinal.
+   */
+  ltf?: readonly Candle[];
 }
 
 interface Contexto {
@@ -47,6 +54,9 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
   const s = sinalDaUltimaVela(a);
   if (!s) return [];
   const u = velas[velas.length - 1]!;
+  // Sem confirmação em 5M não há sinal: nem aviso, nem entrada na lista.
+  const conf = confirmacaoLtf(algo.ltf, s.direccao, u.time + TIMEFRAME_MS[ctx.timeframe]);
+  if (!conf.ok) return [];
   const modelo = NOME_MODELO[s.modelo];
   return [
     {
@@ -68,8 +78,11 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
       conviction: 0,
       rationale:
         `${modelo}: ${s.tipoEntrada === 'pendente' ? 'ordem pendente na zona' : 'entrada a mercado'}. ` +
-        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ${AVISO_ICT_ALGO}`,
-      assumptions: s.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
+        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). Confirmação: ${conf.detalhe}. ${AVISO_ICT_ALGO}`,
+      assumptions: [
+        ...s.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
+        `Confirmação 5M: ${conf.detalhe}`,
+      ],
       warnings: [...s.avisos, AVISO_ICT_ALGO],
     },
   ];

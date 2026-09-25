@@ -2,7 +2,7 @@
  * Asia Range Algo — a estratégia do journal.
  *
  *   1. o cenário das notas dá o sinal, com o stop e o alvo das regras
- *   2. sem SMT, ou à sexta-feira, não dá
+ *   2. sem SMT não dá; à sexta-feira dá (desde 25/09/2026)
  *   3. LOOK-AHEAD: a decisão numa vela não muda quando o futuro é removido
  *   4. sem `extra.algo` (o caso do cliente) a estratégia não corre
  */
@@ -75,7 +75,7 @@ test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na m�
   assert.ok(relogioLondres(s.time).minutos + 15 < 10 * 60, 'fecha antes das 10:00 de Londres');
 });
 
-test('Asia Range Algo: sem SMT não há sinal, e na sexta também não', () => {
+test('Asia Range Algo: sem SMT não há sinal; à sexta-feira há', () => {
   const { v, p, diarias } = cenario(true);
   const razoes = new Set();
   for (let i = 224; i < v.length; i++) {
@@ -86,7 +86,9 @@ test('Asia Range Algo: sem SMT não há sinal, e na sexta também não', () => {
   assert.ok(razoes.has('sem divergência SMT na abertura de Londres'), [...razoes].join(' | '));
 
   const sexta = cenario(false, 3);
-  for (let i = 224; i < sexta.v.length; i++) assert.equal(analisar(sexta.v, sexta.p, sexta.diarias, i).sinal, null);
+  let naSexta = 0;
+  for (let i = 224; i < sexta.v.length; i++) if (analisar(sexta.v, sexta.p, sexta.diarias, i).sinal) naSexta++;
+  assert.equal(naSexta, 1, 'à sexta-feira o setup também sai');
 });
 
 test('Asia Range Algo: o TESTE DO CORTE — o futuro removido não muda a decisão', () => {

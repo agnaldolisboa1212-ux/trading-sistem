@@ -22,7 +22,8 @@
  *
  * Stop no extremo da manipulação (a pelo menos ¼ de ATR). A vela do MSS tem de
  * fechar antes das 10:00 de Londres — o fim da killzone de Londres. Um setup por
- * dia e sentido. Nada às sextas. Só 15M.
+ * dia e sentido. Opera também às sextas (a pedido, 25/09/2026 — as notas
+ * originais não operavam). Só 15M.
  *
  * Usa as PEÇAS do ICT ALGO (estruturas, viés, POI) como biblioteca, mas não é
  * um modelo dele: tem o seu nome, os seus sinais e a sua contabilidade.
@@ -188,10 +189,6 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
 
   // 2 — Janela e faixa asiática
   const l = relogioLondres(agora.time);
-  if (l.diaSemana === 5) {
-    passos.push(passo(2, 'tempo', 'Dia', 'falhou', 'Sexta-feira — as notas não operam às sextas.'));
-    return acabar('sexta-feira');
-  }
   if (!asia) {
     passos.push(passo(2, '15m', 'Faixa asiática', 'espera', 'A Ásia (00:00–08:00 de Londres) ainda não acabou ou tem poucas velas.'));
     return acabar('sem faixa asiática');

@@ -4,8 +4,8 @@
  * Algoritmo independente, construído a partir da mecânica publicada em
  * theinnercircletraders.com (cluster avançado). Lê o mercado do semanal à vela
  * de execução, decide o regime do momento e monta o setup com o modelo do site
- * que corresponde a esse regime: Venom, CRT, Reaper IFVG, Silver Bullet,
- * Unicorn, Turtle Soup ou continuação por OTE.
+ * que corresponde a esse regime: Venom, ICT 2022 Mentorship, CRT, Reaper
+ * IFVG, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE.
  *
  * Não partilha estado, tipos de sinal nem contabilidade com as estratégias
  * validadas do sistema: um sinal marcado `ICT ALGO` vem daqui e de mais lado
@@ -27,6 +27,7 @@ export * from './motor.js';
 export * from './algo.js';
 export * from './entrada.js';
 export * from './poi.js';
+export * from './confirmacao.js';
 export { smtNoVarrimento } from './modelos/venom.js';
 export {
   RR_MINIMO,

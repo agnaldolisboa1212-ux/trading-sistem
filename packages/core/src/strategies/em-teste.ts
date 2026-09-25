@@ -126,7 +126,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'ict-algo',
     nome: 'ICT ALGO',
     descricao:
-      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo do site que corresponde (Venom, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE).',
+      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). Só envia com confirmação em 5M (CHoCH/MSS e estrutura de 5M a favor).',
     instrumentos: ICT_ALGO_EM_TESTE,
     // Os três timeframes de execução do algoritmo (os medidos no backtest).
     timeframes: ['15m', '1h', '4h'],
