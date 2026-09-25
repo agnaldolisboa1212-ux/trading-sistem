@@ -49,7 +49,7 @@ export interface GraficoVivoProps {
    * da caixa, como no TradingView.
    */
   /** Linhas horizontais. `tipo`: entrada, stop, alvo, poc, nivel. Com `de`, começam nesse instante. */
-  linhas?: Array<{ preco: number; rotulo: string; tipo: string; de?: number }>;
+  linhas?: Array<{ preco: number; rotulo: string; tipo: string; de?: number; curto?: string }>;
   /** Marcas pontuais (SMT, MSS, varrimento) num instante e preço. */
   marcadores?: Array<{ t: number; p: number; rotulo: string; tipo: string }>;
   /**
@@ -282,6 +282,8 @@ export function GraficoVivo({
      * outros e por cima das velas ("máx. Ásia", "BOS", "ENTRADA" na mesma linha).
      */
     const rotulos: Array<{ texto: string; cor: string; x: number; y: number; alinhar: 'left' | 'right' }> = [];
+    /** Etiquetas no eixo de preços, como no TradingView: o preço de cada linha, na cor dela. */
+    const etiquetasEixo: Array<{ preco: number; cor: string; y: number }> = [];
 
     // --- zonas (oferta/procura, níveis, value area, FVG) -----------------
     const corDoTipo = (tipo: string) =>
@@ -345,8 +347,9 @@ export function GraficoVivo({
       const base = corDoTipo(z.tipo);
       cx.fillStyle = corComAlfa(base, z.tipo === 'entrada' || z.tipo === 'poi' ? 0.14 : 0.1);
       cx.fillRect(x0, yTopo, Math.max(2, x1 - x0), alturaZona);
-      if (z.rotulo) {
-        rotulos.push({ texto: z.rotulo, cor: corComAlfa(base, 0.95), x: largura - 4, y: yTopo + 8, alinhar: 'right' });
+      // Nas zonas só o POI leva nome, e curto; o resto lê-se pela cor e pelo eixo.
+      if (z.tipo === 'poi') {
+        rotulos.push({ texto: 'POI', cor: corComAlfa(base, 0.95), x: x0 + 4, y: yTopo + 8, alinhar: 'left' });
       }
     }
 
@@ -433,7 +436,10 @@ export function GraficoVivo({
       cx.lineTo(largura, yy);
       cx.stroke();
       cx.setLineDash([]);
-      rotulos.push({ texto: l.rotulo, cor: String(cx.strokeStyle), x: Math.min(xInicio + 4, largura - 60), y: yy - 8, alinhar: 'left' });
+      // Como no TradingView: o nome curto encostado ao eixo, em cima da linha, e o
+      // preço numa etiqueta no próprio eixo. Nada de frases por cima das velas.
+      rotulos.push({ texto: curtoDaLinha(l), cor: String(cx.strokeStyle), x: largura - 4, y: yy, alinhar: 'right' });
+      etiquetasEixo.push({ preco: l.preco, cor: String(cx.strokeStyle), y: yy });
     }
 
     // --- rótulos: com fundo, e sem se tocarem ---------------------------
@@ -547,6 +553,28 @@ export function GraficoVivo({
       cx.lineTo(largura, yy);
       cx.stroke();
       cx.setLineDash([]);
+
+      // Etiquetas das linhas no eixo, antes da do preço actual (que fica por cima
+      // e reserva o seu lugar): cada uma desce ou sobe até não tocar nas outras.
+      cx.font = '10px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+      const ALTO_E = 16;
+      const ocupados: Array<[number, number]> = [[yy - 9, yy + 9]];
+      const livre = (a: number) => ocupados.every(([o0, o1]) => a + ALTO_E <= o0 || a >= o1);
+      for (const e of [...etiquetasEixo].sort((a, b) => a.y - b.y)) {
+        let y0 = e.y - ALTO_E / 2;
+        for (let k = 1; k <= 10 && !livre(y0); k++) {
+          y0 = e.y - ALTO_E / 2 + (k % 2 === 1 ? 1 : -1) * Math.ceil(k / 2) * (ALTO_E + 1);
+        }
+        y0 = Math.max(0, Math.min(A - MARGEM_BAIXO - ALTO_E, y0));
+        ocupados.push([y0, y0 + ALTO_E]);
+        cx.fillStyle = e.cor;
+        arredondado(cx, largura + 2, y0, MARGEM_DIR - 4, ALTO_E, 3);
+        cx.fill();
+        cx.fillStyle = superficie;
+        cx.textAlign = 'left';
+        cx.textBaseline = 'middle';
+        cx.fillText(formatarPreco(e.preco, casas), largura + 6, y0 + ALTO_E / 2 + 0.5);
+      }
 
       const etiqueta = formatarPreco(ultima.c, casas);
       cx.font = '10.5px ui-monospace, "SF Mono", Menlo, Consolas, monospace';
@@ -817,6 +845,23 @@ function distancia(t: React.TouchList): number {
   const b = t[1];
   if (!a || !b) return 0;
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+/**
+ * O nome curto de uma linha, como nas ferramentas do TradingView/cTrader:
+ * ENT, SL, TP 2.5R, POI, Ásia ▲. O rótulo completo continua no cartão.
+ */
+function curtoDaLinha(l: { rotulo: string; tipo: string; curto?: string }): string {
+  if (l.curto) return l.curto;
+  const r = l.rotulo.match(/(\d+(?:[.,]\d+)?R)\b/);
+  if (l.tipo === 'entrada') return /pendente/i.test(l.rotulo) ? 'ENT ⏳' : 'ENT';
+  if (l.tipo === 'stop') return 'SL';
+  if (l.tipo === 'alvo') return r ? `TP ${r[1]}` : 'TP';
+  if (l.tipo === 'poi') return 'POI';
+  if (/máx\.? ?Ásia/i.test(l.rotulo)) return 'Ásia ▲';
+  if (/mín\.? ?Ásia/i.test(l.rotulo)) return 'Ásia ▼';
+  if (l.tipo === 'poc') return /alvo do dia/i.test(l.rotulo) ? 'DOL' : 'POC';
+  return l.rotulo.length > 12 ? `${l.rotulo.slice(0, 11)}…` : l.rotulo;
 }
 
 function arredondado(
