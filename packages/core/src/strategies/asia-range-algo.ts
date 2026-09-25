@@ -16,7 +16,10 @@
  *   4  SMT         o par correlacionado NÃO passa o seu extremo asiático —
  *                  "divergência entre GBPJPY e USDJPY"
  *   5  MSS         o primeiro fecho além do último swing confirmado antes do
- *                  extremo da manipulação; entrada a mercado nesse fecho
+ *                  extremo da manipulação
+ *   5b Confirmação CHoCH/MSS e estrutura de 3M a favor (as "sniper entries" do
+ *                  journal); pode chegar até 45 min depois do MSS. Entrada a
+ *                  mercado no fecho da vela de 15M em que fica confirmado
  *   6  Alvo        o extremo OPOSTO da Ásia ("capturar a alta da sessão
  *                  asiática") ou o POI de Londres, o mais próximo que pague 2R
  *
@@ -36,6 +39,7 @@ import { agregar } from '../ict/algo.js';
 import { prepararEstruturas, type EstruturasIct } from '../ict/motor.js';
 import { viesDiario } from '../ict/vies.js';
 import { relogioLondres, ultimaFechadaAte } from '../ict/tempo.js';
+import { confirmacaoLtf } from '../ict/confirmacao.js';
 import { faixaAsiaticaLondres, poiLondres, type FaixaAsiatica, type PoiLondres } from '../ict/poi.js';
 import type { IctDireccao, PassoTopDown } from '../ict/types.js';
 
@@ -47,6 +51,10 @@ const FIM_JANELA = 10 * 60;
 export const RR_MINIMO_ASIA = 2;
 /** Distância mínima do stop, em ATR: abaixo disto o spread come a operação. */
 const RISCO_MINIMO_ATR = 0.25;
+const M15 = 900_000;
+const M3 = 180_000;
+/** Velas de 15M depois do MSS em que a confirmação de 3M ainda pode chegar (45 min). */
+const ATRASO_MAXIMO = 3;
 
 /** Aviso que acompanha todos os sinais desta estratégia. */
 export const AVISO_ASIA_RANGE =
@@ -117,6 +125,8 @@ export interface EntradaAsia {
   /** Velas diárias FECHADAS do próprio instrumento (viés). */
   diarias: readonly Candle[];
   par: { simbolo: string; velas: readonly Candle[] } | null;
+  /** Velas FECHADAS de 3M do próprio instrumento: a confirmação. Sem elas não há sinal. */
+  ltf?: readonly Candle[];
   /** Substitui o viés calculado — só para testes com cenários construídos. */
   viesForcado?: { direccao: IctDireccao; aFavor: number };
 }
@@ -252,24 +262,46 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
     return acabar('sem swing para o MSS');
   }
   const alem = (c: Candle) => (alta ? c.close > nivel! : c.close < nivel!);
-  if (!alem(agora)) {
+  let iMss = -1;
+  for (let k = iExtremo + 1; k <= i; k++) {
+    if (alem(velas[k]!)) {
+      iMss = k;
+      break;
+    }
+  }
+  if (iMss < 0 || !alem(agora)) {
     passos.push(passo(5, '15m', 'MSS', 'espera', `Ainda sem fecho ${alta ? 'acima' : 'abaixo'} de ${px(nivel)}.`));
     return acabar('à espera do MSS');
   }
-  for (let k = iExtremo + 1; k < i; k++) {
-    if (alem(velas[k]!)) {
-      passos.push(passo(5, '15m', 'MSS', 'falhou', 'O MSS já tinha acontecido numa vela anterior — a entrada já foi dada.'));
-      return acabar('MSS já usado');
+  passos.push(passo(5, '15m', 'MSS', 'ok', `Fecho em ${px(velas[iMss]!.close)}, além de ${px(nivel)}.`));
+
+  // 6 — Confirmação em 3M (CHoCH/MSS e estrutura de 3M a favor). Pode chegar
+  // até ATRASO_MAXIMO velas de 15M depois do MSS; o sinal sai na PRIMEIRA vela
+  // em que está confirmado, e nunca outra vez.
+  if (i - iMss > ATRASO_MAXIMO) {
+    passos.push(passo(6, '3m', 'Confirmação 3M', 'falhou', 'A confirmação não chegou a tempo depois do MSS.'));
+    return acabar('sem confirmação 3M a tempo');
+  }
+  const confEm = (k: number) => confirmacaoLtf(input.ltf, d, velas[k]!.time + M15, M3);
+  for (let k = iMss; k < i; k++) {
+    if (confEm(k).ok) {
+      passos.push(passo(6, '3m', 'Confirmação 3M', 'falhou', 'Já confirmado numa vela anterior — a entrada já foi dada.'));
+      return acabar('entrada já dada');
     }
   }
-  passos.push(passo(5, '15m', 'MSS', 'ok', `Fecho em ${px(agora.close)}, além de ${px(nivel)}.`));
+  const conf = confEm(i);
+  if (!conf.ok) {
+    passos.push(passo(6, '3m', 'Confirmação 3M', 'espera', `À espera: ${conf.detalhe}. Sem ela o sinal não é enviado.`));
+    return acabar('à espera de confirmação 3M');
+  }
+  passos.push(passo(6, '3m', 'Confirmação 3M', 'ok', `${conf.detalhe}.`));
 
   // 6 — Risco e alvo
   const entrada = agora.close;
   const risco = alta ? entrada - extremo : extremo - entrada;
   const atr = e.atr[i] ?? 0;
   if (!(risco > 0) || (atr > 0 && risco < RISCO_MINIMO_ATR * atr)) {
-    passos.push(passo(6, '15m', 'Risco', 'falhou', 'Stop demasiado curto — o spread come a operação.'));
+    passos.push(passo(7, '15m', 'Risco', 'falhou', 'Stop demasiado curto — o spread come a operação.'));
     return acabar('stop demasiado curto');
   }
   const oposto = alta ? asia.alto : asia.baixo;
@@ -281,15 +313,15 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
     .sort((a, b) => (alta ? a.preco - b.preco : b.preco - a.preco));
   const alvo = alvos[0];
   if (!alvo) {
-    passos.push(passo(6, '15m', 'Alvo', 'falhou', 'Não há liquidez por tomar à frente da entrada.'));
+    passos.push(passo(7, '15m', 'Alvo', 'falhou', 'Não há liquidez por tomar à frente da entrada.'));
     return acabar('sem alvo à frente da entrada');
   }
   const rr = Math.abs(alvo.preco - entrada) / risco;
   if (rr < RR_MINIMO_ASIA) {
-    passos.push(passo(6, '15m', 'Alvo', 'falhou', `${alvo.rotulo} em ${px(alvo.preco)} paga só ${rr.toFixed(1)}R — abaixo de ${RR_MINIMO_ASIA}R.`));
+    passos.push(passo(7, '15m', 'Alvo', 'falhou', `${alvo.rotulo} em ${px(alvo.preco)} paga só ${rr.toFixed(1)}R — abaixo de ${RR_MINIMO_ASIA}R.`));
     return acabar(`RR insuficiente (${rr.toFixed(1)}R)`);
   }
-  passos.push(passo(6, '15m', 'Alvo', 'ok', `${alvo.rotulo} em ${px(alvo.preco)} — ${rr.toFixed(1)}R.`));
+  passos.push(passo(7, '15m', 'Alvo', 'ok', `${alvo.rotulo} em ${px(alvo.preco)} — ${rr.toFixed(1)}R.`));
 
   const iNivelAsia = alta ? asia.iBaixo : asia.iAlto;
   return {
@@ -306,7 +338,7 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
       zonaAlta: Math.max(agora.open, agora.close),
       zonaBaixa: Math.min(agora.open, agora.close),
       varrimento: { nivel: extremoAsia, nivelTime: velas[iNivelAsia]!.time, extremo, time: velas[iExtremo]!.time },
-      mss: { nivel, time: agora.time },
+      mss: { nivel, time: velas[iMss]!.time },
       chave: `asia-range-algo|${asia.dia}|${d}`,
     },
   };

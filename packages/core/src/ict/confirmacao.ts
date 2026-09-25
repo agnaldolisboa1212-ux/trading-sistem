@@ -22,6 +22,8 @@ import { quebrasDeEstrutura, serieAtrIct, swingsConfirmados } from './estrutura.
 
 /** Velas de 5M em que a CHoCH/MSS de confirmação ainda conta: 3 horas. */
 export const JANELA_CONFIRMACAO_LTF = 36;
+/** A janela da CHoCH/MSS, em tempo — a mesma em 5M, 3M ou 1M. */
+const JANELA_MS = 3 * 3_600_000;
 const M5 = 300_000;
 
 export interface ConfirmacaoLtf {
@@ -36,22 +38,26 @@ export interface ConfirmacaoLtf {
 const nome = (t: QuebraEstrutura['tipo']) => (t === 'mss' ? 'MSS' : t === 'choch' ? 'CHoCH' : 'BOS');
 
 /**
- * `agora`: instante da decisão (ms). Só entram velas de 5M que fecharam até lá.
+ * `agora`: instante da decisão (ms). Só entram velas que fecharam até lá.
+ * `passoMs`: o timeframe das velas — 5M no ICT ALGO, 3M no Asia Range Algo.
  */
 export function confirmacaoLtf(
   velas5m: readonly Candle[] | undefined,
   direccao: IctDireccao,
   agora: number,
+  passoMs: number = M5,
 ): ConfirmacaoLtf {
+  const tf = `${Math.round(passoMs / 60_000)}M`;
+  const janela = Math.round(JANELA_MS / passoMs);
   const semNada = (detalhe: string): ConfirmacaoLtf => ({ ok: false, tipo: null, time: null, nivel: null, detalhe });
-  if (!velas5m || velas5m.length < 60) return semNada('sem velas de 5M suficientes para confirmar');
-  const v = velas5m.filter((c) => c.time + M5 <= agora);
-  if (v.length < 60) return semNada('sem velas de 5M fechadas suficientes para confirmar');
+  if (!velas5m || velas5m.length < 60) return semNada(`sem velas de ${tf} suficientes para confirmar`);
+  const v = velas5m.filter((c) => c.time + passoMs <= agora);
+  if (v.length < 60) return semNada(`sem velas de ${tf} fechadas suficientes para confirmar`);
 
   const i = v.length - 1;
   const quebras = quebrasDeEstrutura(v, swingsConfirmados(v), serieAtrIct(v)).filter((q) => q.confirmadoEm <= i);
   const ultima = quebras[quebras.length - 1];
-  if (!ultima) return semNada('sem quebra de estrutura em 5M');
+  if (!ultima) return semNada(`sem quebra de estrutura em ${tf}`);
   const lado = direccao === 'bullish' ? 'alta' : 'baixa';
 
   if (ultima.lado !== direccao) {
@@ -60,19 +66,19 @@ export function confirmacaoLtf(
       tipo: ultima.tipo,
       time: ultima.time,
       nivel: ultima.nivel,
-      detalhe: `a estrutura de 5M está contra (último ${nome(ultima.tipo)} de ${ultima.lado === 'bullish' ? 'alta' : 'baixa'})`,
+      detalhe: `a estrutura de ${tf} está contra (último ${nome(ultima.tipo)} de ${ultima.lado === 'bullish' ? 'alta' : 'baixa'})`,
     };
   }
   const gatilho = [...quebras]
     .reverse()
-    .find((q) => q.lado === direccao && (q.tipo === 'mss' || q.tipo === 'choch') && i - q.index <= JANELA_CONFIRMACAO_LTF);
+    .find((q) => q.lado === direccao && (q.tipo === 'mss' || q.tipo === 'choch') && i - q.index <= janela);
   if (!gatilho) {
     return {
       ok: false,
       tipo: ultima.tipo,
       time: ultima.time,
       nivel: ultima.nivel,
-      detalhe: `estrutura de 5M a favor, mas sem CHoCH/MSS de ${lado} nas últimas 3 horas`,
+      detalhe: `estrutura de ${tf} a favor, mas sem CHoCH/MSS de ${lado} nas últimas 3 horas`,
     };
   }
   const hora = new Date(gatilho.time).toISOString().slice(11, 16);
@@ -81,6 +87,6 @@ export function confirmacaoLtf(
     tipo: gatilho.tipo,
     time: gatilho.time,
     nivel: gatilho.nivel,
-    detalhe: `${nome(gatilho.tipo)} de ${lado} em 5M às ${hora} UTC, estrutura de 5M a favor`,
+    detalhe: `${nome(gatilho.tipo)} de ${lado} em ${tf} às ${hora} UTC, estrutura de ${tf} a favor`,
   };
 }

@@ -302,6 +302,11 @@ setup por dia e sentido. A vela do MSS fecha antes das 10:00 de Londres (fim
 da killzone de Londres; o backtest aceitava também a das 09:45).
 **Sem vantagem medida** — o aviso segue em cada sinal.
 
+**Confirmação em 3M** (desde 25/09/2026): depois do MSS de 15M, o sinal só sai
+com CHoCH/MSS e estrutura de 3M a favor (a mesma regra da confirmação do ICT em
+5M, `confirmacaoLtf` com passo de 3M). Pode chegar até 45 min depois do MSS; o
+sinal sai na primeira vela de 15M confirmada, ao fecho dela, e nunca duas vezes.
+
 ### ICT ALGO também gera sinais (desde 25/09/2026)
 
 O ICT ALGO entrou no catálogo como estratégia **em teste** (`ict-algo`, 15M,

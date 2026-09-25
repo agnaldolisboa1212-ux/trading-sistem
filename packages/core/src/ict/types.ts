@@ -316,7 +316,8 @@ export const NOME_MODELO: Readonly<Record<ModeloIct, string>> = {
 /** Um passo da análise top-down, para a explicação que vai ao utilizador. */
 export interface PassoTopDown {
   numero: number;
-  timeframe: Timeframe | 'tempo';
+  /** '3m': a confirmação do Asia Range Algo (a Deriv serve 3M; o sistema não o usa como timeframe). */
+  timeframe: Timeframe | 'tempo' | '3m';
   titulo: string;
   veredicto: 'ok' | 'falhou' | 'espera';
   detalhe: string;

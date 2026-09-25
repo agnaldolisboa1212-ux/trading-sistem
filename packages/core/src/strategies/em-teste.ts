@@ -146,7 +146,8 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres. Pares JPY e USDCAD.',
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
-    entrada: 'A mercado no primeiro fecho além do último swing antes do extremo da manipulação (MSS), entre as 08:00 e as 10:00 de Londres.',
+    entrada:
+      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 3M (CHoCH/MSS e estrutura de 3M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
     saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
     emTeste: {
       desde: '2026-09-25',
