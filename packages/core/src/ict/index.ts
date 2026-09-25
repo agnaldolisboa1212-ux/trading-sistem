@@ -28,7 +28,6 @@ export * from './algo.js';
 export * from './entrada.js';
 export * from './poi.js';
 export { smtNoVarrimento } from './modelos/venom.js';
-export { AVISO_ASIA_LONDRES } from './modelos/asia-londres.js';
 export {
   RR_MINIMO,
   RISCO_MINIMO_ATR,

@@ -52,7 +52,9 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
   for (const s of ['UK100', 'FRA40', 'SWI20', 'NL25', 'AUS200', 'HK50', 'AUDUSD', 'NZDUSD', 'EURGBP']) {
     assert.equal(estrategiasPara(s, '1d').length, 0, s);
   }
-  assert.equal(estrategiasPara('US100', '15m').length, 0);
+  // Em 15M o US100 só tem o ICT ALGO, em teste (25/09/2026) — nenhuma validada.
+  assert.deepEqual(estrategiasPara('US100', '15m').map((e) => e.id), ['ict-algo']);
+  assert.ok(estrategiasPara('US100', '15m').every((e) => 'emTeste' in e));
   // Forex e ouro intradiário só têm estratégias EM TESTE (em-teste.test.mjs).
   assert.ok(estrategiasPara('EURUSD', '1h').every((e) => 'emTeste' in e));
   assert.deepEqual(estrategiasPara('XAUUSD', '1d').map((e) => e.id), ['tendencia-ouro']);

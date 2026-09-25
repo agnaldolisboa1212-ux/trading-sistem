@@ -108,7 +108,7 @@ const SESSOES = [
  * o preço fez dentro dela. É a leitura das notas "Estudos do JPY" — Ásia a
  * acumular, Londres a manipular e a distribuir, Nova Iorque a mudar a sessão.
  */
-function caixasDeSessao(velas: readonly VelaSimples[], dias: number): Desenho['zonas'] {
+export function caixasDeSessao(velas: readonly VelaSimples[], dias: number): Desenho['zonas'] {
   type Caixa = { tipo: string; rotulo: string; de: number; ate: number; topo: number; base: number; dia: number };
   const out: Caixa[] = [];
   if (velas.length === 0) return [];
@@ -254,7 +254,7 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
 
 const icone = (v: PassoTopDown['veredicto']) => (v === 'ok' ? '✓' : v === 'falhou' ? '✗' : '…');
 
-function Passos({ passos }: { passos: PassoTopDown[] }) {
+export function Passos({ passos }: { passos: PassoTopDown[] }) {
   return (
     <ol className="ict__passos">
       {passos.map((p) => (

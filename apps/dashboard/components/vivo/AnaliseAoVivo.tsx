@@ -30,7 +30,8 @@ import { acharSimbolo, formatarPreco, segundosDe, type Timeframe } from '@/lib/d
 import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
 import { VisaoIct, desenhoIct, usarIct } from './VisaoIct';
-import { estrategiaEmTeste, estrategiasPara } from '@trading/core';
+import { VisaoAsiaRange, desenhoAsiaRange, usarAsiaRange } from './VisaoAsiaRange';
+import { ASIA_RANGE_EM_TESTE, estrategiaEmTeste, estrategiasPara } from '@trading/core';
 import {
   analisarVisoes,
   DESENHO_VAZIO,
@@ -42,6 +43,7 @@ import {
   ROTULO_ESTADO,
   sinalVivo,
   VISOES,
+  VISOES_DO_SERVIDOR,
   type Desenho,
   type SinalVisao,
   type Visao,
@@ -103,6 +105,8 @@ function visoesOrdenadas(codigo: string, tf: string) {
     // O ICT ALGO é um algoritmo à parte e aplica-se a qualquer instrumento do
     // portfólio: fica logo a seguir ao Resumo.
     if (v.id === 'ict-algo') return 0.5;
+    // O Asia Range Algo só existe nos pares do journal: logo a seguir ali, no fim nos outros.
+    if (v.id === 'asia-range-algo') return daqui.has('asia-range-algo') || ASIA_RANGE_EM_TESTE.includes(codigo) ? 0.6 : 2.5;
     if (v.contexto) return 3;
     const ids: string[] = [...daqui];
     return ids.includes(v.id) || (v.id === 'tendencia-cripto' && ids.some((i) => i.startsWith('tendencia')))
@@ -194,6 +198,8 @@ export function AnaliseAoVivo({
   const mmxmActivo = mmxm ?? mmxmServidor;
   // O ICT ALGO corre no servidor: só se pede quando a secção está aberta.
   const ict = usarIct(codigo, tf, visao === 'ict-algo');
+  const asia = usarAsiaRange(codigo, visao === 'asia-range-algo');
+  const doServidor = VISOES_DO_SERVIDOR.includes(visao);
 
   // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
   // (ex: a abertura do DAX, que precisa das velas diárias).
@@ -222,7 +228,7 @@ export function AnaliseAoVivo({
   }, [analise, sinaisServidor]);
 
   const actual: Visao | null =
-    visoesComServidor && visao !== 'mmxm' && visao !== 'ict-algo' ? visoesComServidor[visao] : null;
+    visoesComServidor && !doServidor ? visoesComServidor[visao as keyof typeof visoesComServidor] : null;
 
   // Desenha a visão escolhida — ou limpa.
   const assinatura =
@@ -230,10 +236,13 @@ export function AnaliseAoVivo({
       ? `mmxm|${mmxmActivo?.titulo ?? ''}|${mmxmActivo?.desenho.linhas.length ?? 0}`
       : visao === 'ict-algo'
         ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}|${chave}`
-        : `${chave}|${visao}`;
+        : visao === 'asia-range-algo'
+          ? `asia|${asia?.codigo ?? ''}|${asia?.em ?? 0}|${chave}`
+          : `${chave}|${visao}`;
   useEffect(() => {
     if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
     else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null, candles, tf));
+    else if (visao === 'asia-range-algo') aoMudarDesenho(desenhoAsiaRange(asia?.analise ?? null, candles, tf));
     else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);
@@ -250,6 +259,10 @@ export function AnaliseAoVivo({
       const s = ict?.analise?.sinal;
       return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
     }
+    if (id === 'asia-range-algo') {
+      const s = asia?.analise?.sinal;
+      return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
+    }
     if (!visoesComServidor || id === 'mmxm') return '';
     const sv = visoesComServidor[id as keyof typeof visoesComServidor]?.sinal;
     if (!sv || !sinalVivo(sv.estado)) return '';
@@ -257,7 +270,8 @@ export function AnaliseAoVivo({
   };
 
   if (compacto) {
-    const sv = visao === 'mmxm' || visao === 'ict-algo' ? null : (actual?.sinal ?? null);
+    const sv = doServidor ? null : (actual?.sinal ?? null);
+    const sa = visao === 'asia-range-algo' ? (asia?.analise?.sinal ?? null) : null;
     const si = visao === 'ict-algo' ? (ict?.analise?.sinal ?? null) : null;
     const m = visao === 'mmxm' ? mmxmActivo : null;
     return (
@@ -296,6 +310,22 @@ export function AnaliseAoVivo({
             <span className="grow">
               <b>ICT ALGO</b>
               <em>{ict?.analise ? (ict.analise.porqueNao ?? 'sem setup') : 'a pedir a análise ao servidor…'}</em>
+            </span>
+          ) : sa ? (
+            <>
+              <span className={`lado-pill ${sa.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+                {sa.direccao === 'bullish' ? 'COMPRA' : 'VENDA'}
+              </span>
+              <span className="grow">
+                Asia Range · entrada <b>{fmt(sa.entrada)}</b> · stop <b className="bear-t">{fmt(sa.stop)}</b> · alvo{' '}
+                <b className="bull-t">{fmt(sa.alvo)}</b>
+                <em>{sa.rr.toFixed(1)}R</em>
+              </span>
+            </>
+          ) : visao === 'asia-range-algo' ? (
+            <span className="grow">
+              <b>Asia Range Algo</b>
+              <em>{asia?.analise ? (asia.analise.porqueNao ?? 'sem setup') : (asia?.erro ?? 'a pedir a análise ao servidor…')}</em>
             </span>
           ) : sv ? (
             <>
@@ -368,6 +398,8 @@ export function AnaliseAoVivo({
       <div className="analise-viva__corpo">
         {visao === 'ict-algo' ? (
           <VisaoIct estado={ict} tf={tf} casas={casas} aoNegociar={aoNegociar} />
+        ) : visao === 'asia-range-algo' ? (
+          <VisaoAsiaRange estado={asia} casas={casas} aoNegociar={aoNegociar} />
         ) : visao === 'mmxm' ? (
           <VisaoMmxm codigo={codigo} mmxm={mmxmActivo} casas={casas} aoCarregar={mmxm === undefined} />
         ) : !analise.pronta ? (
@@ -395,7 +427,14 @@ export function AnaliseAoVivo({
                 </span>
                 <span aria-hidden="true">›</span>
               </button>
-              {VISOES.filter((v) => v.id !== 'resumo' && v.id !== 'mmxm' && v.id !== 'ict-algo').map((v) => {
+              <button type="button" className="visoes__linha" onClick={() => aoMudarVisao('asia-range-algo')}>
+                <span className="grow">
+                  <strong>Asia Range Algo</strong>
+                  <em>o modelo do journal · Ásia, varrimento em Londres, SMT e MSS (GBPJPY, USDJPY, EURJPY)</em>
+                </span>
+                <span aria-hidden="true">›</span>
+              </button>
+              {VISOES.filter((v) => v.id !== 'resumo' && !VISOES_DO_SERVIDOR.includes(v.id)).map((v) => {
                 const sv = analise.visoes[v.id as keyof typeof analise.visoes].sinal;
                 return (
                   <button
@@ -448,7 +487,7 @@ export function AnaliseAoVivo({
 
       <NoticiasDoInstrumento codigo={codigo} agora={agora} />
 
-      {analise.pronta && visao !== 'mmxm' && visao !== 'ict-algo' && (
+      {analise.pronta && !doServidor && (
         <div className="analise-viva__rodape">
           Calculada neste dispositivo sobre {analise.velas} velas {tf} fechadas da Deriv, às{' '}
           {new Date(analise.calculadaEm).toLocaleTimeString('pt-PT')}. Os planos vêm só das

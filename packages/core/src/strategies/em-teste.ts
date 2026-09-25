@@ -41,7 +41,7 @@ import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import { sessaoDax } from '../time/europa.js';
 
-export type EstrategiaEmTesteId = 'tendencia-baixa-cripto' | 'abertura-dax-teste';
+export type EstrategiaEmTesteId = 'tendencia-baixa-cripto' | 'abertura-dax-teste' | 'ict-algo' | 'asia-range-algo';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -64,6 +64,21 @@ export interface EstrategiaEmTeste {
 export const FOREX_EM_TESTE: readonly string[] = ['EURUSD', 'GBPUSD', 'GBPJPY', 'USDJPY'];
 export const CRIPTO_EM_TESTE: readonly string[] = ['BTCUSD', 'ETHUSD'];
 export const DAX_EM_TESTE: readonly string[] = ['GER30'];
+/** Os instrumentos que o ICT ALGO conhece bem (os que foram medidos) e os do journal. */
+export const ICT_ALGO_EM_TESTE: readonly string[] = [
+  'EURUSD',
+  'GBPUSD',
+  'USDJPY',
+  'EURJPY',
+  'GBPJPY',
+  'XAUUSD',
+  'US100',
+  'SP500',
+  'US30',
+  'GER30',
+];
+/** Os pares do journal: JPY, com SMT entre eles. */
+export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
@@ -104,6 +119,38 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
         'Sensível ao custo (a 4 pts, 2022–2024 fica em zero), depende de tendência, e jul–ago/2026 deu −0,53R. Só em conta demo.',
     },
   },
+  {
+    id: 'ict-algo',
+    nome: 'ICT ALGO',
+    descricao:
+      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo do site que corresponde (Venom, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE).',
+    instrumentos: ICT_ALGO_EM_TESTE,
+    timeframes: ['15m'],
+    entrada: 'A do modelo escolhido: ordem pendente no PD array (FVG/OB) ou a mercado na vela de rejeição, dentro das killzones de Londres ou Nova Iorque.',
+    saida: 'Stop estrutural do modelo (extremo varrido ou swing); alvo na liquidez mais próxima que pague pelo menos 2R.',
+    emTeste: {
+      desde: '2026-09-25',
+      revisao: '2026-12-25',
+      antes:
+        'Backtest 2022–2026 com custos: nenhum modo de entrada ficou positivo nas duas metades; USDJPY e EURJPY foram os melhores mercados.',
+    },
+  },
+  {
+    id: 'asia-range-algo',
+    nome: 'Asia Range Algo',
+    descricao:
+      'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres.',
+    instrumentos: ASIA_RANGE_EM_TESTE,
+    timeframes: ['15m'],
+    entrada: 'A mercado no primeiro fecho além do último swing antes do extremo da manipulação (MSS), entre as 08:00 e as 10:00 de Londres.',
+    saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
+    emTeste: {
+      desde: '2026-09-25',
+      revisao: '2026-12-25',
+      antes:
+        'Backtest 15M 2022+ (entrada na confirmação, alvo 3,5R): +0,12R por operação, t=1,1, 71 operações. A versão com alvo na Ásia/POI ainda não foi medida.',
+    },
+  },
 ];
 
 export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
@@ -124,6 +171,11 @@ interface Contexto {
 export interface DadosExtra {
   /** Velas diárias FECHADAS do próprio instrumento (EMA 20 da abertura do DAX). */
   velas1d?: readonly Candle[];
+  /**
+   * Só no servidor: diário e par correlacionado para o ICT ALGO e o Asia Range
+   * Algo. Sem isto os dois não correm (ver `algos.ts`).
+   */
+  algo?: import('./algos.js').DadosAlgo;
 }
 
 const HORA = 3_600_000;

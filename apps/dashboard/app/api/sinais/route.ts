@@ -39,6 +39,9 @@ const GRANULARIDADE_S: Record<string, number> = {
   '1d': 86400,
 };
 
+/** Estratégias que trazem o seu próprio timeframe (ver o motor de tempo real). */
+const ALGOS = ['ict-algo', 'asia-range-algo'];
+
 /** Sinais mais antigos do que isto não entram na lista. */
 const JANELA_DIAS = 7;
 
@@ -192,7 +195,9 @@ export async function GET() {
     .from('sinais_tempo_real')
     .select('id,simbolo,timeframe,estrategia,direccao,entrada,stop,alvos,r_maximo,conviccao,razao,gerado_em,criado_em')
     .in('simbolo', portfolio)
-    .in('timeframe', timeframes)
+    // Os timeframes do perfil — mais os algos, que trazem o seu (15M) e o motor
+    // corre para quem segue o instrumento mesmo sem esse timeframe escolhido.
+    .or(`timeframe.in.(${timeframes.join(',')}),estrategia.in.(${ALGOS.join(',')})`)
     .gte('criado_em', desde)
     .order('criado_em', { ascending: false })
     .limit(80);

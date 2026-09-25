@@ -218,7 +218,7 @@ if (comando === 'scan') {
   closeDerivConnection();
 } else if (comando === 'ict') {
   console.log(
-    `[ICT ALGO] passagem única | ${process.env['ICT_ALGO_TIMEFRAMES'] ?? '15m'} | avisos ${process.env['ICT_ALGO_NOTIFICAR'] === '1' ? 'ligados' : 'desligados'}`,
+    `[ICT ALGO] passagem única | ${process.env['ICT_ALGO_TIMEFRAMES'] ?? '15m'} | avisos pelo motor de tempo real`,
   );
   await motorIct();
   closeDerivConnection();
