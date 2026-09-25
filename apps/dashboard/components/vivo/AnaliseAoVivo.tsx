@@ -430,7 +430,7 @@ export function AnaliseAoVivo({
               <button type="button" className="visoes__linha" onClick={() => aoMudarVisao('asia-range-algo')}>
                 <span className="grow">
                   <strong>Asia Range Algo</strong>
-                  <em>o modelo do journal · Ásia, varrimento em Londres, SMT e MSS (GBPJPY, USDJPY, EURJPY)</em>
+                  <em>o modelo do journal · Ásia, varrimento em Londres, SMT e MSS (pares JPY e USDCAD)</em>
                 </span>
                 <span aria-hidden="true">›</span>
               </button>

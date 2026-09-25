@@ -281,7 +281,7 @@ asiática 00:00–08:00 de Londres → Londres passa o extremo asiático contra 
 viés → o par correlacionado não passa o seu (SMT) → primeiro fecho além do
 último swing antes do extremo (MSS), entrada a mercado. Stop no extremo da
 manipulação. Alvo: a máxima/mínima oposta da Ásia ou o **POI de Londres**, o
-mais próximo que pague 2R. Só 15M, GBPJPY/USDJPY/EURJPY, nada às sextas, um
+mais próximo que pague 2R. Só 15M, GBPJPY/USDJPY/EURJPY e USDCAD (SMT contra o USDCHF), nada às sextas, um
 setup por dia e sentido. A vela do MSS fecha antes das 10:00 de Londres (fim
 da killzone de Londres; o backtest aceitava também a das 09:45).
 **Sem vantagem medida** — o aviso segue em cada sinal.

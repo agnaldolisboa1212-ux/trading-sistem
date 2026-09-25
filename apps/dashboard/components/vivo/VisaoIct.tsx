@@ -174,7 +174,7 @@ function linhasAsia(d: Desenho, caixas: Desenho['zonas'], ultima: number | undef
  */
 function desenharPoi(d: Desenho, poi: AnaliseIct['poi'] | null): void {
   if (!poi) return;
-  const rotulo = `POI Londres · ${poi.rotulo}`;
+  const rotulo = `POI · ${poi.rotulo}`;
   if (poi.origem === 'pd-array' && poi.alto > poi.baixo) {
     d.zonas.push({ de: poi.desde, ate: Infinity, topo: poi.alto, base: poi.baixo, tipo: 'poi', rotulo });
   } else {
@@ -216,7 +216,8 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
       topo: s.zonaEntradaAlta,
       base: s.zonaEntradaBaixa,
       tipo: 'entrada',
-      rotulo: `ICT ALGO · ${NOME_MODELO[s.modelo]}`,
+      // Sem rótulo: o modelo já está no cartão por baixo, e no telemóvel o
+      // texto tapava o "máx. Ásia", o BOS e a ENTRADA.
     });
     // Ferramenta de posição: caixa do alvo e caixa do risco, 24 velas de largura.
     const fim = s.time + 24 * (MS_TF[tf] ?? 3_600_000);

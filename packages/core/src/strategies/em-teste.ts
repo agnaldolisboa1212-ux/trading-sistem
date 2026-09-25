@@ -77,8 +77,11 @@ export const ICT_ALGO_EM_TESTE: readonly string[] = [
   'US30',
   'GER30',
 ];
-/** Os pares do journal: JPY, com SMT entre eles. */
-export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY'];
+/**
+ * Os pares do journal: os JPY, com SMT entre eles, e o USDCAD (5 operações no
+ * journal, SMT contra o USDCHF — o DXY que o universo lhe dá não existe na Deriv).
+ */
+export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
@@ -140,7 +143,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'asia-range-algo',
     nome: 'Asia Range Algo',
     descricao:
-      'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres.',
+      'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres. Pares JPY e USDCAD.',
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
     entrada: 'A mercado no primeiro fecho além do último swing antes do extremo da manipulação (MSS), entre as 08:00 e as 10:00 de Londres.',

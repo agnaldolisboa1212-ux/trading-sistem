@@ -171,6 +171,9 @@ const PARES_DO_JOURNAL: Readonly<Record<string, readonly string[]>> = {
   GBPJPY: ['USDJPY'],
   USDJPY: ['GBPJPY'],
   EURJPY: ['USDJPY', 'GBPJPY'],
+  // O USDCAD do journal: o DXY (a referência do universo) não existe na Deriv;
+  // o USDCHF tem o mesmo dólar na base e anda no mesmo sentido.
+  USDCAD: ['USDCHF'],
 };
 
 export function paresSmtIct(simbolo: string): string[] {

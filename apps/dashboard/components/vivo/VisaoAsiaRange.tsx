@@ -77,7 +77,7 @@ export function desenhoAsiaRange(
     d.linhas.push({ preco: a.asia.baixo, rotulo: 'mín. Ásia', tipo: 'nivel', de: a.asia.ate + M15 });
   }
   if (a.poi) {
-    const rotulo = `POI Londres · ${a.poi.rotulo}`;
+    const rotulo = `POI · ${a.poi.rotulo}`;
     if (a.poi.origem === 'pd-array' && a.poi.alto > a.poi.baixo) {
       d.zonas.push({ de: a.poi.desde, ate: Infinity, topo: a.poi.alto, base: a.poi.baixo, tipo: 'poi', rotulo });
     } else {
