@@ -181,3 +181,47 @@ export function paresSmtIct(simbolo: string): string[] {
   const lista = [...(PARES_DO_JOURNAL[s] ?? []), ...smtPairsFor(s).map((p) => p.reference)];
   return [...new Set(lista)];
 }
+
+/**
+ * O stop para lá do POI de entrada — a zona de onde o preço reagiu.
+ *
+ * Pedido do Agnaldo (25/09/2026): "os stops devem ser abaixo da POI; a sniper
+ * entry apenas é para ter confirmação". Os modelos punham o stop no próprio
+ * extremo (varrido, do impulso, da zona) sem margem — um toque de spread
+ * levava-o, mesmo com a zona de reacção intacta.
+ *
+ * Regra, igual para o ICT ALGO e o Asia Range Algo:
+ *
+ *   POI      a zona (OB, FVG, breaker) A FAVOR da operação, confirmada e não
+ *            mitigada, que fica entre o stop do modelo e a entrada — ou que o
+ *            cobre (numa compra: o seu topo está a menos de ½ ATR abaixo do stop)
+ *   stop     para lá do fundo do POI mais fundo (numa compra; topo numa venda),
+ *            com uma margem de 0,1 ATR, e nunca mais de 3 ATR além do stop do
+ *            modelo; sem POI, o stop do modelo com a mesma margem
+ */
+export function stopAlemDoPoi(input: {
+  direccao: IctDireccao;
+  entrada: number;
+  stop: number;
+  zonas: readonly PdArray[];
+  i: number;
+  atr: number;
+}): { stop: number; poi: PdArray | null } {
+  const { direccao, entrada, stop, zonas, i } = input;
+  const alta = direccao === 'bullish';
+  const atr = input.atr > 0 ? input.atr : Math.abs(entrada - stop);
+  const margem = 0.1 * atr;
+  const limite = alta ? stop - 3 * atr : stop + 3 * atr;
+  let poi: PdArray | null = null;
+  for (const z of zonas) {
+    if (z.lado !== direccao || z.confirmadoEm > i) continue;
+    if (z.mitigadoEm !== null && z.mitigadoEm <= i) continue;
+    const perto = alta
+      ? z.baixo < entrada && z.alto >= stop - 0.5 * atr && z.baixo >= limite
+      : z.alto > entrada && z.baixo <= stop + 0.5 * atr && z.alto <= limite;
+    if (!perto) continue;
+    if (!poi || (alta ? z.baixo < poi.baixo : z.alto > poi.alto)) poi = z;
+  }
+  const base = poi ? (alta ? Math.min(stop, poi.baixo) : Math.max(stop, poi.alto)) : stop;
+  return { stop: alta ? base - margem : base + margem, poi };
+}

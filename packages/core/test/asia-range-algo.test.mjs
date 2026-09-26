@@ -94,7 +94,8 @@ test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na m�
   assert.equal(sinais.length, 1, `um setup por dia — ${razoes.join(' | ')}`);
   const s = sinais[0];
   assert.equal(s.direccao, 'bullish');
-  assert.ok(Math.abs(s.stop - 99.63) < 1e-9, `stop no extremo da manipulação (${s.stop})`);
+  // Stop para lá do extremo da manipulação (99,63) / do POI que o cobre, com margem.
+  assert.ok(s.stop < 99.63 && s.stop > 99.63 - 3.2 * (s.entrada - 99.63), `stop além do extremo da manipulação (${s.stop})`);
   assert.ok(Math.abs(s.alvo - 101.92) < 1e-9, `alvo na máxima da Ásia (${s.alvo})`);
   assert.ok(s.rr >= 2);
   assert.ok(relogioLondres(s.time).minutos + 15 < 10 * 60, 'fecha antes das 10:00 de Londres');

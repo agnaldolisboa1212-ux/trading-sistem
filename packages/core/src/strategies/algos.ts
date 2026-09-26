@@ -115,7 +115,7 @@ export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo:
       conviction: 0,
       rationale:
         `Londres varreu a ${s.direccao === 'bullish' ? 'mínima' : 'máxima'} da Ásia com SMT contra ${a.par} e fez MSS. ` +
-        `Stop no extremo da manipulação; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ${AVISO_ASIA_RANGE}`,
+        `Stop para lá do POI da manipulação; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ${AVISO_ASIA_RANGE}`,
       assumptions: a.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
       warnings: [AVISO_ASIA_RANGE],
     },
