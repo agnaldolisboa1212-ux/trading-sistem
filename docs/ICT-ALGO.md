@@ -446,6 +446,34 @@ correr; 8 pares ao vivo (os do journal e dos prints) e 4 de controlo, 2022+,
   da zona do POI de 15M (stop médio 1,6–2,3 ATR); no desenho do Agnaldo o stop
   fica logo acima do máximo feito no micro-POI.
 
+### ICT Power of 3 — as regras do site (26/09/2026): chumbou
+
+`scripts/backtest/asia-range-po3.mjs`, regras de
+theinnercircletraders.com/ict-power-of-3 fixadas antes de correr: viés diário;
+Ásia 20:00–02:00 de Nova Iorque; Judas swing na killzone de Londres (02:00–05:00
+NY) contra o viés; CHoCH = vela a favor que fecha de volta para dentro da Ásia;
+entrada no fecho; stop no pavio do Judas; alvo na liquidez diária (máximo/mínimo
+do dia ou da semana anterior, ≥ 2R); saída às 11:00 NY. Mesmos 8 + 4 pares.
+
+| CHoCH | Custos | Ao vivo | Controlo |
+|---|---|---|---|
+| 5M (o site) | normais | 3762 op · −0,375R · t=−7,2 | 1553 · −0,437R |
+| 5M | sem custos | +0,071R · t=1,4 | −0,011R |
+| 15M ("a análise parte do 15M") | normais | 3344 · −0,302R · t=−7,4 | 1370 · −0,348R |
+| 15M | sem custos | +0,005R | −0,053R |
+
+Dá muitas operações (o Judas swing acontece em ~40% dos dias), mas o alvo na
+liquidez diária fica longe (RR planeado 9–13) e só 18–23% acertam: sem custos
+é zero, com custos perde.
+
+### Alertas de POI (26/09/2026)
+
+O setup do journal passa a AVISO: `poisDeSessao`/`toquesPoi` no core (as regras
+do asia-range-poi.mjs), `pipeline/alertas-poi.ts` no motor (08:00–11:00 de
+Londres, forex e metais dos portfólios, Telegram + push uma vez por POI e por
+dia) e a aba "POI" no gráfico. No backtest do GBPJPY, Londres chegou a um POI
+do lado da estrutura em ~20% dos dias: cerca de um aviso por semana e por par.
+
 Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
 `planIctAlgo`, via o novo parâmetro `aceitar` de `percorrerIct`) e `CUSTO_MULT`
 (0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção

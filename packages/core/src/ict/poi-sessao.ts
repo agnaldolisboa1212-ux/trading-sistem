@@ -170,6 +170,10 @@ export function poisDeSessao(v15: readonly Candle[], agora: number): LeituraPoi 
     if (venda ? op < preco : op > preco) opostos.push({ preco: op, rotulo: venda ? 'mínimo da Ásia' : 'máximo da Ásia' });
   }
   opostos.sort((a, b) => (venda ? b.preco - a.preco : a.preco - b.preco));
+  // Dois swings com o mesmo extremo são a mesma liquidez: um só nível.
+  const liquidezOposta = opostos.filter((o, i) => i === 0 || o.preco !== opostos[i - 1]!.preco);
+  // O mesmo para os POI com o mesmo extremo no mesmo dia.
+  const unicos = pois.filter((z, i) => pois.findIndex((x) => x.chave === z.chave) === i);
 
   return {
     dia,
@@ -179,8 +183,8 @@ export function poisDeSessao(v15: readonly Candle[], agora: number): LeituraPoi 
     vies: q.lado,
     estrutura: { tipo: q.tipo, nivel: q.nivel, time: q.time },
     asia,
-    pois,
-    liquidezOposta: opostos,
+    pois: unicos,
+    liquidezOposta,
     preco,
     atr,
   };
