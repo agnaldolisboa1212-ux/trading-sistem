@@ -37,6 +37,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import {
   agregar,
   custoTipico,
@@ -105,7 +106,8 @@ const est = (rs) => {
 const razoes = new Map();
 const razao = (r) => razoes.set(r, (razoes.get(r) ?? 0) + 1);
 
-function correr(par) {
+/** Os sinais de um par; `desde`/`ate` limitam os dias (o journal só precisa de semanas). */
+export function correr(par, { desde = DESDE, ate = Infinity } = {}) {
   const refNome = paresSmtIct(par).find((p) => existe(p, '1m') && existe(p, '15m')) ?? (par.endsWith('JPY') ? 'USDJPY' : undefined);
   if (!refNome) return { erro: 'sem par de SMT com dados de 1M' };
   const v1 = ler(par, '1m');
@@ -175,8 +177,8 @@ function correr(par) {
   }
 
   const ops = [];
-  let k = primeira(v1, DESDE);
-  while (k < v1.length) {
+  let k = primeira(v1, desde);
+  while (k < v1.length && v1[k].time < ate) {
     // Primeira vela de 1M das 08:00 de Londres (ou depois) deste dia.
     const dia = diaLondres(v1[k].time);
     let i08 = k;
@@ -287,6 +289,7 @@ function correr(par) {
         if (sim.r === null) continue;
         ops.push({
           t: c.time,
+          dia,
           r: sim.r,
           alta,
           saida: sim.saida,
@@ -321,7 +324,9 @@ function linha(rotulo, ops) {
 
 const cab = ''.padEnd(28) + 'n'.padStart(5) + 'acerto'.padStart(7) + 'R/op'.padStart(9) + 't'.padStart(8) + '1.ª met'.padStart(9) + '2.ª met'.padStart(9);
 
-if (process.env.RAZOES) {
+const principal = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (principal && process.env.RAZOES) {
   const par = process.env.RAZOES === '1' ? 'GBPJPY' : process.env.RAZOES;
   const r = correr(par);
   console.log(`${par}: ${r.ops?.length ?? 0} operações; o que aconteceu a cada MSS de 1M depois do varrimento:`);
@@ -337,10 +342,12 @@ if (process.env.RAZOES) {
   process.exit(0);
 }
 
-for (const [titulo, lista] of [
-  ['AO VIVO (os pares da estratégia)', AO_VIVO],
-  ['CONTROLO (pares que nunca entraram em escolha)', CONTROLO],
-]) {
+for (const [titulo, lista] of principal
+  ? [
+      ['AO VIVO (os pares da estratégia)', AO_VIVO],
+      ['CONTROLO (pares que nunca entraram em escolha)', CONTROLO],
+    ]
+  : []) {
   console.log(`\n== Asia Range 1M · ${titulo} · MSS e entrada em 1M · 2022+ · custos ×${process.env.CUSTO_MULT ?? 1}\n${cab}`);
   const todas = [];
   razoes.clear();
