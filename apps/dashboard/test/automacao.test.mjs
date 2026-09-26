@@ -140,3 +140,13 @@ test('arredonda o lote para baixo, ao passo do instrumento', () => {
 test('sem conta cTrader escolhida não há ordem', () => {
   assert.equal(decidirAutomacao(factos({ definicoes: { contaCtrader: null } })).ok, false);
 });
+
+test('automação: ICT ALGO e Asia Range Algo são alerta — nunca saem como ordem, mesmo escolhidos', () => {
+  for (const estrategia of ['ict-algo', 'asia-range-algo']) {
+    const r = decidirAutomacao(
+      factos({ definicoes: { estrategias: [estrategia] }, sinal: { estrategia } }),
+    );
+    assert.equal(r.ok, false);
+    assert.match(r.motivo, /alerta/);
+  }
+});

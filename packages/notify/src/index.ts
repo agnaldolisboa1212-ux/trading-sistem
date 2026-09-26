@@ -18,7 +18,7 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, relogioLondres, type SinalIct } from '@trading/core';
+import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, relogioLondres, soAlerta, type SinalIct } from '@trading/core';
 
 
 export interface NotifyResult {
@@ -635,8 +635,65 @@ export async function difundirSinalIct(s: SinalIct, casas: number): Promise<Noti
   ]);
 }
 
+/**
+ * Alerta de setup — o sinal de uma estratégia `soAlerta` (ICT ALGO, Asia Range
+ * Algo), dito como zona e não como ordem: a decisão é de quem opera.
+ */
+export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: string[] } {
+  const venda = s.direccao === 'bearish';
+  const n = (v: number) => v.toFixed(s.casas);
+  const alvo = s.alvos[0];
+  const agora = frasePreco(s);
+  return {
+    titulo: `📍 SETUP ${nomeDeEstrategia(s.estrategia)} · ${s.simbolo} ${s.timeframe} · zona de ${venda ? 'VENDA' : 'COMPRA'}`,
+    corpo: [
+      `Zona de entrada ${n(s.entrada)} · invalidação ${n(s.stop)}` +
+        (alvo ? ` · liquidez alvo ${n(alvo.preco)} (${alvo.r.toFixed(1)}R)` : ''),
+      ...(agora && s.precoActual !== undefined ? [`Agora ${n(s.precoActual)} · ${agora}`] : []),
+      ...(s.noticia ? [`⚠ ${s.noticia.slice(0, 140)}`] : []),
+      `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
+    ],
+  };
+}
+
+export function formatarAlertaSetup(s: SinalTempoReal): string {
+  const { titulo, corpo } = linhasAlertaSetup(s);
+  const razao = s.razao.length > 320 ? `${s.razao.slice(0, 317)}...` : s.razao;
+  return [
+    `*${escapeMarkdown(titulo)}*`,
+    '',
+    ...corpo.map(escapeMarkdown),
+    '',
+    `_${escapeMarkdown(razao)}_`,
+    '',
+    `_${escapeMarkdown('Alerta, não sinal: sem vantagem medida no backtest 2022–2026, e a automação de ordens não o executa.')}_`,
+  ].join(String.fromCharCode(10));
+}
+
+async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
+  const { titulo, corpo } = linhasAlertaSetup(s);
+  return Promise.all([
+    sendTelegram(formatarAlertaSetup(s)),
+    sendToN8n('signal.realtime', { ...s, geradoEm: new Date(s.geradoEm).toISOString(), soAlerta: true }),
+    sendPush({
+      titulo,
+      corpo: corpo.join(String.fromCharCode(10)),
+      // A análise parte do 15M, na aba da estratégia que deu o alerta.
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=15m&v=${s.estrategia}`,
+      tag: s.id,
+      validadeS: s.validadeAvisoS,
+      urgencia: 'high',
+      topico: `${s.simbolo}-${s.timeframe}`,
+      simbolo: s.simbolo,
+      timeframe: s.timeframe,
+    }),
+  ]);
+}
+
 /** Difunde um sinal de tempo real por Telegram, n8n e push. */
 export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyResult[]> {
+  // ICT ALGO e Asia Range Algo: alerta de setup, a decisão é de quem opera.
+  if (soAlerta(s.estrategia)) return difundirAlertaSetup(s);
   const compra = s.direccao === 'bullish';
   const estrategia = nomeDeEstrategia(s.estrategia);
   return Promise.all([

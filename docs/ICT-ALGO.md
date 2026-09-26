@@ -466,6 +466,15 @@ Dá muitas operações (o Judas swing acontece em ~40% dos dias), mas o alvo na
 liquidez diária fica longe (RR planeado 9–13) e só 18–23% acertam: sem custos
 é zero, com custos perde.
 
+### ICT ALGO e Asia Range Algo passam a ALERTA (26/09/2026)
+
+A pedido do Agnaldo ("não desliga mas muda para POI, eu serei a decisão"): as
+duas continuam a correr e a avisar, mas `SO_ALERTA` (core) faz com que o
+Telegram e o push saiam como "📍 SETUP … zona de VENDA/COMPRA" — zona de
+entrada, invalidação, liquidez alvo e "a decisão é sua" —, a automação de
+ordens recuse-as (motor e `decidirAutomacao`, com teste) e a lista de sinais e o
+painel da automação as marquem como "só alerta".
+
 ### Alertas de POI (26/09/2026)
 
 O setup do journal passa a AVISO: `poisDeSessao`/`toquesPoi` no core (as regras

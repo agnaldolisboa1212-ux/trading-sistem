@@ -162,6 +162,21 @@ export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
   return ESTRATEGIAS_EM_TESTE.find((e) => e.id === id);
 }
 
+/**
+ * Estratégias que chegam como ALERTA e não como sinal (26/09/2026, a pedido do
+ * Agnaldo: "não desliga mas muda para POI, eu serei a decisão").
+ *
+ * Nenhuma teve vantagem medida (docs/ICT-ALGO.md). Continuam a correr e a
+ * avisar, com os níveis como referência — zona de entrada, invalidação,
+ * liquidez alvo —, mas a decisão é de quem opera: o aviso diz-o, e a automação
+ * de ordens não as executa.
+ */
+export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo'];
+
+export function soAlerta(id: string): boolean {
+  return SO_ALERTA.includes(id);
+}
+
 export function temEstrategiaEmTeste(simbolo: string): boolean {
   const s = simbolo.toUpperCase();
   return ESTRATEGIAS_EM_TESTE.some((e) => e.instrumentos.includes(s));

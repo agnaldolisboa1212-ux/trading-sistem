@@ -24,6 +24,8 @@
  * consegue testar cada travão sem tocar no dinheiro de ninguém.
  */
 
+import { soAlerta } from '@trading/core';
+
 export interface DefinicoesAutomacao {
   activa: boolean;
   contaRealPermitida: boolean;
@@ -104,6 +106,9 @@ export function decidirAutomacao(f: FactosAutomacao): DecisaoAutomacao {
   if (d.contaCtrader === null) return { ok: false, motivo: 'Sem conta cTrader escolhida para a automação.' };
   if (f.conta.real && !d.contaRealPermitida) {
     return { ok: false, motivo: 'Conta real sem autorização explícita para automação.' };
+  }
+  if (soAlerta(s.estrategia)) {
+    return { ok: false, motivo: `${s.estrategia} é alerta: a decisão é sua, a automação não a executa.` };
   }
   if (!d.estrategias.includes(s.estrategia)) {
     return { ok: false, motivo: `Estratégia ${s.estrategia} fora da automação.` };

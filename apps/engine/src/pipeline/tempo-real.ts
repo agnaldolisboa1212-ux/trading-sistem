@@ -44,6 +44,7 @@ import {
   planoVivo,
   proximidadeDosSinais,
   riscoDeNoticias,
+  soAlerta,
   timeframesDoPerfil,
   VELAS_ATE_EXPIRAR,
   type Candle,
@@ -948,7 +949,8 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
           if (db && persistencia === 'supabase' && saidas.some((o) => o.ok)) {
             await db.from('sinais_tempo_real').update({ notificado: true }).eq('id', sinal.id);
           }
-          const auto = await pedirOrdemAutomatica(sinal);
+          // ICT ALGO e Asia Range Algo são alerta: a decisão é de quem opera.
+          const auto = soAlerta(sinal.estrategia) ? null : await pedirOrdemAutomatica(sinal);
           if (auto) analise.nota = auto;
         }
 
