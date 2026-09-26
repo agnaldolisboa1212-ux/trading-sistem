@@ -5,7 +5,7 @@ import {
   acompanharOperacao,
   fraseEvento
 } from '@trading/core';
-import { velasDeriv } from '@trading/data';
+import { velasFechadasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 
 export const dynamic = 'force-dynamic';
@@ -67,7 +67,7 @@ export async function GET() {
       const precisa = Math.min(1000, Math.ceil((Date.now() - tempoMs) / (gran * 1000)) + 63);
 
       try {
-        const velas = (await velasDeriv(s.deriv, gran, precisa)).filter((c) => c.time + gran * 1000 <= Date.now());
+        const velas = await velasFechadasDeriv(s.deriv, gran, precisa);
         const a = acompanharOperacao({
           estrategia: estrategia.id,
           direccao: sinal.direccao,

@@ -21,7 +21,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { velasDeriv } from '@trading/data';
+import { velasFechadasDeriv } from '@trading/data';
 import { agregar, confirmacaoLtf, correrIctAlgo, paresSmtIct, type Candle, type Timeframe } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { clienteServidor } from '@/lib/supabase/servidor';
@@ -38,11 +38,9 @@ const GRANULARIDADE_S: Record<string, number> = { '15m': 900, '1h': 3600, '4h': 
  */
 const VELAS_EXECUCAO = 3500;
 
-async function fechadas(derivSymbol: string, gran: number, quantas: number): Promise<Candle[]> {
-  const brutas = await velasDeriv(derivSymbol, gran, quantas);
-  // A Deriv devolve a vela em formação no fim. O algoritmo só lê velas fechadas.
-  return brutas.filter((c) => c.time + gran * 1000 <= Date.now());
-}
+/** O algoritmo só lê velas fechadas; ficam guardadas até fechar a seguinte. */
+const fechadas = (derivSymbol: string, gran: number, quantas: number): Promise<Candle[]> =>
+  velasFechadasDeriv(derivSymbol, gran, quantas);
 
 const semCache = { headers: { 'Cache-Control': 'no-store' } };
 

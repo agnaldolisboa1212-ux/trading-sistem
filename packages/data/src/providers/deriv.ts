@@ -28,6 +28,7 @@ import {
   type CandleRequest,
   type DataProvider,
 } from '../types.js';
+import { RitmoPedidos } from './ritmo.js';
 
 /**
  * Endpoint de dados de mercado.
@@ -97,6 +98,20 @@ const SYMBOLS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // Ligacao partilhada
 // ---------------------------------------------------------------------------
+
+/**
+ * O travao dos pedidos de velas desta ligacao (ver `ritmo.ts`, com as medicoes).
+ * 15 de seguida, depois 2 por segundo, 4 em voo: no pior caso 135 num minuto,
+ * contra os ~220 em 6 s que bloquearam a ligacao no teste. A pausa depois de um
+ * RateLimit cobre os ~54 s medidos.
+ */
+const ritmoVelas = new RitmoPedidos({
+  maxEmVoo: 4,
+  rajada: 15,
+  porSegundo: 2,
+  pausaMs: 55_000,
+  esperaMaximaMs: 30_000,
+});
 
 interface Pendente {
   resolve: (valor: Record<string, unknown>) => void;
@@ -180,16 +195,38 @@ class DerivConnection {
   }
 
   async send(payload: Record<string, unknown>, timeoutMs = 25_000): Promise<Record<string, unknown>> {
-    const ws = await this.socket();
+    // Os pedidos de velas passam pelo travao; os outros (active_symbols, time) nao.
+    const velas = 'ticks_history' in payload;
+    const libertar = velas ? await ritmoVelas.vez() : null;
+    let ws: WebSocket;
+    try {
+      ws = await this.socket();
+    } catch (err) {
+      libertar?.();
+      throw err;
+    }
     const id = this.proximoId++;
 
     return new Promise<Record<string, unknown>>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendentes.delete(id);
+        libertar?.();
         reject(new Error(`timeout apos ${timeoutMs}ms a aguardar a Deriv`));
       }, timeoutMs);
 
-      this.pendentes.set(id, { resolve, reject, timer });
+      this.pendentes.set(id, {
+        resolve: (msg) => {
+          libertar?.();
+          const erro = msg['error'] as { code?: string } | undefined;
+          if (velas && erro?.code === 'RateLimit') ritmoVelas.bloquear();
+          resolve(msg);
+        },
+        reject: (erro) => {
+          libertar?.();
+          reject(erro);
+        },
+        timer,
+      });
       ws.send(JSON.stringify({ ...payload, req_id: id }));
     });
   }
@@ -380,6 +417,10 @@ export async function velasDeriv(
   if (guardada && guardada.count >= count && agora - guardada.em < ttlVelas(granularidade)) {
     return guardada.velas.slice(-count);
   }
+  // Ligacao em pausa por um RateLimit: a copia guardada, sem entrar na fila.
+  if (ritmoVelas.pausadaAte() > 0 && guardada && guardada.count >= count && agora - guardada.em < VELAS_VELHAS_MAX_MS) {
+    return guardada.velas.slice(-count);
+  }
 
   // Um pedido igual (ou maior) ja em curso: espera por ele em vez de repetir.
   const emCurso = pedidosVelas.get(chave);
@@ -387,18 +428,18 @@ export async function velasDeriv(
     return (await emCurso.promessa).slice(-count);
   }
 
-  const promessa = pedirVelasComRepeticao(derivSymbol, granularidade, count);
+  const promessa = pedirVelas(derivSymbol, granularidade, count);
   pedidosVelas.set(chave, { count, promessa });
   try {
     const velas = await promessa;
     cacheVelas.set(chave, { count, velas, em: Date.now() });
     return velas;
   } catch (err) {
-    // Limite de pedidos atingido: velas com poucos minutos valem mais do que um
-    // painel vazio. So se servem se cobrirem o pedido e nao forem velhas demais.
+    // Limite de pedidos atingido (ou fila cheia): velas com poucos minutos valem
+    // mais do que um painel vazio. So se servem se cobrirem o pedido e nao forem
+    // velhas demais.
     if (
-      err instanceof ProviderError &&
-      /RateLimit/.test(err.message) &&
+      /RateLimit/.test(err instanceof Error ? err.message : String(err)) &&
       guardada &&
       guardada.count >= count &&
       Date.now() - guardada.em < VELAS_VELHAS_MAX_MS
@@ -412,7 +453,7 @@ export async function velasDeriv(
 }
 
 /*
- * ── PORQUE HA CACHE E REPETICAO EM `velasDeriv` ────────────────────────────
+ * ── PORQUE HA CACHE E TRAVAO EM `velasDeriv` ───────────────────────────────
  *
  * Medido: com o grafico aberto, o ICT ALGO (execucao + diario + par, a cada
  * 60s), o radar, o painel de agentes e os sinais pediam as MESMAS series em
@@ -420,12 +461,13 @@ export async function velasDeriv(
  * `RateLimit: You have reached the rate limit for ticks_history` e o painel
  * mostrava "Falha a obter as velas".
  *
- * Tres travoes, do mais barato ao mais caro:
- *   · cache curta por simbolo+granularidade — as velas fechadas so mudam
- *     quando fecha uma vela nova;
+ * Quatro travoes, do mais barato ao mais caro:
+ *   · cache curta por simbolo+granularidade; `velasFechadasDeriv` guarda ate
+ *     fechar a vela seguinte — as velas fechadas so mudam entao;
  *   · pedidos iguais em curso partilham a mesma resposta;
- *   · RateLimit repete com recuo exponencial antes de desistir, e se desistir
- *     serve a ultima copia guardada, se ainda for recente.
+ *   · o ritmo da ligacao (`ritmo.ts`): no maximo 4 em voo e um a cada 0,5 s;
+ *   · RateLimit NAO se repete (as repeticoes mantinham a ligacao bloqueada):
+ *     a ligacao para 55 s e serve-se a ultima copia guardada, se for recente.
  */
 
 interface VelasGuardadas {
@@ -438,23 +480,17 @@ const cacheVelas = new Map<string, VelasGuardadas>();
 const pedidosVelas = new Map<string, { count: number; promessa: Promise<Candle[]> }>();
 
 /** Uma copia guardada so e servida em RateLimit se tiver menos do que isto. */
-const VELAS_VELHAS_MAX_MS = 10 * 60_000;
+const VELAS_VELHAS_MAX_MS = 15 * 60_000;
 
 /** Frescura aceite: 1/4 da vela, entre 15s e 60s. */
 function ttlVelas(granularidade: number): number {
   return Math.min(60_000, Math.max(15_000, (granularidade * 1000) / 4));
 }
 
-const esperar = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-async function pedirVelasComRepeticao(
-  derivSymbol: string,
-  granularidade: number,
-  count: number,
-): Promise<Candle[]> {
-  const recuos = [1_000, 2_500, 5_000];
-  for (let tentativa = 0; ; tentativa++) {
-    const resposta = await conexao.send({
+async function pedirVelas(derivSymbol: string, granularidade: number, count: number): Promise<Candle[]> {
+  let resposta: Record<string, unknown>;
+  try {
+    resposta = await conexao.send({
       ticks_history: derivSymbol,
       adjust_start_time: 1,
       count,
@@ -463,28 +499,52 @@ async function pedirVelasComRepeticao(
       style: 'candles',
       granularity: granularidade,
     });
-
-    const erro = resposta['error'] as { code?: string; message?: string } | undefined;
-    if (erro) {
-      if (erro.code === 'RateLimit' && tentativa < recuos.length) {
-        await esperar(recuos[tentativa]!);
-        continue;
-      }
-      throw new ProviderError(`Deriv ${erro.code}: ${erro.message}`, 'deriv', erro.code !== 'InvalidSymbol');
-    }
-
-    const brutas = (resposta['candles'] ?? []) as DerivCandle[];
-    return normalizeCandles(
-      brutas.map((c) => ({
-        time: Number(c.epoch) * 1000,
-        open: Number(c.open),
-        high: Number(c.high),
-        low: Number(c.low),
-        close: Number(c.close),
-        volume: 0,
-      })),
-    );
+  } catch (err) {
+    throw new ProviderError(`Deriv ${err instanceof Error ? err.message : String(err)}`, 'deriv', true);
   }
+
+  const erro = resposta['error'] as { code?: string; message?: string } | undefined;
+  if (erro) {
+    throw new ProviderError(`Deriv ${erro.code}: ${erro.message}`, 'deriv', erro.code !== 'InvalidSymbol');
+  }
+
+  const brutas = (resposta['candles'] ?? []) as DerivCandle[];
+  return normalizeCandles(
+    brutas.map((c) => ({
+      time: Number(c.epoch) * 1000,
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close),
+      volume: 0,
+    })),
+  );
+}
+
+/** Um pedido feito tao perto do fecho pode ainda nao trazer a vela que acabou de fechar. */
+const FOLGA_FECHO_MS = 3_000;
+
+/**
+ * So as velas FECHADAS, ate `quantidade`. Guardadas ate fechar a vela seguinte:
+ * um diario pede-se uma vez por dia, nao uma vez por minuto. E o que as rotas
+ * de analise precisam — todas cortavam a vela em formacao.
+ */
+export async function velasFechadasDeriv(
+  derivSymbol: string,
+  granularidade: number,
+  quantidade: number,
+): Promise<Candle[]> {
+  const passo = granularidade * 1000;
+  const fechadas = (velas: Candle[]): Candle[] => {
+    const agora = Date.now();
+    return velas.filter((c) => c.time + passo <= agora).slice(-quantidade);
+  };
+  const guardada = cacheVelas.get(`${derivSymbol}:${granularidade}`);
+  const periodo = Math.floor(Date.now() / passo) * passo;
+  if (guardada && guardada.count >= quantidade + 1 && guardada.em >= periodo + FOLGA_FECHO_MS) {
+    return fechadas(guardada.velas);
+  }
+  return fechadas(await velasDeriv(derivSymbol, granularidade, quantidade + 1));
 }
 
 /**

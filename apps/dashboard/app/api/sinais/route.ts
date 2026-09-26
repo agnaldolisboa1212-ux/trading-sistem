@@ -22,7 +22,7 @@ import {
   type Acompanhamento,
   type Candle,
 } from '@trading/core';
-import { velasDeriv } from '@trading/data';
+import { velasFechadasDeriv } from '@trading/data';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { planoVivo, type EstadoPlano } from '@/lib/estado-sinal';
 import { clienteServidor } from '@/lib/supabase/servidor';
@@ -109,7 +109,7 @@ async function velasDesde(simbolo: string, timeframe: string, desdeMs: number): 
   if (guardado && guardado.ate > Date.now() && guardado.velas.length >= precisa) return guardado.velas;
   try {
     // Só velas FECHADAS: a que está em formação ainda pode mudar o estado.
-    const velas = (await velasDeriv(s.deriv, gran, precisa)).filter((c) => c.time + gran * 1000 <= Date.now());
+    const velas = await velasFechadasDeriv(s.deriv, gran, precisa);
     if (memoriaVelas.size > 200) memoriaVelas.clear();
     memoriaVelas.set(chave, { ate: Date.now() + 60_000, velas });
     return velas;

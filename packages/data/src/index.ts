@@ -26,7 +26,9 @@ export {
   derivSymbols,
   mercadosAbertosDeriv,
   velasDeriv,
+  velasFechadasDeriv,
 } from './providers/deriv.js';
+export { RitmoPedidos, type OpcoesRitmo } from './providers/ritmo.js';
 /*
  * Seleccao explicita, e nao `export *`: o catalogo exporta nomes genericos
  * (`Timeframe`, `TIMEFRAMES`, `TODOS`) que colidiriam com o resto do pacote. O
