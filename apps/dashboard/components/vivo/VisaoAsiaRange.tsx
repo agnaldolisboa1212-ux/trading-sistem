@@ -3,7 +3,7 @@
 /**
  * Asia Range Algo — a aba do gráfico.
  *
- * A análise vem do servidor (`/api/asia-range/<símbolo>`), a mesma que o motor
+ * A análise é calculada no browser (`lib/analise-browser.ts`), a mesma que o motor
  * usa para gerar os sinais. Aqui só se mostra e se desenha, como nos prints do
  * journal: a caixa da Ásia, o POI de Londres, a linha do SMT do extremo
  * asiático ao pavio que o varreu, e a ferramenta de posição.
@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { AVISO_ASIA_RANGE, type AnaliseAsiaRange } from '@trading/core';
 import { formatarPreco } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
+import { analisarAsiaBrowser } from '@/lib/analise-browser';
 import type { PlanoParaOrdem } from './Negociar';
 import { Passos, caixasDeSessao } from './VisaoIct';
 
@@ -25,7 +26,7 @@ export interface EstadoAsiaRange {
   em: number;
 }
 
-/** Pede a análise quando a aba está aberta e renova-a a cada minuto. */
+/** Calcula a análise (no browser) quando a aba está aberta e renova-a a cada minuto. */
 export function usarAsiaRange(codigo: string, activo: boolean): EstadoAsiaRange | null {
   const [estado, setEstado] = useState<EstadoAsiaRange | null>(null);
   useEffect(() => {
@@ -33,14 +34,13 @@ export function usarAsiaRange(codigo: string, activo: boolean): EstadoAsiaRange 
     let cancelado = false;
     const pedir = async () => {
       try {
-        const r = await fetch(`/api/asia-range/${encodeURIComponent(codigo)}`, { cache: 'no-store' });
-        const j = (await r.json()) as { analise?: AnaliseAsiaRange | null; porqueNao?: string; erro?: string; em?: number };
+        const j = await analisarAsiaBrowser(codigo);
         if (cancelado) return;
         setEstado({
           codigo,
           analise: j.analise ?? null,
-          erro: j.analise ? null : (j.porqueNao ?? j.erro ?? 'sem resposta do servidor'),
-          em: j.em ?? Date.now(),
+          erro: j.analise ? null : (j.porqueNao ?? 'sem análise'),
+          em: j.em,
         });
       } catch (e) {
         if (!cancelado) setEstado({ codigo, analise: null, erro: e instanceof Error ? e.message : String(e), em: Date.now() });

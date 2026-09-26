@@ -258,3 +258,36 @@ A correção (`packages/data/src/providers/ritmo.ts` e `deriv.ts`):
 
 Verificado contra a Deriv: 60 séries diferentes pedidas de uma vez passaram
 todas em 23 s, sem RateLimit; pedidas outra vez, vieram da cache em 0,01 s.
+
+### 8b. O travão não chegou: o IP do servidor é limitado — as análises passam para o browser
+
+Depois do travão, em produção (sábado, mercado fechado, quase sem tráfego
+nosso), as rotas `/api/ict` e `/api/asia-range` continuavam com "Deriv
+RateLimit", e o motor — noutra ligação — levava RateLimit em `active_symbols`.
+Daqui, noutro IP, 60 séries de uma vez passavam todas; um teste longo a 1
+pedido por segundo acabou com a Deriv a deixar de responder e a fechar a
+ligação ao fim de ~2 minutos. Conclusão: o endpoint público limita o IP do
+servidor, que no alojamento é partilhado com outros sites. A documentação da
+Deriv não publica números ("os limites variam") e recomenda cache, recuo e
+subscrições em vez de pedidos repetidos.
+
+O gráfico já vivia de uma ligação direta do browser (`live.ts`). As análises
+passaram a viver também:
+
+- `lib/deriv/velas-browser.ts` — velas fechadas pedidas pela ligação do
+  browser, com o mesmo travão (`@trading/data/ritmo`) e a cache até ao fecho da
+  vela seguinte;
+- `lib/analise.worker.ts` + `lib/analise-calculo.ts` — o ICT ALGO (~1,3 s com
+  3500 velas) e as estratégias dos agentes correm num Web Worker, sem congelar
+  o ecrã; sem worker, correm na thread principal;
+- `lib/analise-browser.ts` — `analisarIctBrowser`, `analisarAsiaBrowser` e
+  `radarBrowser`: as mesmas séries e o mesmo formato das rotas antigas. A aba do
+  ICT, a do Asia Range e o painel de agentes já não pedem nada ao servidor.
+
+Verificado em Node contra a Deriv: Asia Range do GBPJPY em 2,2 s; o radar de 8
+pares em cada grupo (básico, ICT, Asia) sem erros; a segunda volta da cache.
+
+O que continua no servidor: o motor (sinais, Telegram) e o acompanhamento da
+lista de sinais (`/api/sinais`). Se o IP continuar limitado nos dias de
+mercado, o passo seguinte é o motor usar a ligação autenticada da conta Deriv
+(OTP, como o `conta-ouvinte`) ou correr num servidor com IP próprio.

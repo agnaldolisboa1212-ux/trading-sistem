@@ -10,6 +10,10 @@
     "./deriv-simbolos": {
       "types": "./dist/deriv-simbolos.d.ts",
       "default": "./dist/deriv-simbolos.js"
+    },
+    "./ritmo": {
+      "types": "./dist/providers/ritmo.d.ts",
+      "default": "./dist/providers/ritmo.js"
     }
   },
   "scripts": {

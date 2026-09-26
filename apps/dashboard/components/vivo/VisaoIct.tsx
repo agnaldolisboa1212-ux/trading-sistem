@@ -12,9 +12,9 @@
  *   4  os sete        o que cada modelo vê neste momento, e onde parou
  *   5  o placar       como cada modelo tem corrido NESTE instrumento
  *
- * Tudo vem do servidor, calculado sobre velas reais da Deriv. Nada é simulado,
- * nada é aleatório, nada tem preços escritos à mão — que era exactamente o que
- * o painel anterior fazia.
+ * Tudo é calculado sobre velas reais da Deriv, pedidas pelo próprio browser
+ * (`lib/analise-browser.ts`). Nada é simulado, nada é aleatório, nada tem
+ * preços escritos à mão — que era exactamente o que o painel anterior fazia.
  */
 
 import { useEffect, useState } from 'react';
@@ -22,6 +22,7 @@ import type { AnaliseIct, ModeloIct, PassoTopDown, SinalIct, Varrimento } from '
 import { NOME_MODELO, relogioLondres } from '@trading/core';
 import { formatarPreco } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
+import { analisarIctBrowser } from '@/lib/analise-browser';
 import type { PlanoParaOrdem } from './Negociar';
 
 /** Timeframes em que o algoritmo executa. Noutros, corre em 1H e diz-se. */
@@ -52,9 +53,9 @@ interface Estado {
 }
 
 /**
- * Pede a análise ICT ao servidor quando a secção está aberta, e renova-a a
- * cada minuto — o algoritmo decide sobre velas fechadas, e um minuto chega
- * para apanhar o fecho de uma vela de 15M sem martelar a rede.
+ * Calcula a análise ICT quando a secção está aberta, e renova-a a cada minuto —
+ * o algoritmo decide sobre velas fechadas, e um minuto chega para apanhar o
+ * fecho de uma vela de 15M. Entre fechos, as velas e a análise vêm da cache.
  */
 export function usarIct(codigo: string, tf: string, activo: boolean): Estado | null {
   const tfIct = tfDoIct(tf);
@@ -66,14 +67,13 @@ export function usarIct(codigo: string, tf: string, activo: boolean): Estado | n
     let cancelado = false;
     const pedir = async () => {
       try {
-        const r = await fetch(`/api/ict/${encodeURIComponent(codigo)}?tf=${tfIct}`, { cache: 'no-store' });
-        const j = (await r.json()) as { analise?: AnaliseIct | null; porqueNao?: string; erro?: string; em?: number };
+        const j = await analisarIctBrowser(codigo, tfIct as '15m' | '1h' | '4h');
         if (cancelado) return;
         setEstado({
           chave,
           analise: j.analise ?? null,
-          erro: j.analise ? null : (j.porqueNao ?? j.erro ?? 'sem resposta do servidor'),
-          em: j.em ?? Date.now(),
+          erro: j.analise ? null : (j.porqueNao ?? 'sem análise'),
+          em: j.em,
         });
       } catch (e) {
         if (!cancelado) setEstado({ chave, analise: null, erro: e instanceof Error ? e.message : String(e), em: Date.now() });

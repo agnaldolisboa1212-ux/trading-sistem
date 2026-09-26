@@ -31,6 +31,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ASIA_RANGE_EM_TESTE, ICT_ALGO_EM_TESTE } from '@trading/core';
 import Link from 'next/link';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
+import { radarBrowser } from '@/lib/analise-browser';
 
 export interface Resultado {
   simbolo: string;
@@ -88,11 +89,9 @@ async function pedirRadar(
   for (let tentativa = 0; ; tentativa++) {
     let resultado: Resultado;
     try {
-      const url = `/api/radar/${encodeURIComponent(simbolo)}?tf=${encodeURIComponent(timeframe)}&grupo=${grupo}`;
-      const r = await fetch(url, {
-        cache: 'no-store',
-      });
-      resultado = r.ok || r.status < 500 ? ((await r.json()) as Resultado) : { simbolo, erro: `HTTP ${r.status}` };
+      // Calculado no browser, com velas pedidas pela ligação do browser à Deriv
+      // (lib/analise-browser.ts): o servidor levava RateLimit da Deriv.
+      resultado = (await radarBrowser(simbolo, timeframe, grupo)) as Resultado;
     } catch (err) {
       resultado = { simbolo, erro: err instanceof Error ? err.message : String(err) };
     }
