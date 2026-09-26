@@ -404,6 +404,48 @@ são todos anteriores à entrada).
   Asia Range ao vivo continua o que era (MSS em 15M, confirmação em 1M, em
   teste e com o aviso).
 
+### Asia Range POI — a estratégia do journal descrita pelo Agnaldo (26/09/2026): chumbou
+
+O setup, nas palavras do Agnaldo e nos prints (TradingView e Notion): POI = os
+retângulos roxos/azuis (prints) e cinzentos (Notion) — topos e fundos de
+sessões anteriores (2–3 dias), da vela do extremo, prolongados até o preço lá
+voltar; viés = a estrutura de mercado (as linhas vermelhas são BOS/MSS);
+depois da Ásia, antes da sobreposição com Nova Iorque, o preço vai (nem sempre)
+a um POI; MSS na micro-estrutura (1M) e entrada no regresso ao "POI em micro
+timeframe"; alvo na liquidez do lado oposto (daí os RR de 7 a 18). SMT como
+confluência (ex.: GBPJPY sobe ao POI e o USDJPY desce). Notas do journal: a
+divergência SMT só vale a partir das 9h.
+
+`scripts/backtest/asia-range-poi.mjs`, regras no cabeçalho, fixadas antes de
+correr; 8 pares ao vivo (os do journal e dos prints) e 4 de controlo, 2022+,
+1M do HistData.
+
+| Versão | Custos | Ao vivo (8 pares) | Controlo (4 pares) |
+|---|---|---|---|
+| A — entrada a mercado no MSS de 1M | normais | 730 op · −0,160R · t=−2,1 | 282 · −0,115R |
+| A | sem custos | +0,072R · t=1,0 (+0,112 / +0,026) | +0,116R · t=0,9 |
+| C — limite no micro-POI (order block de 1M) | normais | 549 · −0,393R · t=−3,7 | 223 · −0,204R |
+| C | metade | −0,204R · t=−2,0 | −0,022R |
+| C | sem custos | −0,014R | +0,159R · t=0,9 |
+| C, só com SMT | sem custos | 63 · −0,048R | 56 · +0,152R |
+
+- **Nenhuma versão passa.** Com custos perdem; sem custos ficam perto de zero.
+  A versão A é a primeira de todas as medições com o bruto positivo também no
+  controlo, mas com t≈1 — não se distingue do acaso.
+- **O SMT não acrescenta** nada medível.
+- **A entrada no micro-POI (C) é pior do que a mercado (A)**: a mesma selecção
+  adversa das ordens limite medida no ICT ALGO — as ordens que enchem são as
+  que o preço atravessa.
+- **Os stops curtos são o problema dos custos**: o stop da C fica a poucos pips
+  e o custo de uma conta normal (3 pips no GBPJPY) pesa mais do que 1R numa
+  perda.
+- As compras foram positivas sem custos nos dois grupos (A: +0,179R e +0,317R;
+  C: +0,202R e +0,507R) e as vendas negativas. Não foi fixado antes: pode ser o
+  regime de 2022–2026 (iene fraco), não uma regra.
+- Diferença que ficou por medir: o stop. A regra fixada pôs o stop no extremo
+  da zona do POI de 15M (stop médio 1,6–2,3 ATR); no desenho do Agnaldo o stop
+  fica logo acima do máximo feito no micro-POI.
+
 Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
 `planIctAlgo`, via o novo parâmetro `aceitar` de `percorrerIct`) e `CUSTO_MULT`
 (0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção
