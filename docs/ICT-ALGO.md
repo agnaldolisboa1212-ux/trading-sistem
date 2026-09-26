@@ -380,6 +380,30 @@ Leituras:
   para o RR seria detectar o MSS no próprio 1M (stop mais curto) — isso é outra
   estratégia, e teria de passar pela mesma medição.
 
+### Asia Range 1M — o MSS no próprio 1M (26/09/2026): chumbou
+
+A alavanca para o RR que ficou por testar: detectar o MSS em 1M, entrar no
+fecho dessa vela de 1M, stop no extremo da manipulação, alvo no extremo oposto
+da Ásia ou no POI (o mais próximo que pague 2R). Viés, POI e ATR lidos na
+última vela de 15M fechada; SMT com o par em 1M. Regras fixadas antes de medir
+e medidas uma só vez (`scripts/backtest/asia-range-1m.mjs`; verificada uma
+operação à mão nos dados brutos: o swing, a sua confirmação e o fecho do MSS
+são todos anteriores à entrada).
+
+| Asia Range 1M, 2022+ | Principais | Controlo |
+|---|---|---|
+| Com custos | 700 op · 21% · **−0,218R** · t=−2,7 (−0,324 / −0,090) | 702 · 20% · **−0,266R** · t=−3,0 |
+| Sem custos (diagnóstico) | +0,019R · t=0,2 | +0,050R · t=0,6 |
+
+- **Deu amostra** — 700 operações em vez de 8 —, que era o objectivo, e a
+  amostra diz que não há vantagem: sem custos fica em zero nos principais e no
+  controlo.
+- **Os custos pesam ~0,24R por operação**: o stop médio é de 1,1–1,2 ATR de
+  15M e o spread de conta normal é uma fatia grande disso.
+- Pela regra fixada antes de medir, fica **arquivada**: não passa ao motor. O
+  Asia Range ao vivo continua o que era (MSS em 15M, confirmação em 1M, em
+  teste e com o aviso).
+
 Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
 `planIctAlgo`, via o novo parâmetro `aceitar` de `percorrerIct`) e `CUSTO_MULT`
 (0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção

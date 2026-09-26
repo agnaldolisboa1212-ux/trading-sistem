@@ -27,7 +27,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { velasDeriv } from '@trading/data';
+import { velasFechadasDeriv } from '@trading/data';
 import {
   estrategiaEmTeste,
   estrategiasPara,
@@ -55,11 +55,9 @@ const GRANULARIDADE_S: Record<string, number> = {
 /** Abaixo disto as estratégias recusam-se (a mesma regra do motor). */
 const MIN_VELAS = 60;
 
-async function velasFechadas(derivSymbol: string, gran: number, quantas = 320): Promise<Candle[]> {
-  const brutas = await velasDeriv(derivSymbol, gran, quantas);
-  // A Deriv devolve a vela em formação no fim: cortá-la é o motor a fazer o mesmo.
-  return brutas.filter((c) => c.time + gran * 1000 <= Date.now());
-}
+/** Sem a vela em formação (como o motor), guardadas até fechar a seguinte. */
+const velasFechadas = (derivSymbol: string, gran: number, quantas = 320): Promise<Candle[]> =>
+  velasFechadasDeriv(derivSymbol, gran, quantas);
 
 /**
  * Os dois grupos do painel de agentes:

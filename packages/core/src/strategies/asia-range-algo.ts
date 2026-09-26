@@ -62,7 +62,8 @@ const ATRASO_MAXIMO = 3;
 /** Aviso que acompanha todos os sinais desta estratégia. */
 export const AVISO_ASIA_RANGE =
   'Estratégia do journal, sem vantagem medida: no backtest 15M 2022+ a entrada na confirmação deu +0,12R por operação ' +
-  '(t=1,1, 71 operações) com alvo a 3,5R; a versão com alvo na Ásia/POI ainda não foi medida.';
+  '(t=1,1, 71 operações) com alvo a 3,5R. Esta versão (alvo na Ásia/POI, confirmação 1M) deu 8 sinais em 4,7 anos, ' +
+  'todos no stop: não há amostra para a medir.';
 
 export interface SinalAsiaRange {
   direccao: IctDireccao;

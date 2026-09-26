@@ -223,3 +223,38 @@ própria Deriv, não de uma tabela escrita à mão que envelhece em silêncio.
 
 Ao fim de semana e de madrugada, o que continua a mexer são a cripto e os
 índices sintéticos. É por isso que a lista por omissão do onboarding os inclui.
+
+## 8. "Falha a obter as velas: Deriv RateLimit" — o limite é por ligação
+
+Medido a 26/09/2026 contra o endpoint público:
+
+| Teste | Resultado |
+|---|---|
+| 90 pedidos em série (36 s) | todos OK |
+| 60 pedidos de 3500 velas em série (44 s) | todos OK |
+| 30 pedidos em paralelo (1,3 s) | todos OK |
+| rajada: 220 pedidos em 6 s | **RateLimit** ("You have reached the rate limit for ticks_history") |
+| ligação nova, logo a seguir | OK — o limite é **por ligação**, não por IP |
+| a ligação bloqueada | volta a responder ao fim de **~54 s** |
+
+O painel e o motor têm UMA ligação cada, partilhada por todas as rotas e
+utilizadores. Os agentes (todas as séries de todos os instrumentos, a cada
+minuto), os sinais e as abas do ICT e do Asia Range — abertos em mais do que um
+dispositivo — faziam rajadas que passavam o limite; a ligação ficava quase um
+minuto a recusar tudo, e as repetições de cada pedido recusado (1 s, 2,5 s,
+5 s) mantinham-na bloqueada.
+
+A correção (`packages/data/src/providers/ritmo.ts` e `deriv.ts`):
+
+- **Travão por ligação** (balde de fichas): 15 pedidos de seguida, depois 2 por
+  segundo, no máximo 4 em voo — no pior caso 135 num minuto. O resto espera na
+  fila (até 30 s).
+- **RateLimit não se repete.** A ligação pára 55 s e, nesse tempo, serve-se a
+  última cópia guardada (até 15 min).
+- **`velasFechadasDeriv`**: as rotas de análise só usam velas fechadas, que só
+  mudam quando fecha a vela seguinte — a cópia vale até lá (um diário pede-se
+  uma vez por dia, não a cada minuto). A rota do Asia Range passou a guardar a
+  análise até ao fecho da vela de 15M, como o ICT.
+
+Verificado contra a Deriv: 60 séries diferentes pedidas de uma vez passaram
+todas em 23 s, sem RateLimit; pedidas outra vez, vieram da cache em 0,01 s.

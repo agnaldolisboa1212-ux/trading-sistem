@@ -153,7 +153,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       desde: '2026-09-25',
       revisao: '2026-12-25',
       antes:
-        'Backtest 15M 2022+ (entrada na confirmação, alvo 3,5R): +0,12R por operação, t=1,1, 71 operações. A versão com alvo na Ásia/POI ainda não foi medida.',
+        'Backtest 15M 2022+ (entrada na confirmação, alvo 3,5R): +0,12R por operação, t=1,1, 71 operações. A versão com alvo na Ásia/POI e confirmação 1M: 8 sinais em 4,7 anos, todos no stop — sem amostra. Com o MSS no próprio 1M (700 operações) perdeu −0,22R por operação, e o controlo também.',
     },
   },
 ];
