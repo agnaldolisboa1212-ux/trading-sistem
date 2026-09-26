@@ -905,8 +905,9 @@ export async function difundirAlertaPoi(a: AlertaPoi): Promise<NotifyResult[]> {
     sendPush({
       titulo,
       corpo: corpo.slice(0, 3).join(String.fromCharCode(10)),
-      // Abre o gráfico de 1M já na aba dos POI: é em 1M que se procura a entrada.
-      url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=1m&v=poi`,
+      // Abre o gráfico de 15M na aba dos POI: a análise parte do 15M (os POI e a
+      // estrutura); o 1M é só para a confirmação da entrada.
+      url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=15m&v=poi`,
       tag: `poi-${a.chave}`,
       // A janela acaba às 11:00 de Londres: depois disso o aviso já não serve.
       validadeS: 3600,
