@@ -26,7 +26,7 @@ import {
 } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { velasFechadasBrowser } from '@/lib/deriv/velas-browser';
-import { lerPreferenciasCliente } from '@/lib/preferencias';
+import { lerPerfil } from '@/lib/auth';
 import { fazer, type Trabalho } from '@/lib/analise-calculo';
 
 const GRANULARIDADE_S: Record<string, number> = {
@@ -101,13 +101,25 @@ export interface RespostaIct {
 const VELAS_EXECUCAO = 3500;
 const cacheIct = new Map<string, { ultima: number; resposta: RespostaIct }>();
 
+let portfolioGuardado: { em: number; lista: string[] } | null = null;
+
+/** O portfólio do perfil, relido no máximo uma vez por minuto. */
+async function portfolioDoPerfil(): Promise<string[]> {
+  if (portfolioGuardado && Date.now() - portfolioGuardado.em < 60_000) return portfolioGuardado.lista;
+  const p = await lerPerfil().catch(() => null);
+  const lista = (p?.instrumentos ?? []).map((c) => c.toUpperCase());
+  portfolioGuardado = { em: Date.now(), lista };
+  return lista;
+}
+
 export async function analisarIctBrowser(codigo: string, tf: '15m' | '1h' | '4h'): Promise<RespostaIct> {
   const em = Date.now();
   const s = acharSimbolo(codigo.toUpperCase());
   if (!s) return { analise: null, porqueNao: 'instrumento desconhecido', em };
 
-  // O travão de portfólio: só instrumentos escolhidos por quem vê.
-  const portfolio = lerPreferenciasCliente().instrumentos.map((c) => c.toUpperCase());
+  // O travão de portfólio: só instrumentos escolhidos por quem vê — a lista
+  // `instrumentos` do perfil, a mesma da estrela "no portfólio" do gráfico.
+  const portfolio = await portfolioDoPerfil();
   if (portfolio.length === 0) {
     return { analise: null, porqueNao: 'O portfólio está vazio — escolha os instrumentos nas Definições.', em };
   }
