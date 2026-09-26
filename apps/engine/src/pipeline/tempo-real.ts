@@ -64,6 +64,7 @@ import {
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EngineConfig } from '../config.js';
 import { dirDados, tabelaAusente } from './estado.js';
+import { vigiarPois } from './alertas-poi.js';
 import {
   GRANULARIDADE_S,
   avaliarPrecoActual,
@@ -984,6 +985,14 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         if (!r.ok && !r.skipped) erros.push(`atenção ${r.channel}: ${r.error}`);
       }
     }
+  }
+
+  // Alertas de POI (08:00–11:00 de Londres): o preço chegou a um POI de sessão
+  // do lado da estrutura. Aviso para quem opera, não sinal (ver alertas-poi.ts).
+  try {
+    await vigiarPois([...vigilancia.pares.keys()], erros);
+  } catch (err) {
+    erros.push(`alertas de POI: ${msg(err)}`);
   }
 
   return {

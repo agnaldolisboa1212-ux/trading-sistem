@@ -28,6 +28,7 @@ export * from './algo.js';
 export * from './entrada.js';
 export * from './poi.js';
 export * from './confirmacao.js';
+export * from './poi-sessao.js';
 export { smtNoVarrimento } from './modelos/venom.js';
 export {
   RR_MINIMO,

@@ -18,7 +18,7 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, type SinalIct } from '@trading/core';
+import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, relogioLondres, type SinalIct } from '@trading/core';
 
 
 export interface NotifyResult {
@@ -820,4 +820,99 @@ export function formatarAtencao(lista: readonly Proximidade[]): string {
 export async function difundirAtencao(lista: readonly Proximidade[]): Promise<NotifyResult[]> {
   if (lista.length === 0) return [];
   return Promise.all([sendTelegram(formatarAtencao(lista))]);
+}
+
+// ---------------------------------------------------------------------------
+// Alertas de POI (o setup Asia Range do journal): o preço chegou ao POI
+// ---------------------------------------------------------------------------
+
+/**
+ * O preço chegou a um POI de sessão na janela de Londres (08:00–11:00), do lado
+ * da estrutura de mercado. Não é um sinal: a decisão da entrada em 1M (MSS + OB)
+ * é de quem opera. Ver `poisDeSessao` em @trading/core.
+ */
+export interface AlertaPoi {
+  simbolo: string;
+  casas: number;
+  lado: 'venda' | 'compra';
+  estrutura: { tipo: 'bos' | 'choch' | 'mss'; em: number };
+  poi: { baixo: number; alto: number; origem: number };
+  tocadoEm: number;
+  preco: number;
+  asia: { baixo: number; alto: number } | null;
+  liquidez: ReadonlyArray<{ preco: number; rotulo: string }>;
+  chave: string;
+}
+
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+/** "qui 10/02 22:30" em hora de Londres. */
+function quandoLondres(t: number): string {
+  const l = relogioLondres(t);
+  const u = new Date(t);
+  // Diferença de Londres para UTC (0 ou 60 minutos): a data de Londres.
+  const desvioMin = (l.minutos - (u.getUTCHours() * 60 + u.getUTCMinutes()) + 1440) % 1440;
+  const d = new Date(t + desvioMin * 60_000);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${DIAS_SEMANA[l.diaSemana]} ${dd}/${mm} ${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+}
+
+function horaLondres(t: number): string {
+  const l = relogioLondres(t);
+  return `${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+}
+
+const NOME_QUEBRA: Record<string, string> = { bos: 'BOS', choch: 'CHoCH', mss: 'MSS' };
+
+/** As linhas do alerta, sem formatação (servem ao Telegram e ao push). */
+export function linhasAlertaPoi(a: AlertaPoi): { titulo: string; corpo: string[] } {
+  const f = (x: number) => x.toFixed(a.casas);
+  const venda = a.lado === 'venda';
+  return {
+    titulo: `📍 POI ALCANÇADO · ${a.simbolo} · ${venda ? 'VENDA' : 'COMPRA'}`,
+    corpo: [
+      `Estrutura de 15M de ${venda ? 'baixa' : 'alta'} (${NOME_QUEBRA[a.estrutura.tipo] ?? a.estrutura.tipo} às ${horaLondres(a.estrutura.em)})`,
+      `POI ${f(a.poi.baixo)} – ${f(a.poi.alto)} (${venda ? 'topo' : 'fundo'} de ${quandoLondres(a.poi.origem)})`,
+      `Tocado às ${horaLondres(a.tocadoEm)} de Londres, a ${f(a.preco)}`,
+      ...(a.asia ? [`Ásia ${f(a.asia.baixo)} – ${f(a.asia.alto)}`] : []),
+      ...(a.liquidez.length > 0
+        ? [`Liquidez do lado oposto: ${a.liquidez.slice(0, 2).map((l) => `${f(l.preco)} (${l.rotulo})`).join(' · ')}`]
+        : []),
+      `Procure a reversão em 1M no POI (MSS + OB), stop além do POI.`,
+    ],
+  };
+}
+
+/** Mensagem de Telegram (MarkdownV2). */
+export function formatarAlertaPoi(a: AlertaPoi): string {
+  const { titulo, corpo } = linhasAlertaPoi(a);
+  const nl = String.fromCharCode(10);
+  return [
+    `*${escapeMarkdown(titulo)}*`,
+    '',
+    ...corpo.map(escapeMarkdown),
+    '',
+    `_${escapeMarkdown('Alerta, não sinal: a regra mecânica de entrada não teve vantagem medida (backtest 2022–2026). A decisão é sua.')}_`,
+  ].join(nl);
+}
+
+/** Telegram e push (o push só chega a quem segue o instrumento). */
+export async function difundirAlertaPoi(a: AlertaPoi): Promise<NotifyResult[]> {
+  const { titulo, corpo } = linhasAlertaPoi(a);
+  return Promise.all([
+    sendTelegram(formatarAlertaPoi(a)),
+    sendPush({
+      titulo,
+      corpo: corpo.slice(0, 3).join(String.fromCharCode(10)),
+      // Abre o gráfico de 1M já na aba dos POI: é em 1M que se procura a entrada.
+      url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=1m&v=poi`,
+      tag: `poi-${a.chave}`,
+      // A janela acaba às 11:00 de Londres: depois disso o aviso já não serve.
+      validadeS: 3600,
+      urgencia: 'high',
+      topico: `poi-${a.simbolo}`,
+      simbolo: a.simbolo,
+    }),
+  ]);
 }

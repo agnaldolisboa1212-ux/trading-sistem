@@ -31,6 +31,7 @@ import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
 import { VisaoIct, desenhoIct, usarIct } from './VisaoIct';
 import { VisaoAsiaRange, desenhoAsiaRange, usarAsiaRange } from './VisaoAsiaRange';
+import { VisaoPoi, desenhoPoi, usarPoi } from './VisaoPoi';
 import { ASIA_RANGE_EM_TESTE, estrategiaEmTeste, estrategiasPara } from '@trading/core';
 import {
   analisarVisoes,
@@ -107,6 +108,8 @@ function visoesOrdenadas(codigo: string, tf: string) {
     if (v.id === 'ict-algo') return 0.5;
     // O Asia Range Algo só existe nos pares do journal: logo a seguir ali, no fim nos outros.
     if (v.id === 'asia-range-algo') return daqui.has('asia-range-algo') || ASIA_RANGE_EM_TESTE.includes(codigo) ? 0.6 : 2.5;
+    // Os POI de Londres são do forex e dos metais (a janela de Londres).
+    if (v.id === 'poi') return acharSimbolo(codigo)?.deriv.startsWith('frx') ? 0.7 : 2.6;
     if (v.contexto) return 3;
     const ids: string[] = [...daqui];
     return ids.includes(v.id) || (v.id === 'tendencia-cripto' && ids.some((i) => i.startsWith('tendencia')))
@@ -199,6 +202,7 @@ export function AnaliseAoVivo({
   // O ICT ALGO corre no servidor: só se pede quando a secção está aberta.
   const ict = usarIct(codigo, tf, visao === 'ict-algo');
   const asia = usarAsiaRange(codigo, visao === 'asia-range-algo');
+  const poi = usarPoi(codigo, visao === 'poi');
   const doServidor = VISOES_DO_SERVIDOR.includes(visao);
 
   // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
@@ -238,11 +242,14 @@ export function AnaliseAoVivo({
         ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}|${chave}`
         : visao === 'asia-range-algo'
           ? `asia|${asia?.codigo ?? ''}|${asia?.em ?? 0}|${chave}`
-          : `${chave}|${visao}`;
+          : visao === 'poi'
+            ? `poi|${poi?.codigo ?? ''}|${poi?.em ?? 0}|${chave}`
+            : `${chave}|${visao}`;
   useEffect(() => {
     if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
     else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null, candles, tf));
     else if (visao === 'asia-range-algo') aoMudarDesenho(desenhoAsiaRange(asia?.analise ?? null, candles, tf));
+    else if (visao === 'poi') aoMudarDesenho(desenhoPoi(poi));
     else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);
@@ -262,6 +269,11 @@ export function AnaliseAoVivo({
     if (id === 'asia-range-algo') {
       const s = asia?.analise?.sinal;
       return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
+    }
+    if (id === 'poi') {
+      // Um POI tocado (e ainda válido) na janela de hoje.
+      const t = poi?.toques.find((x) => !x.invalido);
+      return t ? t.zona.lado : '';
     }
     if (!visoesComServidor || id === 'mmxm') return '';
     const sv = visoesComServidor[id as keyof typeof visoesComServidor]?.sinal;
@@ -322,6 +334,15 @@ export function AnaliseAoVivo({
                 <em>{sa.rr.toFixed(1)}R</em>
               </span>
             </>
+          ) : visao === 'poi' ? (
+            <span className="grow">
+              <b>POI de Londres</b>
+              <em>
+                {poi?.leitura
+                  ? `${poi.leitura.pois.length} POI ${poi.leitura.vies === 'bearish' ? 'acima (vendas)' : 'abaixo (compras)'}${poi.toques.length > 0 ? ` · ${poi.toques.length} tocado(s)` : ''}`
+                  : (poi?.erro ?? 'a calcular os POI…')}
+              </em>
+            </span>
           ) : visao === 'asia-range-algo' ? (
             <span className="grow">
               <b>Asia Range Algo</b>
@@ -400,6 +421,8 @@ export function AnaliseAoVivo({
           <VisaoIct estado={ict} tf={tf} casas={casas} aoNegociar={aoNegociar} />
         ) : visao === 'asia-range-algo' ? (
           <VisaoAsiaRange estado={asia} casas={casas} aoNegociar={aoNegociar} />
+        ) : visao === 'poi' ? (
+          <VisaoPoi estado={poi} casas={casas} />
         ) : visao === 'mmxm' ? (
           <VisaoMmxm codigo={codigo} mmxm={mmxmActivo} casas={casas} aoCarregar={mmxm === undefined} />
         ) : !analise.pronta ? (
