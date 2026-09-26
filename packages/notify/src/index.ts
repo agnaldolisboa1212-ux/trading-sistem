@@ -644,11 +644,12 @@ export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: s
   const n = (v: number) => v.toFixed(s.casas);
   const alvo = s.alvos[0];
   const agora = frasePreco(s);
+  const pendente = s.estadoPreco === 'a-aguardar';
   return {
-    titulo: `📍 SETUP ${nomeDeEstrategia(s.estrategia)} · ${s.simbolo} ${s.timeframe} · zona de ${venda ? 'VENDA' : 'COMPRA'}`,
+    titulo: `${venda ? '🔴 VENDA' : '🟢 COMPRA'} · ${s.simbolo} ${s.timeframe} · ${nomeDeEstrategia(s.estrategia)} (alerta)`,
     corpo: [
-      `Zona de entrada ${n(s.entrada)} · invalidação ${n(s.stop)}` +
-        (alvo ? ` · liquidez alvo ${n(alvo.preco)} (${alvo.r.toFixed(1)}R)` : ''),
+      `Possível entrada ${n(s.entrada)}${pendente ? ' (o preço ainda não chegou: ordem limite)' : ''} · stop ${n(s.stop)}`,
+      alvo ? `Alvo ${n(alvo.preco)} (${alvo.r.toFixed(1)}R)` : 'Alvo: defina-o no gráfico',
       ...(agora && s.precoActual !== undefined ? [`Agora ${n(s.precoActual)} · ${agora}`] : []),
       ...(s.noticia ? [`⚠ ${s.noticia.slice(0, 140)}`] : []),
       `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
@@ -898,6 +899,8 @@ export interface AlertaPoi {
   preco: number;
   asia: { baixo: number; alto: number } | null;
   liquidez: ReadonlyArray<{ preco: number; rotulo: string }>;
+  /** Plano de referência (`planoPoi`): possível entrada, stop e alvo. */
+  plano: { entrada: number; stop: number; alvo: { preco: number; rotulo: string; r: number } | null };
   chave: string;
 }
 
@@ -926,9 +929,14 @@ const NOME_QUEBRA: Record<string, string> = { bos: 'BOS', choch: 'CHoCH', mss: '
 export function linhasAlertaPoi(a: AlertaPoi): { titulo: string; corpo: string[] } {
   const f = (x: number) => x.toFixed(a.casas);
   const venda = a.lado === 'venda';
+  const p = a.plano;
   return {
-    titulo: `📍 POI ALCANÇADO · ${a.simbolo} · ${venda ? 'VENDA' : 'COMPRA'}`,
+    titulo: `${venda ? '🔴 VENDA' : '🟢 COMPRA'} · ${a.simbolo} · POI alcançado`,
     corpo: [
+      `Possível entrada ${f(p.entrada)} (meio do POI) · stop ${f(p.stop)}`,
+      p.alvo
+        ? `Alvo ${f(p.alvo.preco)} (${p.alvo.rotulo}, ${p.alvo.r.toFixed(1)}R)`
+        : 'Alvo: sem liquidez oposta por tomar — defina-o no gráfico',
       `Estrutura de 15M de ${venda ? 'baixa' : 'alta'} (${NOME_QUEBRA[a.estrutura.tipo] ?? a.estrutura.tipo} às ${horaLondres(a.estrutura.em)})`,
       `POI ${f(a.poi.baixo)} – ${f(a.poi.alto)} (${venda ? 'topo' : 'fundo'} de ${quandoLondres(a.poi.origem)})`,
       `Tocado às ${horaLondres(a.tocadoEm)} de Londres, a ${f(a.preco)}`,
@@ -936,7 +944,7 @@ export function linhasAlertaPoi(a: AlertaPoi): { titulo: string; corpo: string[]
       ...(a.liquidez.length > 0
         ? [`Liquidez do lado oposto: ${a.liquidez.slice(0, 2).map((l) => `${f(l.preco)} (${l.rotulo})`).join(' · ')}`]
         : []),
-      `Procure a reversão em 1M no POI (MSS + OB), stop além do POI.`,
+      `A decisão é sua: entre só com a reversão em 1M no POI (MSS + OB).`,
     ],
   };
 }
@@ -961,7 +969,7 @@ export async function difundirAlertaPoi(a: AlertaPoi): Promise<NotifyResult[]> {
     sendTelegram(formatarAlertaPoi(a)),
     sendPush({
       titulo,
-      corpo: corpo.slice(0, 3).join(String.fromCharCode(10)),
+      corpo: corpo.slice(0, 4).join(String.fromCharCode(10)),
       // Abre o gráfico de 15M na aba dos POI: a análise parte do 15M (os POI e a
       // estrutura); o 1M é só para a confirmação da entrada.
       url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=15m&v=poi`,

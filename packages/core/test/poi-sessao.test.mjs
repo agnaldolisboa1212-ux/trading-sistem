@@ -103,3 +103,33 @@ test('POI: o toque é a primeira vela que entra na zona, só dentro da janela', 
     : vela(t + 60_000, zona.extremo, zona.extremo - l.atr);
   assert.equal(toquesPoi(leitura, [perto, dentro, longe], t + 60_000)[0].invalido, true);
 });
+
+test('POI: o plano de referência — entrada no meio da zona, stop além do extremo, alvo a 2R', async () => {
+  const { planoPoi } = await import('../dist/index.js');
+  const zona = { lado: 'venda', baixo: 157.319, alto: 157.402, extremo: 157.402, origem: 0, chave: 'z' };
+  const liq = [
+    { preco: 157.2, rotulo: 'mínimo da Ásia' },
+    { preco: 156.885, rotulo: 'fundo por tomar' },
+    { preco: 156.243, rotulo: 'fundo por tomar' },
+  ];
+  const p = planoPoi(zona, liq, 0.1);
+  assert.equal(p.direccao, 'venda');
+  assert.ok(Math.abs(p.entrada - 157.3605) < 1e-9);
+  // Meia zona (0,0415) já passa ¼ de ATR (0,025): o stop fica no extremo do POI.
+  assert.equal(p.stop, 157.402);
+  // 157,2 paga 3,9R (≥ 2): é o primeiro que paga.
+  assert.equal(p.alvo.preco, 157.2);
+  assert.ok(p.alvo.r >= 2);
+  // Zona estreita: o stop afasta-se para ¼ de ATR.
+  const estreita = planoPoi({ ...zona, baixo: 157.398, alto: 157.402 }, liq, 0.1);
+  assert.ok(Math.abs(estreita.stop - (estreita.entrada + 0.025)) < 1e-9);
+  // Nenhum alvo a 2R: o mais longe, com o R que dá.
+  const longe = planoPoi(zona, [{ preco: 157.34, rotulo: 'perto' }], 0.1);
+  assert.equal(longe.alvo.preco, 157.34);
+  assert.ok(longe.alvo.r < 2);
+  // Compra: espelho.
+  const c = planoPoi({ lado: 'compra', baixo: 150.0, alto: 150.1, extremo: 150.0, origem: 0, chave: 'c' }, [{ preco: 150.5, rotulo: 'máximo da Ásia' }], 0.1);
+  assert.equal(c.direccao, 'compra');
+  assert.equal(c.stop, 150.0);
+  assert.equal(c.alvo.preco, 150.5);
+});

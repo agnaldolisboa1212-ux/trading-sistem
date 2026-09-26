@@ -20,7 +20,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { JANELA_POI, poisDeSessao, relogioLondres, toquesPoi } from '@trading/core';
+import { JANELA_POI, planoPoi, poisDeSessao, relogioLondres, toquesPoi } from '@trading/core';
 import { acharSimbolo, velasFechadasDeriv } from '@trading/data';
 import { difundirAlertaPoi } from '@trading/notify';
 import { dirDados } from './estado.js';
@@ -71,6 +71,13 @@ export async function vigiarPois(simbolos: readonly string[], erros: string[], a
       const minutos = Math.ceil((agora - leitura.inicio) / 60_000) + 2;
       const v1 = await velasFechadasDeriv(s.deriv, 60, Math.min(240, Math.max(5, minutos)));
       const ultima = v1[v1.length - 1];
+      // A liquidez oposta que Londres ainda não tomou desde as 08:00.
+      const desde08 = v1.filter((c) => c.time >= leitura.inicio);
+      const maxDesde = Math.max(...desde08.map((c) => c.high));
+      const minDesde = Math.min(...desde08.map((c) => c.low));
+      const porTomar = leitura.liquidezOposta.filter((q) =>
+        leitura.vies === 'bearish' ? q.preco < minDesde : q.preco > maxDesde,
+      );
       for (const t of toquesPoi({ ...leitura, pois: porAvisar }, v1, agora)) {
         const chave = `${s.codigo}|${t.zona.chave}`;
         avisados.add(chave);
@@ -86,7 +93,8 @@ export async function vigiarPois(simbolos: readonly string[], erros: string[], a
           tocadoEm: t.em,
           preco: ultima?.close ?? t.preco,
           asia: leitura.asia ? { baixo: leitura.asia.baixo, alto: leitura.asia.alto } : null,
-          liquidez: leitura.liquidezOposta,
+          liquidez: porTomar,
+          plano: planoPoi(t.zona, porTomar, leitura.atr),
           chave: `${s.codigo}-${t.zona.chave}`,
         });
         for (const x of r) if (!x.ok && !x.skipped) erros.push(`alerta de POI ${s.codigo} (${x.channel}): ${x.error}`);

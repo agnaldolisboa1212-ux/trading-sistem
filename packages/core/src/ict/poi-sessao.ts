@@ -228,3 +228,38 @@ export function toquesPoi(leitura: LeituraPoi, velas: readonly Candle[], agora: 
   }
   return out;
 }
+
+export interface PlanoPoi {
+  direccao: 'compra' | 'venda';
+  /** Possível entrada: o meio da zona do POI (50%). */
+  entrada: number;
+  /** Além do extremo do POI, a pelo menos ¼ de ATR de 15M da entrada. */
+  stop: number;
+  /** A primeira liquidez oposta que pague ≥ 2R; se nenhuma pagar, a mais longe (com o R que dá). */
+  alvo: { preco: number; rotulo: string; r: number } | null;
+}
+
+/** O R mínimo do alvo de referência de um POI. */
+export const RR_ALVO_POI = 2;
+/** Distância mínima do stop à entrada, em ATR de 15M. */
+export const RISCO_MINIMO_POI_ATR = 0.25;
+
+/**
+ * Um plano de REFERÊNCIA para um POI — para o alerta dizer compra/venda, uma
+ * possível entrada e um alvo. Não é o plano de uma regra medida: a entrada real
+ * (reversão em 1M, MSS + OB) é decisão de quem opera.
+ */
+export function planoPoi(zona: ZonaPoi, liquidez: ReadonlyArray<{ preco: number; rotulo: string }>, atr: number): PlanoPoi {
+  const venda = zona.lado === 'venda';
+  const entrada = (zona.baixo + zona.alto) / 2;
+  const stop = venda
+    ? Math.max(zona.extremo, entrada + RISCO_MINIMO_POI_ATR * atr)
+    : Math.min(zona.extremo, entrada - RISCO_MINIMO_POI_ATR * atr);
+  const risco = Math.abs(entrada - stop);
+  const niveis = liquidez
+    .filter((l) => (venda ? l.preco < entrada : l.preco > entrada))
+    .map((l) => ({ ...l, r: risco > 0 ? Math.abs(entrada - l.preco) / risco : 0 }))
+    .sort((a, b) => (venda ? b.preco - a.preco : a.preco - b.preco));
+  const alvo = niveis.find((l) => l.r >= RR_ALVO_POI) ?? niveis[niveis.length - 1] ?? null;
+  return { direccao: zona.lado, entrada, stop, alvo };
+}

@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { poisDeSessao, relogioLondres, toquesPoi, type LeituraPoi, type ToquePoi } from '@trading/core';
+import { planoPoi, poisDeSessao, relogioLondres, toquesPoi, type LeituraPoi, type ToquePoi } from '@trading/core';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
 import { velasFechadasBrowser } from '@/lib/deriv/velas-browser';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
@@ -151,8 +151,18 @@ export function VisaoPoi({ estado, casas }: { estado: EstadoPoi | null; casas: n
           <div className="visoes__subtitulo">POI {venda ? 'acima do preço (vendas)' : 'abaixo do preço (compras)'}</div>
           {l.pois.map((z) => {
             const t = estado.toques.find((x) => x.zona.chave === z.chave);
+            const p = planoPoi(z, l.liquidezOposta, l.atr);
             return (
               <p key={z.chave} className="analise-viva__nota">
+                <span className={`lado-pill ${venda ? 'venda' : 'compra'}`}>{venda ? 'VENDA' : 'COMPRA'}</span>{' '}
+                possível entrada <b>{fmt(p.entrada)}</b> · stop <b className="bear-t">{fmt(p.stop)}</b>
+                {p.alvo ? (
+                  <>
+                    {' '}
+                    · alvo <b className="bull-t">{fmt(p.alvo.preco)}</b> ({p.alvo.r.toFixed(1)}R)
+                  </>
+                ) : null}
+                <br />
                 <b>
                   {fmt(z.baixo)} – {fmt(z.alto)}
                 </b>{' '}
