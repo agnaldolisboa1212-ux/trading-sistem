@@ -466,6 +466,32 @@ Dá muitas operações (o Judas swing acontece em ~40% dos dias), mas o alvo na
 liquidez diária fica longe (RR planeado 9–13) e só 18–23% acertam: sem custos
 é zero, com custos perde.
 
+### Fibonacci como estratégia própria — e se os números são especiais (27/09/2026)
+
+`scripts/backtest/fibonacci.mjs`, regras fixadas antes de correr: perna de
+impulso (fundo → topo que parte o topo anterior, ≥ 2 ATR), ordem limite no
+recuo, stop nos 100%, alvo na extensão de 127,2%, ordem cancelada com topo novo
+ou ao fim de 2 dias, operação até 2 dias. Níveis de Fibonacci (38,2 / 50 /
+61,8 / 78,6%) contra níveis PLACEBO que não são de Fibonacci (45 / 55 / 70%),
+com as mesmas regras. 8 pares ao vivo + 4 de controlo, 2022+.
+
+| 1H, com custos | Ao vivo | Controlo |
+|---|---|---|
+| 38,2% (Fib) · 1,1R | 4027 op · 48% · −0,053R | −0,066R |
+| 45% (placebo) · 1,3R | 44% · −0,066R | −0,082R |
+| 50% (Fib) · 1,5R | 41% · −0,066R | −0,085R |
+| 55% (placebo) · 1,8R | 38% · −0,071R | −0,095R |
+| 61,8% (Fib) · 2,3R | 4713 op · 32% · −0,100R | −0,132R |
+| 70% (placebo) · 3,2R | 26% · −0,132R | −0,170R |
+| 78,6% (Fib) · 4,9R | 19% · −0,166R | −0,209R |
+
+Sem custos, todos os níveis dão entre −0,05R e +0,01R, em 1H e em 15M (15M
+com custos: −0,12R a −0,37R). O acerto é o de um passeio aleatório: chegar ao
+alvo antes do stop tem probabilidade risco ÷ (risco + ganho) — no 61,8%,
+0,382 ÷ 1,272 = 30%, medido 30–33%; no 38,2%, 48,6%, medido 47–49%. Os níveis
+de Fibonacci ficam na mesma curva suave dos placebos: o número não tem nada de
+especial; com custos, recuos de qualquer profundidade perdem.
+
 ### ICT ALGO e Asia Range Algo passam a ALERTA (26/09/2026)
 
 A pedido do Agnaldo ("não desliga mas muda para POI, eu serei a decisão"): as
