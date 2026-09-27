@@ -446,6 +446,17 @@ export interface AnaliseIct {
     desde: number;
   } | null;
   /**
+   * O POI DE ENTRADA (ver `poiEntrada` em `poi.ts`): o order block por mitigar
+   * de onde o preço pode partir no sentido do viés. `poi` é o destino.
+   */
+  poiEntrada?: {
+    alto: number;
+    baixo: number;
+    tipo: 'order-block' | 'breaker' | 'fvg';
+    rotulo: string;
+    desde: number;
+  } | null;
+  /**
    * A confirmação em 5M do sinal (ver `confirmacao.ts`), quando quem chama tem
    * velas de 5M. Sem `ok`, o sinal não é enviado — é só análise.
    */

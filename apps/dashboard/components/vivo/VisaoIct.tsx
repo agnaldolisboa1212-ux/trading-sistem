@@ -168,13 +168,23 @@ function linhasAsia(d: Desenho, caixas: Desenho['zonas'], ultima: number | undef
 }
 
 /**
- * O POI de Londres: para onde a sessão vai, no sentido do viés. Uma zona quando
- * é um PD array, uma linha quando é uma poça de liquidez — como nos prints do
- * journal ("SESSION HIGH", a caixa onde o preço já tinha reagido).
+ * Os dois POI do dia, como nos prints do journal:
+ *
+ *   · o POI DE ENTRADA — o order block por mitigar de onde o preço pode
+ *     partir no sentido do viés (a caixa onde o preço reage), em zona;
+ *   · o ALVO — a liquidez para onde Londres vai ("SESSION HIGH"): uma zona
+ *     quando é um PD array, uma linha quando é uma poça de liquidez.
  */
-function desenharPoi(d: Desenho, poi: AnaliseIct['poi'] | null): void {
+export function desenharPoi(
+  d: Desenho,
+  poi: AnaliseIct['poi'] | null,
+  entrada: AnaliseIct['poiEntrada'] | null = null,
+): void {
+  if (entrada && entrada.alto > entrada.baixo) {
+    d.zonas.push({ de: entrada.desde, ate: Infinity, topo: entrada.alto, base: entrada.baixo, tipo: 'poi', rotulo: `POI · ${entrada.rotulo}` });
+  }
   if (!poi) return;
-  const rotulo = `POI · ${poi.rotulo}`;
+  const rotulo = `alvo · ${poi.rotulo}`;
   if (poi.origem === 'pd-array' && poi.alto > poi.baixo) {
     d.zonas.push({ de: poi.desde, ate: Infinity, topo: poi.alto, base: poi.baixo, tipo: 'poi', rotulo });
   } else {
@@ -206,7 +216,7 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
     segmentos: [],
   };
   if (intradiario) linhasAsia(d, caixas, velas[velas.length - 1]?.time);
-  desenharPoi(d, a.poi ?? null);
+  desenharPoi(d, a.poi ?? null, a.poiEntrada ?? null);
   const s = a.sinal;
 
   if (s) {
@@ -401,10 +411,22 @@ export function VisaoIct({
         <p className="analise-viva__nota">O algoritmo executa em 15M, 1H ou 4H; neste gráfico de {tf.toUpperCase()} mostra a leitura de 1H.</p>
       )}
 
-      {a.poi && (
+      {(a.poiEntrada || a.poi) && (
         <p className="analise-viva__nota">
-          POI de Londres: <b>{fmt(a.poi.preco)}</b> · {a.poi.rotulo}
-          {a.poi.origem === 'pd-array' ? ` (zona ${fmt(a.poi.baixo)} – ${fmt(a.poi.alto)})` : ''}
+          {a.poiEntrada ? (
+            <>
+              POI de entrada ({a.poiEntrada.rotulo}): <b>{fmt(a.poiEntrada.baixo)}</b> – <b>{fmt(a.poiEntrada.alto)}</b>, de
+              onde o preço pode partir
+            </>
+          ) : (
+            'Sem order block por mitigar do lado do recuo'
+          )}
+          {a.poi ? (
+            <>
+              {' '}
+              · alvo: <b>{fmt(a.poi.preco)}</b> ({a.poi.rotulo})
+            </>
+          ) : null}
         </p>
       )}
 

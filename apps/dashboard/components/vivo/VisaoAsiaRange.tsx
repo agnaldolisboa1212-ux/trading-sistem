@@ -76,8 +76,12 @@ export function desenhoAsiaRange(
     d.linhas.push({ preco: a.asia.alto, rotulo: 'máx. Ásia', tipo: 'nivel', de: a.asia.ate + M15 });
     d.linhas.push({ preco: a.asia.baixo, rotulo: 'mín. Ásia', tipo: 'nivel', de: a.asia.ate + M15 });
   }
+  if (a.poiEntrada && a.poiEntrada.alto > a.poiEntrada.baixo) {
+    const z = a.poiEntrada;
+    d.zonas.push({ de: z.desde, ate: Infinity, topo: z.alto, base: z.baixo, tipo: 'poi', rotulo: `POI · ${z.rotulo}` });
+  }
   if (a.poi) {
-    const rotulo = `POI · ${a.poi.rotulo}`;
+    const rotulo = `alvo · ${a.poi.rotulo}`;
     if (a.poi.origem === 'pd-array' && a.poi.alto > a.poi.baixo) {
       d.zonas.push({ de: a.poi.desde, ate: Infinity, topo: a.poi.alto, base: a.poi.baixo, tipo: 'poi', rotulo });
     } else {
@@ -149,10 +153,16 @@ export function VisaoAsiaRange({
       {a.asia && (
         <p className="analise-viva__nota">
           Ásia (00:00–08:00 Londres): <b>{fmt(a.asia.baixo)}</b> – <b>{fmt(a.asia.alto)}</b>
+          {a.poiEntrada ? (
+            <>
+              {' '}
+              · POI de entrada ({a.poiEntrada.rotulo}): <b>{fmt(a.poiEntrada.baixo)}</b> – <b>{fmt(a.poiEntrada.alto)}</b>
+            </>
+          ) : null}
           {a.poi ? (
             <>
               {' '}
-              · POI de Londres: <b>{fmt(a.poi.preco)}</b> ({a.poi.rotulo})
+              · alvo: <b>{fmt(a.poi.preco)}</b> ({a.poi.rotulo})
             </>
           ) : null}
         </p>

@@ -40,7 +40,7 @@ import { prepararEstruturas, type EstruturasIct } from '../ict/motor.js';
 import { viesDiario } from '../ict/vies.js';
 import { relogioLondres, ultimaFechadaAte } from '../ict/tempo.js';
 import { confirmacaoLtf } from '../ict/confirmacao.js';
-import { faixaAsiaticaLondres, poiLondres, type FaixaAsiatica, type PoiLondres } from '../ict/poi.js';
+import { faixaAsiaticaLondres, poiEntrada, poiLondres, type FaixaAsiatica, type PoiEntrada, type PoiLondres } from '../ict/poi.js';
 import type { IctDireccao, PassoTopDown } from '../ict/types.js';
 
 const DIA = 86_400_000;
@@ -88,6 +88,8 @@ export interface AnaliseAsiaRange {
   vies: { direccao: IctDireccao | 'neutral'; aFavor: number } | null;
   asia: (FaixaAsiatica & { de: number; ate: number }) | null;
   poi: PoiLondres | null;
+  /** O POI de entrada: o order block de onde o preço pode partir no sentido do viés. */
+  poiEntrada: PoiEntrada | null;
   passos: PassoTopDown[];
   sinal: SinalAsiaRange | null;
   porqueNao: string | null;
@@ -145,6 +147,7 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
     vies: null,
     asia: null,
     poi: null,
+    poiEntrada: null,
     passos: [],
     sinal: null,
     porqueNao: null,
@@ -187,6 +190,7 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
   const alta = d === 'bullish';
   passos.push(passo(1, '1d', 'Viés diário', 'ok', `${alta ? 'Alta' : 'Baixa'}, ${vies.aFavor} de 5.`));
 
+  base.poiEntrada = poiEntrada({ velas, i, direccao: d, pdArrays: [...e.obs, ...e.breakers, ...e.fvgs] });
   if (asia) {
     const oposto = alta ? asia.alto : asia.baixo;
     base.poi = poiLondres({
