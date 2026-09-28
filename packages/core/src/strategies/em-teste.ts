@@ -81,7 +81,8 @@ export const ICT_ALGO_EM_TESTE: readonly string[] = [
  * Os pares do journal: os JPY, com SMT entre eles, e o USDCAD (5 operações no
  * journal, SMT contra o USDCHF — o DXY que o universo lhe dá não existe na Deriv).
  */
-export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD'];
+/** GBPUSD e EURUSD juntaram-se a 27/09/2026, a pedido do Agnaldo (alerta, como os outros). */
+export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD', 'GBPUSD', 'EURUSD'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {

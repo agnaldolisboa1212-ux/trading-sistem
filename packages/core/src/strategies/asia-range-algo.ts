@@ -37,7 +37,7 @@
 import type { Candle } from '../types/market.js';
 import { agregar } from '../ict/algo.js';
 import { prepararEstruturas, type EstruturasIct } from '../ict/motor.js';
-import { viesDiario } from '../ict/vies.js';
+import { viesDoDia } from '../ict/vies.js';
 import { relogioLondres, ultimaFechadaAte } from '../ict/tempo.js';
 import { confirmacaoLtf } from '../ict/confirmacao.js';
 import { faixaAsiaticaLondres, poiEntrada, poiLondres, type FaixaAsiatica, type PoiEntrada, type PoiLondres } from '../ict/poi.js';
@@ -172,14 +172,13 @@ export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
   if (iDia < 20 || iSem < 4) return acabar('História diária ou semanal insuficiente para o viés.');
   const vies =
     input.viesForcado ??
-    viesDiario({
+    // O viés lê-se só no diário: o mesmo do ICT ALGO, em qualquer timeframe.
+    viesDoDia({
       velasDiarias: e.diarias,
       iDia,
       swingsSemanais: e.swingsSemanais,
       iSemanal: iSem,
-      pocas: e.pocas,
-      iExecucao: i,
-      preco: agora.close,
+      pocasDiarias: e.pocasDiarias,
     });
   base.vies = { direccao: vies.direccao, aFavor: vies.aFavor };
   if (vies.direccao === 'neutral') {

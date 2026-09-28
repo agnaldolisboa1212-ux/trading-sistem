@@ -123,6 +123,7 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
       timeframeReferencia: '1d',
       par: parSimbolo && parVelas.length > 0 ? { simbolo: parSimbolo.codigo, velas: parVelas } : null,
       portfolio,
+      agora: Date.now(),
     });
     if (analise.sinal) {
       const ult = execucao[execucao.length - 1];

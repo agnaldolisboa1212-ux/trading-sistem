@@ -174,6 +174,10 @@ const PARES_DO_JOURNAL: Readonly<Record<string, readonly string[]>> = {
   // O USDCAD do journal: o DXY (a referência do universo) não existe na Deriv;
   // o USDCHF tem o mesmo dólar na base e anda no mesmo sentido.
   USDCAD: ['USDCHF'],
+  // GBPUSD e EURUSD (27/09/2026): um é o par do outro — a mesma libra/euro
+  // contra o mesmo dólar; divergem quando uma das duas moedas se mexe sozinha.
+  GBPUSD: ['EURUSD'],
+  EURUSD: ['GBPUSD'],
 };
 
 export function paresSmtIct(simbolo: string): string[] {

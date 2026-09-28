@@ -52,6 +52,8 @@ export function fazer(t: Trabalho): unknown {
       timeframeReferencia: '1d',
       par: t.par,
       portfolio: t.portfolio,
+      // O dia do viés a partir de agora: a mesma leitura em 15M, 1H e 4H.
+      agora: Date.now(),
     });
     if (analise.sinal) {
       const ult = t.execucao[t.execucao.length - 1];

@@ -170,3 +170,32 @@ export function viesDiario(input: {
     estruturaSemanal,
   };
 }
+
+/**
+ * O viés diário lido SÓ no diário — igual em qualquer timeframe de execução e
+ * fixo durante o dia (27/09/2026).
+ *
+ * `viesDiario` com as poças e o preço do timeframe de execução dava viés
+ * diferente em 15M, 1H e 4H no MESMO instante em 29% dos casos (160 instantes,
+ * 4 pares, 2025–2026): o "viés diário" mudava com o gráfico. O ICT decide o
+ * viés diário antes da sessão, no diário. Aqui entram as poças de liquidez do
+ * próprio diário (swings e máximos/mínimos iguais), o fecho do último dia
+ * fechado como preço e o índice desse dia como instante.
+ */
+export function viesDoDia(input: {
+  velasDiarias: readonly Candle[];
+  iDia: number;
+  swingsSemanais: readonly Swing[];
+  iSemanal: number;
+  pocasDiarias: readonly PocaLiquidez[];
+}): ViesDiario {
+  return viesDiario({
+    velasDiarias: input.velasDiarias,
+    iDia: input.iDia,
+    swingsSemanais: input.swingsSemanais,
+    iSemanal: input.iSemanal,
+    pocas: input.pocasDiarias,
+    iExecucao: input.iDia,
+    preco: input.velasDiarias[input.iDia]?.close ?? 0,
+  });
+}
