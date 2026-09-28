@@ -41,7 +41,12 @@ import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import { sessaoDax } from '../time/europa.js';
 
-export type EstrategiaEmTesteId = 'tendencia-baixa-cripto' | 'abertura-dax-teste' | 'ict-algo' | 'asia-range-algo';
+export type EstrategiaEmTesteId =
+  | 'tendencia-baixa-cripto'
+  | 'abertura-dax-teste'
+  | 'ict-algo'
+  | 'asia-range-algo'
+  | 'venda-vwap-indices';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -85,6 +90,25 @@ export const ICT_ALGO_EM_TESTE: readonly string[] = [
 export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD', 'GBPUSD', 'EURUSD'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
+  {
+    id: 'venda-vwap-indices',
+    nome: 'Venda na banda +2σ do VWAP',
+    descricao:
+      'O espelho, em venda, da compra no VWAP −2σ: com o instrumento abaixo da média de 200 dias, vende quando uma vela fecha em baixa a +2σ do VWAP do mês.',
+    instrumentos: ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'],
+    timeframes: ['1h', '4h'],
+    entrada:
+      'Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês; RSI(14) acima de 70 ou σ do mês maior do que 2× o ATR. Vende ao fecho.',
+    saida: 'Stop no VWAP + (z + 1)·σ. Metade a −1R (e o stop passa para a entrada), o resto a −2R.',
+    emTeste: {
+      desde: '2026-09-28',
+      revisao: '2026-12-28',
+      antes:
+        'Backtest (HistData 1h/4h, 2022–2026, a simulação da compra invertida): GER30, SP500, US100 e GBPUSD, ' +
+        '232 operações (~22 por ano), 49% de acerto, −0,064R por operação (t=−0,9); sem custos −0,039R; ' +
+        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta.',
+    },
+  },
   {
     id: 'tendencia-baixa-cripto',
     nome: 'Tendência de baixa — cripto',
@@ -172,7 +196,7 @@ export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
  * liquidez alvo —, mas a decisão é de quem opera: o aviso diz-o, e a automação
  * de ordens não as executa.
  */
-export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo'];
+export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo', 'venda-vwap-indices'];
 
 export function soAlerta(id: string): boolean {
   return SO_ALERTA.includes(id);
@@ -371,6 +395,100 @@ export function planAberturaDaxTeste(
         `sai no fecho do DAX às ${hora(fecha)} UTC. ${aviso('abertura-dax-teste')}`,
       assumptions: [e.descricao, e.saida],
       warnings: ['Em teste: só em conta demo. Sensível ao spread — confirme que o do GER30 à abertura é ≤ 2,5 pontos.'],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// VWAP +2σ em VENDA — o espelho da compra validada (28/09/2026, a pedido do
+// Agnaldo: "ativar venda em VWAP"). Em teste: a compra foi medida e passou; a
+// venda não entrou nessa medição.
+// ---------------------------------------------------------------------------
+
+/** Os mesmos instrumentos da compra no VWAP. */
+export const VWAP_VENDA_EM_TESTE: readonly string[] = ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'];
+
+/** O último fecho diário JÁ FECHADO antes de `agora` está abaixo da média de 200 dias? */
+function abaixoDaMedia200(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {
+  if (!velas1d || velas1d.length < 201) return null;
+  let fim = -1;
+  for (let k = velas1d.length - 1; k >= 0; k--) {
+    if (velas1d[k]!.time < agora) {
+      fim = k;
+      break;
+    }
+  }
+  if (fim < 200) return null;
+  let soma = 0;
+  for (let k = fim - 199; k <= fim; k++) soma += velas1d[k]!.close;
+  return velas1d[fim]!.close < soma / 200;
+}
+
+/**
+ * Venda na banda +2σ do VWAP do mês — a regra da compra ao contrário:
+ *
+ *   regime      o instrumento ABAIXO da média de 200 dias (mercado a cair)
+ *   vela        a vela do sinal fecha em BAIXA
+ *   banda       fecho a +2σ ou mais do VWAP do mês
+ *   extensão    RSI(14) acima de 70, OU σ do mês maior do que 2× o ATR
+ *   stop        VWAP + (z + 1)·σ
+ *   alvos       −1R (fecha metade, stop para a entrada) e −2R
+ */
+export function planVendaVwapIndices(
+  velas: readonly Candle[],
+  ctx: { symbol: string; timeframe: Timeframe },
+  extra: { velas1d?: readonly Candle[] } = {},
+): StrategySignal[] {
+  const lista = velas as Candle[];
+  const i = lista.length - 1;
+  const u = lista[i];
+  if (!u || lista.length < 60) return [];
+  if (abaixoDaMedia200(extra.velas1d, u.time) !== true) return [];
+  if (!(u.close < u.open)) return [];
+  const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
+  const p = vwap.points[vwap.points.length - 1];
+  if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
+  const z = vwapZScore(p, u.close);
+  if (z < 2) return [];
+  const atr = atrSerie(lista, 14)[i] ?? Number.NaN;
+  const rsi = rsiSerie(lista, 14)[i] ?? Number.NaN;
+  if (!(atr > 0) || !Number.isFinite(rsi)) return [];
+  const sobrecomprado = rsi > 70;
+  const deslocado = p.sigma > 2 * atr;
+  if (!sobrecomprado && !deslocado) return [];
+  const entrada = u.close;
+  const stop = p.vwap + (Math.abs(z) + 1) * p.sigma;
+  const risco = stop - entrada;
+  if (!(risco > 0)) return [];
+  return [
+    {
+      strategy: 'venda-vwap-indices',
+      symbol: ctx.symbol,
+      timeframe: ctx.timeframe,
+      direction: 'bearish',
+      regime: 'mean-reversion',
+      index: i,
+      generatedAt: u.time,
+      referencePrice: u.close,
+      entryZoneLow: entrada,
+      entryZoneHigh: entrada,
+      entryPrice: entrada,
+      stopLoss: stop,
+      targets: [
+        { price: entrada - risco, rMultiple: 1, closeFraction: 0.5, rationale: '−1R: fecha metade e passa o stop para a entrada.' },
+        { price: entrada - 2 * risco, rMultiple: 2, closeFraction: 0.5, rationale: '−2R: fecha o resto.' },
+      ],
+      maxRMultiple: 2,
+      conviction: 0,
+      rationale:
+        `Fecho a +${z.toFixed(1)}σ do VWAP do mês${sobrecomprado ? `, RSI(14) ${rsi.toFixed(0)}` : ''}` +
+        `${deslocado ? `, σ do mês ${(p.sigma / atr).toFixed(1)}× o ATR` : ''}, abaixo da média de 200 dias. ` +
+        'Venda no VWAP, EM TESTE: o espelho da compra validada, sem medição própria que passe a barra.',
+      assumptions: ['Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês.'],
+      warnings: [
+        'Em teste: sem taxa de acerto medida.',
+        ...(vwap.usedVolume ? [] : ['Sem volume da Deriv: VWAP ponderado pelo tempo.']),
+      ],
     },
   ];
 }

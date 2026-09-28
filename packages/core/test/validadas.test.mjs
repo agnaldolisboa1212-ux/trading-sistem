@@ -26,8 +26,9 @@ const D = 86_400_000;
 const vela = (time, open, high, low, close) => ({ time, open, high, low, close, volume: 0 });
 
 test('só índices e cripto validados, nos timeframes medidos', () => {
-  // Em 1H o US100 tem o VWAP validado e o ICT ALGO em teste (25/09/2026).
-  assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices', 'ict-algo']);
+  // Em 1H o US100 tem o VWAP validado e, em teste, a venda no VWAP (28/09/2026)
+  // e o ICT ALGO (25/09/2026).
+  assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices', 'venda-vwap-indices', 'ict-algo']);
   assert.deepEqual(
     estrategiasPara('US100', '1h').filter((e) => !('emTeste' in e)).map((e) => e.id),
     ['compra-vwap-indices'],

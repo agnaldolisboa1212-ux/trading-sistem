@@ -813,7 +813,7 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
             },
           };
         }
-        if (aplicaveis.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
+        if (aplicaveis.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices' || e.id === 'venda-vwap-indices')) {
           // Diárias do próprio instrumento: a EMA 20 da abertura do DAX e a média
           // de 200 dias que confirma o regime no VWAP. Com o cache, uma vez por dia.
           const velas1d = await fechadasDe(s.codigo, GRANULARIDADE_S['1d']!);

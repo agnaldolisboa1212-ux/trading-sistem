@@ -56,9 +56,15 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
   const s = sinalDaUltimaVela(a);
   if (!s) return [];
   const u = velas[velas.length - 1]!;
-  // Sem confirmação em 5M não há sinal: nem aviso, nem entrada na lista.
+  /*
+   * A confirmação em 5M já não trava o aviso (28/09/2026). Travava-o: o setup
+   * só saía se a confirmação estivesse OK NA VELA em que nascia; se chegasse
+   * uma vela depois, nunca saía — e o gráfico mostrava-o horas como ordem
+   * pendente sem ele estar nos sinais. O ICT ALGO é alerta (a decisão é de quem
+   * opera): o setup sai quando nasce, e o texto diz em que ponto está a
+   * confirmação.
+   */
   const conf = confirmacaoLtf(algo.ltf, s.direccao, u.time + TIMEFRAME_MS[ctx.timeframe]);
-  if (!conf.ok) return [];
   const modelo = NOME_MODELO[s.modelo];
   return [
     {
@@ -80,12 +86,17 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
       conviction: 0,
       rationale:
         `${modelo}: ${s.tipoEntrada === 'pendente' ? 'ordem pendente na zona' : 'entrada a mercado'}. ` +
-        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). Confirmação: ${conf.detalhe}. ${AVISO_ICT_ALGO}`,
+        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ` +
+        `Confirmação 5M: ${conf.ok ? conf.detalhe : `ainda não — ${conf.detalhe}; espere a reversão em 1M/5M`}. ${AVISO_ICT_ALGO}`,
       assumptions: [
         ...s.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
         `Confirmação 5M: ${conf.detalhe}`,
       ],
-      warnings: [...s.avisos, AVISO_ICT_ALGO],
+      warnings: [
+        ...(conf.ok ? [] : ['Sem confirmação em 5M ainda: espere a reversão antes de entrar.']),
+        ...s.avisos,
+        AVISO_ICT_ALGO,
+      ],
     },
   ];
 }

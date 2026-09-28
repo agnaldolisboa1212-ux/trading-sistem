@@ -193,7 +193,7 @@ export async function GET(
         },
       };
     }
-    if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
+    if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices' || e.id === 'venda-vwap-indices')) {
       extra = { ...extra, velas1d: await velasFechadas(s.deriv, GRANULARIDADE_S['1d']!) };
     }
 

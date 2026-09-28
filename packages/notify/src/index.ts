@@ -686,7 +686,9 @@ async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
       urgencia: 'high',
       topico: `${s.simbolo}-${s.timeframe}`,
       simbolo: s.simbolo,
-      timeframe: s.timeframe,
+      // Sem `timeframe`: os algos trazem o seu (15M) e correm para quem segue o
+      // instrumento — como na lista de sinais. Com ele, o filtro dos timeframes
+      // do perfil (ex.: 1D/4H/1H/30M) deitava fora todos os alertas de 15M.
     }),
   ]);
 }

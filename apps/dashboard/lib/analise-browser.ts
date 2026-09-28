@@ -326,7 +326,7 @@ export async function radarBrowser(simbolo: string, tfPedido: string, grupo: Gru
         },
       };
     }
-    if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices')) {
+    if (estrategias.some((e) => e.id === 'abertura-dax-teste' || e.id === 'compra-vwap-indices' || e.id === 'venda-vwap-indices')) {
       extra = { ...extra, velas1d: await velasFechadasBrowser(s.deriv, DIA_S, 320) };
     }
 

@@ -61,6 +61,7 @@ import {
   ESTRATEGIAS_EM_TESTE,
   planAberturaDaxTeste,
   planTendenciaBaixaCripto,
+  planVendaVwapIndices,
   type DadosExtra,
   type EstrategiaEmTeste,
 } from './em-teste.js';
@@ -689,6 +690,7 @@ export function executarEstrategiasValidadas(
   for (const e of estrategiasPara(ctx.symbol, ctx.timeframe)) {
     if (apenas && !apenas.includes(e.id)) continue;
     if (e.id === 'compra-vwap-indices') out.push(...planCompraVwapIndices(velas, ctx, extra));
+    if (e.id === 'venda-vwap-indices') out.push(...planVendaVwapIndices(velas, ctx, extra));
     if (e.id === 'connors-rsi2-indices') out.push(...planConnorsIndices(velas, ctx));
     if (e.id === 'tendencia-cripto') out.push(...planTendenciaCripto(velas, ctx));
     if (e.id === 'tendencia-ouro') out.push(...planTendenciaOuro(velas, ctx));

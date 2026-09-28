@@ -183,7 +183,10 @@ export function AnaliseAoVivo({
   }, [velas, nFechadas]);
 
   // O VWAP dos índices precisa das diárias para confirmar o regime.
-  const diarias = usarDiarias(codigo, estrategiasPara(codigo, tf).some((e) => e.id === 'compra-vwap-indices'));
+  const diarias = usarDiarias(
+    codigo,
+    estrategiasPara(codigo, tf).some((e) => e.id === 'compra-vwap-indices' || e.id === 'venda-vwap-indices'),
+  );
 
   const analise = useMemo(() => {
     if (candles.length < MIN_VELAS) return { pronta: false as const, velas: candles.length };
