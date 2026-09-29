@@ -43,14 +43,16 @@ export const AVISO_ICT_ALGO =
 export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
   /*
    * O tiro do SETUP FIXO (29/09/2026). O setup lê-se em 1H e fica fixo (o motor
-   * guarda-o entre passagens — `pipeline/ict-fixo.ts`); aqui só sai o tiro, na
-   * vela de 15M em que `estadoDoSetup` o dispara: preço na zona do 1H e
-   * CHoCH/MSS de 15M a favor. Uma vez por setup.
+   * guarda-o entre passagens — `pipeline/ict-fixo.ts`); aqui só sai o tiro, no
+   * fecho da vela de 15M que contém a vela do gatilho (5M desde 29/09/2026) em
+   * que `estadoDoSetup` o dispara: preço na zona do 1H e CHoCH/MSS a favor.
+   * Uma vez por setup.
    */
   if (ctx.timeframe !== '15m') return [];
   const f = algo?.ictFixo;
   const u = velas[velas.length - 1];
-  if (!f || !u || f.estado.estado !== 'disparado' || f.estado.tiro.time !== u.time) return [];
+  if (!f || !u || f.estado.estado !== 'disparado') return [];
+  if (f.estado.tiro.time < u.time || f.estado.tiro.time >= u.time + 15 * 60_000) return [];
   const { setup } = f;
   const tiro = f.estado.tiro;
   const venda = setup.direccao === 'bearish';
@@ -75,8 +77,8 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
       conviction: 0,
       rationale:
         `Setup de 1H fixo (${setup.modelo}): ${venda ? 'venda' : 'compra'} na zona ${setup.zonaBaixa}–${setup.zonaAlta}, ` +
-        `alvo na ${setup.rotuloAlvo}. Tiro em 15M: ${tiro.detalhe}. Stop no extremo feito na zona. ${AVISO_ICT_ALGO}`,
-      assumptions: [...leitura, `15M: ${tiro.detalhe}`],
+        `alvo na ${setup.rotuloAlvo}. Tiro em 5M: ${tiro.detalhe}. Stop no extremo feito na zona. ${AVISO_ICT_ALGO}`,
+      assumptions: [...leitura, `5M: ${tiro.detalhe}`],
       warnings: [AVISO_ICT_ALGO],
     },
   ];

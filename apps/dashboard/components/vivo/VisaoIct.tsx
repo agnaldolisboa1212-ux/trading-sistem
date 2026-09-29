@@ -28,7 +28,7 @@ import type { RegistoIct } from './usarSinaisEnviados';
 
 /**
  * O setup lê-se SEMPRE em 1H (pedido do Agnaldo, 29/09/2026); a confirmação e
- * o tiro saem em 15M, no motor (`ict/gatilho.ts`). Em qualquer gráfico, a
+ * o tiro saem em 5M, no motor (`ict/gatilho.ts`). Em qualquer gráfico, a
  * análise mostrada é a de 1H.
  */
 export const tfDoIct = (_tf: string) => '1h';
@@ -309,7 +309,7 @@ function CartaoSinalIct({
         <span className="analise-viva__r">{s.rr.toFixed(1)}R</span>
       </div>
       <div className="analise-viva__nota">
-        Leitura de 1H de agora. O sinal só é enviado quando o preço vier à zona e o 15M confirmar a reversão (o tiro).
+        Leitura de 1H de agora. O sinal só é enviado quando o preço vier à zona e o 5M confirmar a reversão (o tiro).
       </div>
       <div className="analise-viva__estado vivo">
         Regime {NOME_REGIME[s.regime]?.toLowerCase()} ·{' '}
@@ -368,7 +368,7 @@ const FIM_SETUP: Record<string, string> = {
 
 /**
  * O setup FIXO que o motor está a seguir: armado numa vela de 1H, fica até
- * disparar o tiro em 15M, ser invalidado ou expirar — não muda com a análise
+ * disparar o tiro em 5M, ser invalidado ou expirar — não muda com a análise
  * de agora. É daqui, e só daqui, que sai o sinal do ICT ALGO.
  */
 function CartaoSetupFixo({
@@ -386,7 +386,7 @@ function CartaoSetupFixo({
   const hora = (t: number) => new Date(t).toLocaleString('pt-PT', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
   return (
     <div className="visoes__estruturas">
-      <div className="visoes__subtitulo">Setup fixo 1H → tiro em 15M (o que o motor segue)</div>
+      <div className="visoes__subtitulo">Setup fixo 1H → tiro em 5M (o que o motor segue)</div>
       {!s || !e ? (
         <p className="analise-viva__nota">
           Nenhum setup armado. O motor arma um quando nasce um setup numa vela de 1H fechada, e fica com ele até ao tiro, à
@@ -408,10 +408,10 @@ function CartaoSetupFixo({
               : e.estado === 'na-zona'
                 ? `Na zona — ${e.detalhe}.`
                 : e.estado === 'disparado'
-                  ? `TIRO DISPARADO em 15M: ${e.tiro.detalhe}.`
+                  ? `TIRO DISPARADO em 5M: ${e.tiro.detalhe}.`
                   : e.estado === 'invalidado'
                     ? `Invalidado: ${e.motivo}.`
-                    : 'Expirou sem confirmação em 15M.'}
+                    : 'Expirou sem confirmação em 5M.'}
           </div>
           {e.estado === 'disparado' ? (
             <div className="analise-viva__niveis">
@@ -451,7 +451,7 @@ function CartaoSetupFixo({
                   entrada: e.tiro.entrada,
                   stop: e.tiro.stop,
                   alvos: [{ preco: e.tiro.alvo, r: e.tiro.rr }],
-                  origem: `ICT ALGO · tiro 15M · ${s.modelo}`,
+                  origem: `ICT ALGO · tiro 5M · ${s.modelo}`,
                   id: `${s.chave}|tiro`,
                 })
               }
@@ -534,7 +534,7 @@ export function VisaoIct({
       </div>
       {tf !== '1h' && (
         <p className="analise-viva__nota">
-          O setup do ICT ALGO lê-se em 1H e o tiro sai em 15M; neste gráfico de {tf.toUpperCase()} mostra-se a leitura de 1H.
+          O setup do ICT ALGO lê-se em 1H e o tiro sai em 5M; neste gráfico de {tf.toUpperCase()} mostra-se a leitura de 1H.
         </p>
       )}
 

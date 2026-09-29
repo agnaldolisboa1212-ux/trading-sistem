@@ -77,18 +77,30 @@ export interface LeituraPoi {
   atr: number;
 }
 
+/** Parâmetros dos POI — por omissão, os de produção (para o backtest os variar). */
+export interface OpcoesPoi {
+  /** Dias de negociação para trás onde se procuram POI (3). */
+  dias?: number;
+  /** Velas de 15M de cada lado de um topo/fundo (8). */
+  lookback?: number;
+  /** Janela da sessão, em minutos de Londres (08:00–11:00). */
+  janela?: { de: number; ate: number };
+}
+
 /**
  * A leitura do dia de Londres em que cai `agora`. `v15`: velas FECHADAS de 15M,
  * com pelo menos ~4 dias (400 velas chegam; o viés e o ATR estabilizam melhor
  * com mais).
  */
-export function poisDeSessao(v15: readonly Candle[], agora: number): LeituraPoi | null {
+export function poisDeSessao(v15: readonly Candle[], agora: number, opcoes: OpcoesPoi = {}): LeituraPoi | null {
   if (v15.length < 120) return null;
+  const janela = opcoes.janela ?? JANELA_POI;
+  const diasPoi = opcoes.dias ?? DIAS_POI;
   const l = relogioLondres(agora);
   const dia = diaLondres(agora);
-  // 08:00 de Londres deste dia: o fuso de Londres é sempre um número inteiro de horas.
-  const inicio = Math.floor(agora / MIN) * MIN - (l.minutos - JANELA_POI.de) * MIN;
-  const fim = inicio + (JANELA_POI.ate - JANELA_POI.de) * MIN;
+  // O início da janela deste dia: o fuso de Londres é sempre um número inteiro de horas.
+  const inicio = Math.floor(agora / MIN) * MIN - (l.minutos - janela.de) * MIN;
+  const fim = inicio + (janela.ate - janela.de) * MIN;
   const provisoria = agora < inicio;
   // A leitura é a das 08:00 — ou a de agora, se ainda não são 08:00.
   const j = ultimaFechadaAte(v15, M15, provisoria ? agora : inicio);
@@ -125,12 +137,12 @@ export function poisDeSessao(v15: readonly Candle[], agora: number): LeituraPoi 
 
   // Os 3 dias de negociação anteriores a este.
   const dias: number[] = [];
-  for (let k = j; k >= 0 && dias.length < DIAS_POI + 1; k--) {
+  for (let k = j; k >= 0 && dias.length < diasPoi + 1; k--) {
     const d = diaLondres(v15[k]!.time);
     if (d < dia && dias[dias.length - 1] !== d) dias.push(d);
   }
-  if (dias.length < DIAS_POI) return null;
-  const desdeDia = dias[DIAS_POI - 1]!;
+  if (dias.length < diasPoi) return null;
+  const desdeDia = dias[diasPoi - 1]!;
 
   const tocadoAte = (idx: number, kind: 'high' | 'low', preco: number): boolean => {
     for (let k = idx + 1; k <= j; k++) {
@@ -142,7 +154,7 @@ export function poisDeSessao(v15: readonly Candle[], agora: number): LeituraPoi 
   const preco = v15[j]!.close;
   const pois: ZonaPoi[] = [];
   const opostos: Array<{ preco: number; rotulo: string }> = [];
-  const swings = swingsConfirmados(v15, LOOKBACK_POI);
+  const swings = swingsConfirmados(v15, opcoes.lookback ?? LOOKBACK_POI);
   for (let s = swings.length - 1; s >= 0; s--) {
     const w = swings[s]!;
     if (w.confirmadoEm > j) continue;
@@ -320,12 +332,24 @@ const px5 = (v: number): string => {
   return v.toFixed(a >= 1000 ? 2 : a >= 10 ? 3 : 5);
 };
 
+/** Parâmetros do tiro — por omissão, os de produção (para o backtest os variar). */
+export interface OpcoesTiroPoi {
+  /** RR mínimo do alvo (2). */
+  rrMinimo?: number;
+  /** 'liquidez' (a mais próxima que pague o RR mínimo) ou 'fixo' (exactamente o RR mínimo). */
+  alvo?: 'liquidez' | 'fixo';
+  /** Só dispara com SMT a favor (por omissão, o SMT é só confluência). */
+  exigirSmt?: boolean;
+}
+
 export function tiroPoi(
   leitura: LeituraPoi,
   v1: readonly Candle[],
   agora: number,
   par?: readonly Candle[] | null,
+  opcoes: OpcoesTiroPoi = {},
 ): LeituraTiroPoi {
+  const rrMinimo = opcoes.rrMinimo ?? RR_ALVO_POI;
   const venda = leitura.vies === 'bearish';
   // Velas de 1M fechadas até agora, da janela e das 5 horas antes (os swings).
   const velas = v1.filter((c) => c.time >= leitura.inicio - 5 * HORA && c.time < leitura.fim && c.time + MIN <= agora);
@@ -373,15 +397,18 @@ export function tiroPoi(
       const stop = venda ? Math.max(p.zona.extremo, p.ext) : Math.min(p.zona.extremo, p.ext);
       const risco = venda ? stop - entrada : entrada - stop;
       if (!(risco >= RISCO_MINIMO_POI_ATR * leitura.atr)) continue;
-      const alvos = liquidez
-        // Por tomar: Londres ainda não lá chegou, e à frente da entrada.
-        .filter((l) => (venda ? l.preco < minDesde && l.preco < entrada : l.preco > maxDesde && l.preco > entrada))
-        .map((l) => ({ ...l, r: Math.abs(entrada - l.preco) / risco }))
-        .filter((l) => l.r >= RR_ALVO_POI)
-        .sort((a, b) => (venda ? b.preco - a.preco : a.preco - b.preco));
+      const alvos =
+        opcoes.alvo === 'fixo'
+          ? [{ preco: venda ? entrada - rrMinimo * risco : entrada + rrMinimo * risco, rotulo: `${rrMinimo}R fixo`, r: rrMinimo }]
+          : liquidez
+              // Por tomar: Londres ainda não lá chegou, e à frente da entrada.
+              .filter((l) => (venda ? l.preco < minDesde && l.preco < entrada : l.preco > maxDesde && l.preco > entrada))
+              .map((l) => ({ ...l, r: Math.abs(entrada - l.preco) / risco }))
+              .filter((l) => l.r >= rrMinimo)
+              .sort((a, b) => (venda ? b.preco - a.preco : a.preco - b.preco));
       const alvo = alvos[0];
       if (!alvo) {
-        semAlvo = `MSS de 1M às ${hhmm(c.time)}, mas nenhuma liquidez por tomar paga ${RR_ALVO_POI}R`;
+        semAlvo = `MSS de 1M às ${hhmm(c.time)}, mas nenhuma liquidez por tomar paga ${rrMinimo}R`;
         continue;
       }
       // SMT (confluência): das 08:00 ao extremo, o par andou ao contrário?
@@ -396,6 +423,7 @@ export function tiroPoi(
           smt = Math.sign(nosso) !== 0 && Math.sign(dele) === -Math.sign(nosso);
         }
       }
+      if (opcoes.exigirSmt && smt !== true) continue;
       const tiro: TiroPoi = {
         zona: p.zona,
         time: c.time,

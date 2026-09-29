@@ -3,9 +3,11 @@
  *
  *   1H   quando não há setup activo e fecha uma vela de 1H nova, corre-se o
  *        ICT ALGO em 1H; se um setup NASCEU nessa vela, fica fixo (24 h)
- *   15M  em cada passagem, o estado do setup com as velas de 15M
- *        (`estadoDoSetup`): à espera da zona → na zona → DISPARADO (o tiro sai
- *        pela lista de sinais, em `planIctAlgo`) → ou invalidado/expirado
+ *   5M   em cada passagem, o estado do setup com as velas de 5M
+ *        (`estadoDoSetup`, `PASSO_GATILHO_ICT`): à espera da zona → na zona →
+ *        DISPARADO (o tiro sai pela lista de sinais, em `planIctAlgo`, no fecho
+ *        da vela de 15M que o contém) → ou invalidado/expirado. Era 15M até
+ *        29/09/2026 (ver `gatilho.ts`)
  *
  * Um disparado fica fixo até o tiro ir ao stop ou ao alvo (ou 24 h), e só
  * depois se arma outro: o algoritmo não salta de setup em setup.
@@ -18,6 +20,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   NOME_MODELO,
+  PASSO_GATILHO_ICT,
   agregar,
   armarSetupIct,
   correrIctAlgo,
@@ -32,10 +35,14 @@ import { acharSimbolo, velasFechadasDeriv } from '@trading/data';
 import { dirDados } from './estado.js';
 
 const H1 = 3_600_000;
-const M15 = 900_000;
 const DIA = 86_400_000;
 /** Velas de 1H para o ICT ALGO (o placar dos modelos precisa de história). */
 const VELAS_1H = 3500;
+/**
+ * Velas do gatilho (5M). A Deriv só dá ~1,5 dias de 5M por pedido (~450 velas):
+ * chega para um setup de 24 h e a estrutura antes dele.
+ */
+const VELAS_GATILHO = 600;
 
 export interface RegistoIct {
   setup: SetupFixo | null;
@@ -66,12 +73,12 @@ function gravar(e: EstadoIct): void {
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Depois de disparado: o tiro já foi ao stop ou ao alvo? */
-function tiroFechado(estado: EstadoSetup, v15: readonly { time: number; high: number; low: number }[], agora: number): string | null {
+function tiroFechado(estado: EstadoSetup, velas: readonly { time: number; high: number; low: number }[], agora: number): string | null {
   if (estado.estado !== 'disparado') return null;
   const t = estado.tiro;
   const venda = t.stop > t.entrada;
-  for (const c of v15) {
-    if (c.time <= t.time || c.time + M15 > agora) continue;
+  for (const c of velas) {
+    if (c.time <= t.time || c.time + PASSO_GATILHO_ICT > agora) continue;
     if (venda ? c.high >= t.stop : c.low <= t.stop) return `o tiro foi ao stop (${t.stop})`;
     if (venda ? c.low <= t.alvo : c.high >= t.alvo) return `o tiro foi ao alvo (${t.alvo}, ${t.rr.toFixed(1)}R)`;
   }
@@ -95,12 +102,13 @@ export async function prepararIctFixo(
     if (!s) continue;
     const reg: RegistoIct = estado[s.codigo] ?? { setup: null, estado: null, ultimo1h: 0, historico: [] };
     try {
-      const v15 = await velasFechadasDeriv(s.deriv, 900, 1000);
+      const vg = await velasFechadasDeriv(s.deriv, PASSO_GATILHO_ICT / 1000, VELAS_GATILHO);
+      const opcoes = { passoMs: PASSO_GATILHO_ICT };
 
       // 1 — O setup activo: em que ponto está, e se já terminou.
       if (reg.setup) {
-        const e = estadoDoSetup(reg.setup, v15, agora);
-        const fechado = tiroFechado(e, v15, agora);
+        const e = estadoDoSetup(reg.setup, vg, agora, opcoes);
+        const fechado = tiroFechado(e, vg, agora);
         const terminou = e.estado === 'invalidado' || e.estado === 'expirado' || fechado !== null;
         if (terminou) {
           reg.historico = [
@@ -144,7 +152,7 @@ export async function prepararIctFixo(
           // de 14–25/09 o EURJPY armava duas vezes a mesma zona.
           if (novo && !reg.historico.some((h) => h.setup.chave === novo.chave)) {
             reg.setup = novo;
-            reg.estado = estadoDoSetup(novo, v15, agora);
+            reg.estado = estadoDoSetup(novo, vg, agora, opcoes);
           }
         }
       }

@@ -653,7 +653,7 @@ export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: s
       ...(agora && s.precoActual !== undefined ? [`Agora ${n(s.precoActual)} · ${agora}`] : []),
       ...(s.noticia ? [`⚠ ${s.noticia.slice(0, 140)}`] : []),
       s.estrategia === 'ict-algo'
-        ? `Tiro certeiro: setup de 1H fixo, e o 15M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
+        ? `Tiro certeiro: setup de 1H fixo, e o 5M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
         : s.estrategia === 'asia-range-algo'
           ? `Tiro no POI: o preço chegou ao POI de 15M na janela de Londres e fez MSS em 1M. A decisão é sua.`
           : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,

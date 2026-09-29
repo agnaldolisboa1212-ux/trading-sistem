@@ -113,7 +113,7 @@ export function desenhoIctFixo(r: RegistoIct | null): Desenho {
   d.linhas.push({ preco: s.alvo, rotulo: `alvo · ${s.rotuloAlvo}`, tipo: 'alvo', de: s.formadoEm });
   if (r?.estado?.estado === 'disparado') {
     const t = r.estado.tiro;
-    d.marcas!.push({ t: t.time, p: t.entrada, rotulo: 'TIRO 15M', tipo: 'entrada' });
+    d.marcas!.push({ t: t.time, p: t.entrada, rotulo: 'TIRO 5M', tipo: 'entrada' });
   }
   return d;
 }

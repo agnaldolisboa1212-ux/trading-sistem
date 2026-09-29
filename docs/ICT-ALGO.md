@@ -587,6 +587,55 @@ instrumentos, e perde; o que o trava é o preço não voltar ao FVG/OB de 1H em
 vantagem medida (USDCAD +0,38R, t=1,5, é um par em seis). Os dois continuam
 alerta.
 
+### Mais sinais e mais acerto — variantes medidas sem sobreajuste (29/09/2026, noite)
+
+Pedido do Agnaldo: configurar os dois algoritmos "com os melhores trades" para
+serem mais assertivos e darem mais sinais. Escolher parâmetros pelos melhores
+trades do passado é sobreajuste; o método foi fixado ANTES de correr:
+
+- variantes das boas práticas ICT e do journal, uma mudança de cada vez;
+- escolha só na 1.ª metade (2022-01 → 2024-06), pares ao vivo, pelo objectivo
+  **R por semana** (média × sinais por semana — premeia mais sinais e mais
+  acerto, castiga sinais que perdem); depois a combinação das que melhoram;
+- validação: média > 0 na 2.ª metade E nos mercados de controlo.
+
+**ICT ALGO** (`scripts/backtest/ict-fixo.mjs`, 16 combinações de validade 48 h,
+gatilho 5M, toque a ¼ ATR, RR 1,5):
+
+| | tiros/sem (10 instr.) | acerto | 1.ª metade | 2.ª metade | controlo |
+|---|---|---|---|---|---|
+| gatilho 15M (a regra até hoje) | 0,32 | 22% | −0,51R | +0,09R | −0,36R |
+| **gatilho 5M** (vencedor) | 0,70 | 31% | −0,06R | +0,10R | −0,20R |
+| 5M + 48 h + RR 1,5 (combinação) | 0,92 | 32% | −0,13R | +0,18R | −0,10R |
+
+O vencedor **não passa** (controlo negativo), mas é melhor do que o 15M em
+todas as amostras — mais do dobro dos tiros, mais acerto, menos perda, também
+no controlo. Como o ICT é alerta, **o gatilho passou a 5M** (`PASSO_GATILHO_ICT`;
+o setup continua a ler-se em 1H). Nota: isto troca o "confirmação em 15M" que o
+Agnaldo tinha escolhido; volta-se atrás mudando uma constante.
+
+**Asia Range** (`scripts/backtest/asia-range-variantes.mjs`, funções de
+produção, simulação em 1M):
+
+| | sinais/sem (6 pares) | acerto | 1.ª metade | 2.ª metade | controlo |
+|---|---|---|---|---|---|
+| base (produção) | 1,99 | 25% | +0,03R | −0,19R | −0,12R |
+| janela até às 13:00 | 2,89 | 24% | −0,12R | −0,21R | −0,14R |
+| + sessão de Nova Iorque | 3,02 | 25% | −0,02R | −0,21R | −0,24R |
+| POI de 5 dias | 2,20 | 25% | −0,05R | −0,15R | −0,11R |
+| swings de 4 velas | 2,51 | 24% | −0,11R | −0,17R | −0,19R |
+| alvo a 1,5R | 2,11 | 28% | +0,01R | −0,13R | −0,12R |
+| alvo fixo a 2R | 2,32 | 35% | −0,10R | −0,20R | −0,06R |
+| exigir SMT | 0,50 | 26% | +0,17R | −0,35R | −0,29R |
+| viés diário alinhado | 0,83 | 27% | +0,19R | −0,20R | −0,25R |
+| SMT + viés diário | 0,20 | 29% | +0,25R | −0,47R | −0,34R |
+
+Os sinais a mais perdem; os filtros que "melhoram" (SMT, viés diário) só
+melhoram na 1.ª metade e falham fora dela — o retrato do sobreajuste. **Nada
+passa, e nada é melhor do que a base em todas as amostras: o Asia Range fica
+como está.** O que decide o resultado continua a ser a leitura de quem opera
+(o journal teve +0,63R por ideia); os alertas levam-no ao sítio certo.
+
 ---
 
 ## 7. Para acrescentar um modelo

@@ -43,6 +43,15 @@ import { confirmacaoLtf } from './confirmacao.js';
 import { serieAtrIct } from './estrutura.js';
 
 const M15 = 900_000;
+/**
+ * O timeframe do gatilho em produção: 5M (29/09/2026). Medido em
+ * `scripts/backtest/ict-fixo.mjs` (2022–2026, custos): contra o 15M, 0,70 tiros
+ * por semana nos 10 instrumentos (eram 0,32), acerto 31% (22%), e melhor nas duas
+ * metades e no controlo (−0,06R / +0,10R / −0,20R contra −0,51R / +0,09R /
+ * −0,36R). Sem vantagem provada — o controlo continua negativo —, mas melhor
+ * do que o 15M em todas as amostras. Por omissão, `estadoDoSetup` lê 15M.
+ */
+export const PASSO_GATILHO_ICT = 5 * 60_000;
 /** Validade de um setup fixo de 1H: 24 horas. */
 export const VALIDADE_SETUP_MS = 24 * 3_600_000;
 /** RR mínimo do tiro (o do ICT ALGO). */
@@ -96,6 +105,12 @@ export interface OpcoesSetup {
    * omissão, sim (29/09/2026).
    */
   alvoMovel?: boolean;
+  /** RR mínimo do tiro (2). */
+  rrMinimo?: number;
+  /** Conta como toque chegar a esta fracção do ATR do gatilho da zona (0). */
+  toleranciaAtr?: number;
+  /** O timeframe do gatilho, em ms (15M); as velas dadas têm de ser desse timeframe. */
+  passoMs?: number;
 }
 
 /**
@@ -109,6 +124,9 @@ export function estadoDoSetup(
   opcoes: OpcoesSetup = {},
 ): EstadoSetup {
   const alvoMovel = opcoes.alvoMovel ?? true;
+  const rrMinimo = opcoes.rrMinimo ?? RR_MINIMO_TIRO;
+  const passo = opcoes.passoMs ?? M15;
+  const tolerancia = opcoes.toleranciaAtr ?? 0;
   const alta = setup.direccao === 'bullish';
   const atr = serieAtrIct(velas15m);
   let tocadoEm = -1;
@@ -117,7 +135,7 @@ export function estadoDoSetup(
   let alvo = setup.alvo;
   for (let k = 0; k < velas15m.length; k++) {
     const c = velas15m[k]!;
-    const fecho = c.time + M15;
+    const fecho = c.time + passo;
     if (c.time < setup.formadoEm) continue;
     if (fecho > agora) break;
     if (fecho > setup.expiraEm) return { estado: 'expirado', em: setup.expiraEm };
@@ -133,14 +151,15 @@ export function estadoDoSetup(
         if (!alvoMovel) return { estado: 'invalidado', em: c.time, motivo: 'o preço foi ao alvo sem passar pela zona' };
         alvo = alta ? c.high : c.low;
       }
-      const toca = alta ? c.low <= setup.zonaAlta : c.high >= setup.zonaBaixa;
+      const folga = tolerancia * (atr[k] ?? 0);
+      const toca = alta ? c.low <= setup.zonaAlta + folga : c.high >= setup.zonaBaixa - folga;
       if (!toca) continue;
       tocadoEm = c.time;
     }
     extremo = alta ? Math.min(extremo, c.low) : Math.max(extremo, c.high);
 
     // O gatilho: CHoCH/MSS de 15M a favor, depois do toque, com a estrutura de 15M a favor.
-    const conf = confirmacaoLtf(velas15m, setup.direccao, fecho, M15);
+    const conf = confirmacaoLtf(velas15m, setup.direccao, fecho, passo);
     ultimaConf = conf.detalhe;
     if (!conf.ok || conf.time === null || conf.time < tocadoEm) continue;
     const entrada = c.close;
@@ -151,7 +170,7 @@ export function estadoDoSetup(
     // Do lado certo do alvo, e a pagar pelo menos 2R — senão espera-se por melhor.
     if (alta ? alvo <= entrada : alvo >= entrada) continue;
     const rr = Math.abs(alvo - entrada) / risco;
-    if (rr < RR_MINIMO_TIRO) continue;
+    if (rr < rrMinimo) continue;
     const movido = alvo !== setup.alvo ? `; alvo no novo extremo (${alvo}), porque a perna tomou o do 1H antes de recuar` : '';
     return {
       estado: 'disparado',
