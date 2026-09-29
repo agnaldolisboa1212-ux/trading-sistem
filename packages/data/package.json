@@ -14,6 +14,10 @@
     "./ritmo": {
       "types": "./dist/providers/ritmo.d.ts",
       "default": "./dist/providers/ritmo.js"
+    },
+    "./paginar": {
+      "types": "./dist/providers/paginar.d.ts",
+      "default": "./dist/providers/paginar.js"
     }
   },
   "scripts": {
