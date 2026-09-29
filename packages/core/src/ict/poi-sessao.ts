@@ -263,3 +263,170 @@ export function planoPoi(zona: ZonaPoi, liquidez: ReadonlyArray<{ preco: number;
   const alvo = niveis.find((l) => l.r >= RR_ALVO_POI) ?? niveis[niveis.length - 1] ?? null;
   return { direccao: zona.lado, entrada, stop, alvo };
 }
+
+// ---------------------------------------------------------------------------
+// O tiro no POI — a entrada do Asia Range (29/09/2026)
+// ---------------------------------------------------------------------------
+
+/**
+ * A entrada do setup do journal, tal como o Agnaldo a descreveu e como foi
+ * medida em `scripts/backtest/asia-range-poi.mjs` (versão A):
+ *
+ *   toque   o preço entra num POI do dia na janela de Londres (08:00–11:00)
+ *   MSS     reversão em 1M: o primeiro fecho de 1M além do último swing de 1M
+ *           (2 velas de cada lado) do lado oposto, confirmado antes do extremo
+ *           feito no POI. Entrada no fecho dessa vela
+ *   stop    além do POI: o mais afastado entre o extremo da zona e o extremo
+ *           que o preço fez; pelo menos ¼ de ATR de 15M
+ *   alvo    a liquidez do lado oposto por tomar — o extremo oposto da Ásia ou
+ *           um topo/fundo de 15M para lá dele — o mais próximo que pague 2R
+ *
+ * Um POI passado em mais de ½ ATR deixa de valer. O SMT não é condição (no
+ * journal era confluência em metade das operações): mede-se e diz-se.
+ *
+ * O primeiro tiro do dia é o único. Só lê velas de 1M fechadas até `agora`.
+ */
+export interface TiroPoi {
+  zona: ZonaPoi;
+  /** Abertura da vela de 1M do MSS (ms). */
+  time: number;
+  entrada: number;
+  stop: number;
+  alvo: { preco: number; rotulo: string; r: number };
+  /** O extremo feito no POI, e a abertura da vela de 1M que o fez. */
+  extremo: number;
+  extremoEm: number;
+  /** Primeira vela de 1M que tocou o POI. */
+  tocadoEm: number;
+  /** O swing de 1M quebrado (o MSS). */
+  nivelMss: number;
+  /** O par correlacionado andou ao contrário das 08:00 ao extremo (SMT)? null = sem dados. */
+  smt: boolean | null;
+}
+
+export interface LeituraTiroPoi {
+  tiro: TiroPoi | null;
+  estado: 'antes-da-janela' | 'sem-toque' | 'na-zona' | 'invalidado' | 'sem-alvo' | 'disparado';
+  detalhe: string;
+}
+
+const HORA = 3_600_000;
+const hhmm = (t: number): string => {
+  const l = relogioLondres(t);
+  return `${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+};
+const px5 = (v: number): string => {
+  const a = Math.abs(v);
+  return v.toFixed(a >= 1000 ? 2 : a >= 10 ? 3 : 5);
+};
+
+export function tiroPoi(
+  leitura: LeituraPoi,
+  v1: readonly Candle[],
+  agora: number,
+  par?: readonly Candle[] | null,
+): LeituraTiroPoi {
+  const venda = leitura.vies === 'bearish';
+  // Velas de 1M fechadas até agora, da janela e das 5 horas antes (os swings).
+  const velas = v1.filter((c) => c.time >= leitura.inicio - 5 * HORA && c.time < leitura.fim && c.time + MIN <= agora);
+  const k0 = velas.findIndex((c) => c.time >= leitura.inicio);
+  if (k0 < 0) return { tiro: null, estado: 'antes-da-janela', detalhe: 'Londres ainda não abriu (08:00).' };
+  const swings = swingsConfirmados(velas);
+  // A liquidez do outro lado: o extremo oposto da Ásia, ou para lá dele.
+  const asiaOposto = leitura.asia ? (venda ? leitura.asia.baixo : leitura.asia.alto) : null;
+  const liquidez = leitura.liquidezOposta.filter((l) => asiaOposto === null || (venda ? l.preco <= asiaOposto : l.preco >= asiaOposto));
+
+  const pois = leitura.pois.map((zona) => ({ zona, tocadoEm: -1, invalido: false, ext: venda ? -Infinity : Infinity, iExt: -1, avaliado: -1 }));
+  let maxDesde = -Infinity;
+  let minDesde = Infinity;
+  let semAlvo: string | null = null;
+  for (let q = k0; q < velas.length; q++) {
+    const c = velas[q]!;
+    maxDesde = Math.max(maxDesde, c.high);
+    minDesde = Math.min(minDesde, c.low);
+    for (const p of pois) {
+      if (p.invalido) continue;
+      if (p.tocadoEm < 0 && (venda ? c.high >= p.zona.baixo : c.low <= p.zona.alto)) p.tocadoEm = c.time;
+      if (p.tocadoEm < 0) continue;
+      if (venda ? c.high > p.ext : c.low < p.ext) {
+        p.ext = venda ? c.high : c.low;
+        p.iExt = q;
+      }
+      if (venda ? p.ext > p.zona.extremo + INVALIDA_POI_ATR * leitura.atr : p.ext < p.zona.extremo - INVALIDA_POI_ATR * leitura.atr) {
+        p.invalido = true;
+        continue;
+      }
+      if (q <= p.iExt || p.avaliado === p.iExt) continue;
+      // O MSS: o último swing do lado oposto, confirmado, antes do extremo.
+      let nivel: number | null = null;
+      for (let s = swings.length - 1; s >= 0; s--) {
+        const w = swings[s]!;
+        if (w.index >= p.iExt || w.confirmadoEm > q) continue;
+        if (w.kind === (venda ? 'low' : 'high')) {
+          nivel = w.price;
+          break;
+        }
+      }
+      if (nivel === null || !(venda ? c.close < nivel : c.close > nivel)) continue;
+      p.avaliado = p.iExt;
+      const entrada = c.close;
+      const stop = venda ? Math.max(p.zona.extremo, p.ext) : Math.min(p.zona.extremo, p.ext);
+      const risco = venda ? stop - entrada : entrada - stop;
+      if (!(risco >= RISCO_MINIMO_POI_ATR * leitura.atr)) continue;
+      const alvos = liquidez
+        // Por tomar: Londres ainda não lá chegou, e à frente da entrada.
+        .filter((l) => (venda ? l.preco < minDesde && l.preco < entrada : l.preco > maxDesde && l.preco > entrada))
+        .map((l) => ({ ...l, r: Math.abs(entrada - l.preco) / risco }))
+        .filter((l) => l.r >= RR_ALVO_POI)
+        .sort((a, b) => (venda ? b.preco - a.preco : a.preco - b.preco));
+      const alvo = alvos[0];
+      if (!alvo) {
+        semAlvo = `MSS de 1M às ${hhmm(c.time)}, mas nenhuma liquidez por tomar paga ${RR_ALVO_POI}R`;
+        continue;
+      }
+      // SMT (confluência): das 08:00 ao extremo, o par andou ao contrário?
+      let smt: boolean | null = null;
+      if (par && par.length > 0) {
+        const tExt = velas[p.iExt]!.time;
+        const pa = par.find((x) => x.time >= leitura.inicio);
+        const pb = [...par].reverse().find((x) => x.time <= tExt);
+        if (pa && pb && pb.time >= pa.time) {
+          const nosso = velas[p.iExt]!.close - velas[k0]!.open;
+          const dele = pb.close - pa.open;
+          smt = Math.sign(nosso) !== 0 && Math.sign(dele) === -Math.sign(nosso);
+        }
+      }
+      const tiro: TiroPoi = {
+        zona: p.zona,
+        time: c.time,
+        entrada,
+        stop,
+        alvo,
+        extremo: p.ext,
+        extremoEm: velas[p.iExt]!.time,
+        tocadoEm: p.tocadoEm,
+        nivelMss: nivel,
+        smt,
+      };
+      return {
+        tiro,
+        estado: 'disparado',
+        detalhe:
+          `POI de ${venda ? 'venda' : 'compra'} ${px5(p.zona.baixo)}–${px5(p.zona.alto)} tocado às ${hhmm(p.tocadoEm)}; ` +
+          `MSS de 1M às ${hhmm(c.time)} (fecho além de ${px5(nivel)}); alvo ${alvo.rotulo} a ${alvo.r.toFixed(1)}R` +
+          (smt === true ? '; SMT a favor' : smt === false ? '; sem SMT' : ''),
+      };
+    }
+  }
+  if (semAlvo) return { tiro: null, estado: 'sem-alvo', detalhe: semAlvo };
+  const tocados = pois.filter((p) => p.tocadoEm >= 0);
+  if (tocados.length === 0) return { tiro: null, estado: 'sem-toque', detalhe: 'O preço ainda não chegou a nenhum POI do dia.' };
+  const vivos = tocados.filter((p) => !p.invalido);
+  if (vivos.length === 0) return { tiro: null, estado: 'invalidado', detalhe: `O preço passou o POI em mais de ${INVALIDA_POI_ATR} ATR — deixou de valer.` };
+  const p = vivos[0]!;
+  return {
+    tiro: null,
+    estado: 'na-zona',
+    detalhe: `No POI ${px5(p.zona.baixo)}–${px5(p.zona.alto)} desde as ${hhmm(p.tocadoEm)} — à espera do MSS de 1M.`,
+  };
+}

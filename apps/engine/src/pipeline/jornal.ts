@@ -186,7 +186,7 @@ export async function publicarJornal(input: {
       modelo: r.setup.modelo,
       zonaBaixa: r.setup.zonaBaixa,
       zonaAlta: r.setup.zonaAlta,
-      alvo: r.setup.alvo,
+      alvo: r.estado && 'alvo' in r.estado && r.estado.alvo !== undefined ? r.estado.alvo : r.setup.alvo,
       estado: estadoIct(r.estado),
     });
   }

@@ -84,7 +84,7 @@ export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: Dados
 
 export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
   if (!algo || ctx.timeframe !== '15m') return [];
-  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, diarias: algo.diarias, par: algo.par, ltf: algo.ltf1 });
+  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, par: algo.par, ltf: algo.ltf1 });
   const s = a.sinal;
   if (!s || s.index !== velas.length - 1) return [];
   const u = velas[s.index]!;
@@ -106,8 +106,9 @@ export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo:
       maxRMultiple: s.rr,
       conviction: 0,
       rationale:
-        `Londres varreu a ${s.direccao === 'bullish' ? 'mínima' : 'máxima'} da Ásia com SMT contra ${a.par} e fez MSS. ` +
-        `Stop no extremo da manipulação; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ${AVISO_ASIA_RANGE}`,
+        `O preço chegou ao POI de ${s.direccao === 'bullish' ? 'compra' : 'venda'} (${s.zonaBaixa}–${s.zonaAlta}, topo/fundo de 15M por tocar) ` +
+        `na janela de Londres e fez MSS em 1M. Stop além do POI; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R).` +
+        `${s.smt === true ? ` SMT a favor contra ${a.par}.` : ''} ${AVISO_ASIA_RANGE}`,
       assumptions: a.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
       warnings: [AVISO_ASIA_RANGE],
     },

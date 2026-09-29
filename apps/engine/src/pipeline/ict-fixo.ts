@@ -140,7 +140,9 @@ export async function prepararIctFixo(
             agora,
           });
           const novo = armarSetupIct(a, ult.time + H1, (m) => NOME_MODELO[m as ModeloIct] ?? m);
-          if (novo) {
+          // Um setup que já acabou (a mesma chave) não se arma outra vez: na réplica
+          // de 14–25/09 o EURJPY armava duas vezes a mesma zona.
+          if (novo && !reg.historico.some((h) => h.setup.chave === novo.chave)) {
             reg.setup = novo;
             reg.estado = estadoDoSetup(novo, v15, agora);
           }

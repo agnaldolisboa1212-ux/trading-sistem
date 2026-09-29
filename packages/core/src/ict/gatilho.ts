@@ -14,8 +14,24 @@
  *        fecho dessa vela de 15M, stop no extremo feito desde o toque (mais
  *        curto do que o do 1H), alvo o do 1H.
  *
- * Invalida-se se o preço tocar o stop do 1H antes do disparo, ou se for ao
- * alvo sem ter passado pela zona; expira ao fim de `validade` (24 h).
+ * Invalida-se se o preço tocar o stop do 1H antes do disparo; expira ao fim de
+ * `validade` (24 h).
+ *
+ * ── CORRECÇÕES DE 29/09/2026 (a réplica das duas semanas: 11 setups, 0 tiros)
+ *
+ *   ZONA   era a sobreposição do PD array com o OTE (62–79%) — medido: de 0,01
+ *          a 0,5 ATR de largura (0,3 pips no USDJPY). Passa a ser o PD ARRAY
+ *          INTEIRO (o FVG/order block), como pediu o Agnaldo.
+ *   ALVO   era o extremo do impulso, que o preço tinha acabado de fazer: nos
+ *          setups da réplica o preço já tinha andado 50–83% do caminho zona →
+ *          alvo quando o setup nasceu, e qualquer empurrão tocava o alvo — e o
+ *          setup era morto ("foi ao alvo sem passar pela zona"). No ICT isso é
+ *          o normal: a perna toma a liquidez externa (ERL) e só DEPOIS recua ao
+ *          FVG (IRL), que é a entrada. Agora, se o preço toma o alvo antes de
+ *          vir à zona, o setup continua e o alvo passa a ser o novo extremo.
+ *
+ * As duas regras antigas continuam disponíveis (`zona: 'ote'`,
+ * `alvoMovel: false`) para o backtest as comparar.
  *
  * PUREZA: sem rede nem relógio — `agora` vem de quem chama; só lê velas de 15M
  * FECHADAS até `agora`.
@@ -64,24 +80,41 @@ export interface TiroIct {
 }
 
 export type EstadoSetup =
-  | { estado: 'a-espera-da-zona' }
-  | { estado: 'na-zona'; tocadoEm: number; extremo: number; detalhe: string }
+  /** `alvo`: o alvo em vigor (o do 1H, ou o novo extremo se o preço já o tomou). */
+  | { estado: 'a-espera-da-zona'; alvo?: number }
+  | { estado: 'na-zona'; tocadoEm: number; extremo: number; detalhe: string; alvo?: number }
   | { estado: 'disparado'; tocadoEm: number; tiro: TiroIct }
   | { estado: 'invalidado'; em: number; motivo: string }
   | { estado: 'expirado'; em: number };
 
 const hora = (t: number) => new Date(t).toISOString().slice(11, 16);
 
+export interface OpcoesSetup {
+  /**
+   * Se o preço toma o alvo antes de vir à zona, o alvo passa a ser o novo
+   * extremo (a perna estendeu-se) em vez de o setup ser invalidado. Por
+   * omissão, sim (29/09/2026).
+   */
+  alvoMovel?: boolean;
+}
+
 /**
  * Onde está o setup fixo às `agora`, com as velas de 15M (fechadas) dadas.
  * O disparo, quando existe, é o PRIMEIRO — não se procura outro depois.
  */
-export function estadoDoSetup(setup: SetupFixo, velas15m: readonly Candle[], agora: number): EstadoSetup {
+export function estadoDoSetup(
+  setup: SetupFixo,
+  velas15m: readonly Candle[],
+  agora: number,
+  opcoes: OpcoesSetup = {},
+): EstadoSetup {
+  const alvoMovel = opcoes.alvoMovel ?? true;
   const alta = setup.direccao === 'bullish';
   const atr = serieAtrIct(velas15m);
   let tocadoEm = -1;
   let extremo = alta ? Infinity : -Infinity;
   let ultimaConf = '';
+  let alvo = setup.alvo;
   for (let k = 0; k < velas15m.length; k++) {
     const c = velas15m[k]!;
     const fecho = c.time + M15;
@@ -94,9 +127,11 @@ export function estadoDoSetup(setup: SetupFixo, velas15m: readonly Candle[], ago
       return { estado: 'invalidado', em: c.time, motivo: `o preço tocou o stop do 1H (${setup.stop}) antes de confirmar` };
     }
     if (tocadoEm < 0) {
-      // Foi ao alvo sem passar pela zona: o movimento fez-se sem nós.
-      if (alta ? c.high >= setup.alvo : c.low <= setup.alvo) {
-        return { estado: 'invalidado', em: c.time, motivo: 'o preço foi ao alvo sem passar pela zona' };
+      // Foi ao alvo sem passar pela zona. Com alvo móvel, a perna estendeu-se:
+      // o novo extremo é o alvo e continua-se à espera do recuo à zona.
+      if (alta ? c.high >= alvo : c.low <= alvo) {
+        if (!alvoMovel) return { estado: 'invalidado', em: c.time, motivo: 'o preço foi ao alvo sem passar pela zona' };
+        alvo = alta ? c.high : c.low;
       }
       const toca = alta ? c.low <= setup.zonaAlta : c.high >= setup.zonaBaixa;
       if (!toca) continue;
@@ -114,9 +149,10 @@ export function estadoDoSetup(setup: SetupFixo, velas15m: readonly Candle[], ago
     const risco = Math.abs(entrada - stop);
     if (!(risco > 0)) continue;
     // Do lado certo do alvo, e a pagar pelo menos 2R — senão espera-se por melhor.
-    if (alta ? setup.alvo <= entrada : setup.alvo >= entrada) continue;
-    const rr = Math.abs(setup.alvo - entrada) / risco;
+    if (alta ? alvo <= entrada : alvo >= entrada) continue;
+    const rr = Math.abs(alvo - entrada) / risco;
     if (rr < RR_MINIMO_TIRO) continue;
+    const movido = alvo !== setup.alvo ? `; alvo no novo extremo (${alvo}), porque a perna tomou o do 1H antes de recuar` : '';
     return {
       estado: 'disparado',
       tocadoEm,
@@ -124,9 +160,9 @@ export function estadoDoSetup(setup: SetupFixo, velas15m: readonly Candle[], ago
         time: c.time,
         entrada,
         stop,
-        alvo: setup.alvo,
+        alvo,
         rr,
-        detalhe: `zona do 1H tocada às ${hora(tocadoEm)} UTC; ${conf.detalhe}`,
+        detalhe: `zona do 1H tocada às ${hora(tocadoEm)} UTC; ${conf.detalhe}${movido}`,
       },
     };
   }
@@ -136,15 +172,19 @@ export function estadoDoSetup(setup: SetupFixo, velas15m: readonly Candle[], ago
       tocadoEm,
       extremo,
       detalhe: `na zona desde as ${hora(tocadoEm)} UTC — à espera da reversão em 15M (${ultimaConf || 'sem quebra ainda'})`,
+      alvo,
     };
   }
   if (agora > setup.expiraEm) return { estado: 'expirado', em: setup.expiraEm };
-  return { estado: 'a-espera-da-zona' };
+  return { estado: 'a-espera-da-zona', alvo };
 }
 
 /**
  * Arma um setup fixo a partir da análise de 1H — só quando o setup NASCEU na
  * última vela de 1H fechada (um setup antigo já teve a sua vez).
+ *
+ * `zona`: 'pd-array' (por omissão, desde 29/09/2026) usa o PD array inteiro
+ * (juntado à zona do modelo); 'ote' é a regra antiga, a sobreposição com o OTE.
  */
 export function armarSetupIct(
   a: {
@@ -160,23 +200,35 @@ export function armarSetupIct(
       alvo: number;
       rotuloAlvo: string;
       chave: string;
+      pdArray?: { baixo: number; alto: number };
     } | null;
     lidas: Partial<Record<string, number>>;
     passos: PassoTopDown[];
   },
   fechoUltima1h: number,
   nomeModelo: (m: string) => string = (m) => m,
+  opcoes: { zona?: 'pd-array' | 'ote' } = {},
 ): SetupFixo | null {
   const s = a.sinal;
   if (!s) return null;
   const lidas = a.lidas[s.timeframe];
   if (typeof lidas !== 'number' || s.index !== lidas - 1) return null;
+  let zonaBaixa = Math.min(s.zonaEntradaBaixa, s.zonaEntradaAlta);
+  let zonaAlta = Math.max(s.zonaEntradaBaixa, s.zonaEntradaAlta);
+  if ((opcoes.zona ?? 'pd-array') === 'pd-array' && s.pdArray && s.pdArray.alto > s.pdArray.baixo) {
+    zonaBaixa = Math.min(zonaBaixa, s.pdArray.baixo);
+    zonaAlta = Math.max(zonaAlta, s.pdArray.alto);
+  }
+  // A zona nunca passa o stop do 1H (um PD array largo podia chegar lá).
+  if (s.direccao === 'bullish') zonaBaixa = Math.max(zonaBaixa, s.stop);
+  else zonaAlta = Math.min(zonaAlta, s.stop);
+  if (!(zonaAlta > zonaBaixa)) return null;
   return {
     simbolo: a.simbolo,
     direccao: s.direccao,
     modelo: nomeModelo(s.modelo),
-    zonaBaixa: Math.min(s.zonaEntradaBaixa, s.zonaEntradaAlta),
-    zonaAlta: Math.max(s.zonaEntradaBaixa, s.zonaEntradaAlta),
+    zonaBaixa,
+    zonaAlta,
     stop: s.stop,
     alvo: s.alvo,
     rotuloAlvo: s.rotuloAlvo,

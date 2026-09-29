@@ -430,7 +430,10 @@ function CartaoSetupFixo({
             </div>
           ) : (
             <p className="analise-viva__razao">
-              Zona {fmt(s.zonaBaixa)} – {fmt(s.zonaAlta)} · stop do 1H {fmt(s.stop)} · alvo {fmt(s.alvo)} ({s.rotuloAlvo}).
+              Zona {fmt(s.zonaBaixa)} – {fmt(s.zonaAlta)} · stop do 1H {fmt(s.stop)} ·{' '}
+              {'alvo' in e && e.alvo !== undefined && e.alvo !== s.alvo
+                ? `alvo ${fmt(e.alvo)} (o novo extremo: a perna tomou o alvo do 1H, ${fmt(s.alvo)}, antes de recuar).`
+                : `alvo ${fmt(s.alvo)} (${s.rotuloAlvo}).`}
             </p>
           )}
           <details className="ict__bloco">

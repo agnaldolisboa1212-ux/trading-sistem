@@ -155,8 +155,10 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     instrumentos: ICT_ALGO_EM_TESTE,
     // O setup é de 1H (dentro do motor); o tiro sai no fecho de uma vela de 15M.
     timeframes: ['15m'],
-    entrada: 'A do modelo escolhido: ordem pendente no PD array (FVG/OB) ou a mercado na vela de rejeição, dentro das killzones de Londres ou Nova Iorque.',
-    saida: 'Stop estrutural do modelo (extremo varrido ou swing); alvo na liquidez mais próxima que pague pelo menos 2R.',
+    entrada:
+      'O tiro em 15M: o preço entra no PD array (FVG/OB) do setup de 1H e o 15M faz CHoCH/MSS a favor; entrada no fecho dessa vela de 15M.',
+    saida:
+      'Stop no extremo feito desde o toque na zona (pelo menos ¼ ATR de 15M); alvo o do 1H — ou o novo extremo, se o preço o tomou antes de recuar à zona —, com pelo menos 2R.',
     emTeste: {
       desde: '2026-09-25',
       revisao: '2026-12-25',
@@ -168,17 +170,17 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'asia-range-algo',
     nome: 'Asia Range Algo',
     descricao:
-      'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres. Pares JPY e USDCAD.',
+      'O setup do journal (reescrito a 29/09/2026): viés pela estrutura de 15M, POI nos topos/fundos de 15M dos 3 dias anteriores por tocar, e — na janela de Londres (08:00–11:00) — o preço chega ao POI e faz MSS em 1M. SMT só como confluência.',
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
     entrada:
-      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 1M (CHoCH/MSS e estrutura de 1M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
-    saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
+      'Reversão em 1M no POI: o primeiro fecho de 1M além do último swing de 1M antes do extremo feito no POI, entre as 08:00 e as 11:00 de Londres. Entrada no fecho dessa vela de 1M.',
+    saida: 'Stop além do POI (pelo menos ¼ ATR de 15M); alvo na liquidez oposta por tomar — o extremo oposto da Ásia ou um topo/fundo para lá dele —, a mais próxima que pague 2R.',
     emTeste: {
       desde: '2026-09-25',
       revisao: '2026-12-25',
       antes:
-        'Backtest 15M 2022+ (entrada na confirmação, alvo 3,5R): +0,12R por operação, t=1,1, 71 operações. A versão com alvo na Ásia/POI e confirmação 1M: 8 sinais em 4,7 anos, todos no stop — sem amostra. Com o MSS no próprio 1M (700 operações) perdeu −0,22R por operação, e o controlo também.',
+        'Estas regras (scripts/backtest/asia-range-poi.mjs, versão A): 730 operações em 2022+ em 8 pares, −0,16R por operação com custos (t=−2,1), ~0 sem custos. A versão anterior (varrimento da Ásia + SMT obrigatório) dava 8 sinais em 4,7 anos.',
     },
   },
 ];

@@ -1,152 +1,201 @@
 /**
- * Asia Range Algo — a estratégia do journal.
+ * Asia Range Algo — o setup do journal (29/09/2026): POI de 15M tocado na
+ * janela de Londres e reversão (MSS) em 1M.
  *
- *   1. o cenário das notas dá o sinal, com o stop e o alvo das regras
- *   2. sem SMT não dá; à sexta-feira dá (desde 25/09/2026)
- *   3. LOOK-AHEAD: a decisão numa vela não muda quando o futuro é removido
- *   4. sem `extra.algo` (o caso do cliente) a estratégia não corre
+ *   1. o tiro no POI: entrada no fecho do MSS de 1M, stop além do POI, alvo na
+ *      liquidez oposta por tomar a ≥ 2R
+ *   2. LOOK-AHEAD: a decisão num minuto não muda quando o futuro é removido
+ *   3. POI passado em mais de ½ ATR: deixa de valer; sem alvo a 2R: não há tiro
+ *   4. a análise completa (15M → POI → 1M) e o plano da estratégia, numa vela
+ *   5. sem `extra.algo` (o cliente) e sem 1M não há sinal
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analisarAsiaRange, executarEstrategiasValidadas, relogioLondres } from '../dist/index.js';
+import { analisarAsiaRange, executarEstrategiasValidadas, poisDeSessao, tiroPoi } from '../dist/index.js';
 
-const M15 = 15 * 60_000;
-const DIA = 86_400_000;
-const vela = (time, open, high, low, close) => ({ time, open, high, low, close, volume: 100 });
-const VIES = { direccao: 'bullish', aFavor: 4 };
+const M1 = 60_000;
+const M15 = 900_000;
+const vela = (time, open, high, low, close) => ({ time, open, high, low, close, volume: 0 });
 
-/**
- * Janeiro (Londres = UTC). Dois dias a oscilar à volta de 100,5; depois a Ásia
- * de terça entre 99,8 e 101,9; às 08:00 Londres cai a 99,63 (varre a mínima da
- * Ásia) e sobe com fecho acima do último swing. O par faz o mesmo, a não ser
- * que `parVarre` seja falso — aí fica acima da sua mínima asiática (SMT).
- */
-function cenario(parVarre, deslocarDias = 0) {
-  const inicio = Date.UTC(2024, 0, 14, 0, 0) + deslocarDias * DIA; // domingo
-  const v = [];
-  const p = [];
-  const push = (arr, t, o, c, extra = 0.05) => arr.push(vela(t, o, Math.max(o, c) + extra, Math.min(o, c) - extra, c));
-  let t = inicio;
-  for (let k = 0; k < 192; k++, t += M15) {
-    const a = 100.5 + 0.3 * Math.sin(k / 4);
-    const b = 100.5 + 0.3 * Math.sin((k + 1) / 4);
-    push(v, t, a, b);
-    push(p, t, a + 50, b + 50);
-  }
-  const asia = (k) => (k < 12 ? 100.4 + (k / 12) * 1.5 : k < 24 ? 101.9 - ((k - 12) / 12) * 2.1 : 99.8 + ((k - 24) / 8) * 0.3);
-  for (let k = 0; k < 32; k++, t += M15) {
-    push(v, t, asia(k), asia(k + 1), 0.02);
-    push(p, t, asia(k) + 50, asia(k + 1) + 50, 0.02);
-  }
-  const londres = [100.1, 100.25, 100.05, 99.9, 99.75, 99.65, 99.9, 100.35, 100.5, 100.6, 100.7];
-  for (let k = 0; k < londres.length - 1; k++, t += M15) {
-    push(v, t, londres[k], londres[k + 1], 0.02);
-    const q = parVarre ? londres : londres.map((x) => Math.max(x, 99.95));
-    push(p, t, q[k] + 50, q[k + 1] + 50, 0.02);
-  }
-  // Diário: 60 dias quaisquer antes do cenário (o viés é forçado).
-  const diarias = [];
-  for (let d = 60; d >= 1; d--) {
-    const td = inicio - d * DIA;
-    diarias.push(vela(td, 100, 101, 99, 100.5));
-  }
-  return { v, p, diarias };
+// Quinta 15/01/2026 (inverno: Londres = UTC). A janela é 08:00–11:00.
+const INICIO = Date.UTC(2026, 0, 15, 8, 0);
+
+/** Uma leitura das 08:00 à mão: viés de baixa, um POI de venda acima do preço. */
+function leituraVenda(extra = {}) {
+  return {
+    dia: Math.floor(INICIO / 86_400_000),
+    inicio: INICIO,
+    fim: INICIO + 3 * 3_600_000,
+    provisoria: false,
+    vies: 'bearish',
+    estrutura: { tipo: 'bos', nivel: 150.2, time: INICIO - 6 * 3_600_000 },
+    asia: { alto: 150.6, baixo: 149.8, de: INICIO - 8 * 3_600_000, ate: INICIO },
+    pois: [{ lado: 'venda', baixo: 150.9, alto: 151.0, extremo: 151.0, origem: INICIO - 30 * 3_600_000, chave: 'x|venda|151' }],
+    liquidezOposta: [
+      { preco: 149.8, rotulo: 'mínimo da Ásia' },
+      { preco: 149.5, rotulo: 'fundo por tomar' },
+    ],
+    preco: 150.5,
+    atr: 0.2,
+    ...extra,
+  };
 }
 
 /**
- * 1M a partir das velas de 15M: cada uma partida em quinze, da abertura ao fecho
- * a passar pelo mínimo e pelo máximo (compra: mínimo primeiro).
+ * 1M: das 03:00 às 08:00 a oscilar em 150,5; às 08:00 sobe a 150,80, recua a
+ * 150,74 (o swing de 1M), sobe ao POI (extremo 150,96) e cai com fecho abaixo
+ * de 150,74 — o MSS — e continua a cair.
  */
-function em1m(v15) {
+function caminho1m({ extremo = 150.96 } = {}) {
+  const pontos = [];
+  for (let k = 0; k < 300; k++) pontos.push(150.5 + 0.02 * Math.sin(k / 3));
+  const rampa = (de, ate, n) => {
+    for (let k = 1; k <= n; k++) pontos.push(de + ((ate - de) * k) / n);
+  };
+  rampa(150.5, 150.8, 10);
+  rampa(150.8, 150.74, 3);
+  rampa(150.74, extremo, 6);
+  rampa(extremo, 150.7, 8);
+  rampa(150.7, 150.3, 20);
   const out = [];
-  for (const c of v15) {
-    const sobe = c.close >= c.open;
-    const [a, b] = sobe ? [c.low, c.high] : [c.high, c.low];
-    // Abertura → primeiro extremo (5 velas) → segundo extremo (5) → fecho (5).
-    const troco = (de, ate, k) => de + ((ate - de) * k) / 5;
-    const pontos = [];
-    for (let k = 1; k <= 5; k++) pontos.push(troco(c.open, a, k));
-    for (let k = 1; k <= 5; k++) pontos.push(troco(a, b, k));
-    for (let k = 1; k <= 5; k++) pontos.push(troco(b, c.close, k));
-    let ant = c.open;
-    for (let k = 0; k < 15; k++) {
-      const alvo = pontos[k];
-      out.push(vela(c.time + k * 60_000, ant, Math.max(ant, alvo), Math.min(ant, alvo), alvo));
-      ant = alvo;
-    }
+  let ant = pontos[0];
+  let t = INICIO - 300 * M1;
+  for (const p of pontos) {
+    out.push(vela(t, ant, Math.max(ant, p) + 0.005, Math.min(ant, p) - 0.005, p));
+    ant = p;
+    t += M1;
   }
   return out;
 }
 
-const analisar = (v, p, diarias, i, ltf = em1m(v)) =>
-  analisarAsiaRange({ simbolo: 'GBPJPY', velas: v.slice(0, i + 1), diarias, par: { simbolo: 'USDJPY', velas: p }, viesForcado: VIES, ltf });
+test('Asia Range: o tiro no POI — MSS de 1M, stop além do POI, alvo na liquidez oposta a ≥ 2R', () => {
+  const v1 = caminho1m();
+  const r = tiroPoi(leituraVenda(), v1, INICIO + 3 * 3_600_000);
+  assert.equal(r.estado, 'disparado', r.detalhe);
+  const t = r.tiro;
+  assert.ok(t.entrada < 150.74, `entrada no fecho que quebrou o swing de 1M (${t.entrada})`);
+  assert.ok(Math.abs(t.stop - 151.0) < 1e-9, `stop no extremo do POI (${t.stop})`);
+  assert.equal(t.alvo.preco, 149.8, 'alvo: o mínimo da Ásia, o mais próximo que paga 2R');
+  assert.ok(t.alvo.r >= 2);
+  assert.ok(t.tocadoEm < t.extremoEm && t.extremoEm < t.time, 'toque → extremo → MSS');
+});
 
-test('Asia Range Algo: varrimento da Ásia + SMT + MSS dá compra com alvo na máxima da Ásia', () => {
-  const { v, p, diarias } = cenario(false);
+test('Asia Range: o TESTE DO CORTE — antes do MSS não há tiro; depois, o mesmo tiro', () => {
+  const v1 = caminho1m();
+  const fim = tiroPoi(leituraVenda(), v1, INICIO + 3 * 3_600_000).tiro;
+  for (let t = INICIO; t <= INICIO + 60 * M1; t += M1) {
+    const cortado = v1.filter((c) => c.time + M1 <= t);
+    const r = tiroPoi(leituraVenda(), cortado, t);
+    const comFuturo = tiroPoi(leituraVenda(), v1, t);
+    assert.deepEqual(r.tiro, comFuturo.tiro, `${new Date(t).toISOString()}: velas do futuro mudaram a decisão`);
+    if (t < fim.time + M1) assert.equal(r.tiro, null, 'antes do fecho do MSS não há tiro');
+    else assert.deepEqual(r.tiro, fim);
+  }
+});
+
+test('Asia Range: POI passado em mais de ½ ATR deixa de valer; sem alvo a 2R não há tiro', () => {
+  const passou = tiroPoi(leituraVenda(), caminho1m({ extremo: 151.15 }), INICIO + 3 * 3_600_000);
+  assert.equal(passou.tiro, null);
+  assert.equal(passou.estado, 'invalidado');
+
+  const semAlvo = tiroPoi(leituraVenda({ liquidezOposta: [{ preco: 150.6, rotulo: 'perto demais' }] }), caminho1m(), INICIO + 3 * 3_600_000);
+  assert.equal(semAlvo.tiro, null);
+  assert.equal(semAlvo.estado, 'sem-alvo');
+});
+
+/**
+ * A análise completa: um passeio de 15M (dias úteis) dá a leitura real das
+ * 08:00; o 1M da janela é construído à volta do primeiro POI dessa leitura.
+ */
+function passeio(n, inicio, semente = 7) {
+  let s = semente;
+  const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const v = [];
+  let p = 150;
+  for (let i = 0; i < n; i++) {
+    const o = p;
+    const c = o + (rnd() - 0.5) * 0.3 + Math.sin(i / 40) * 0.02;
+    v.push(vela(inicio + i * M15, o, Math.max(o, c) + rnd() * 0.08, Math.min(o, c) - rnd() * 0.08, c));
+    p = c;
+  }
+  return v.filter((c) => ![0, 6].includes(new Date(c.time).getUTCDay()));
+}
+
+function cenarioCompleto() {
+  for (let semente = 1; semente < 60; semente++) {
+    const v15 = passeio(96 * 12, Date.UTC(2026, 0, 5), semente).filter((c) => c.time < INICIO);
+    const l = poisDeSessao(v15, INICIO);
+    if (!l || l.pois.length === 0) continue;
+    const z = l.pois[0];
+    const venda = z.lado === 'venda';
+    const dir = venda ? 1 : -1;
+    const borda = venda ? z.baixo : z.alto;
+    const base = l.preco;
+    // Até ao POI com um recuo pelo caminho (o swing de 1M), extremo dentro dele,
+    // e a reversão para lá do recuo — em direcção à liquidez oposta.
+    const recuo = borda - dir * 0.25 * l.atr;
+    const pontos = [];
+    for (let k = 0; k < 300; k++) pontos.push(base);
+    const rampa = (de, ate, n) => {
+      for (let k = 1; k <= n; k++) pontos.push(de + ((ate - de) * k) / n);
+    };
+    rampa(base, recuo + dir * 0.1 * l.atr, 12);
+    rampa(recuo + dir * 0.1 * l.atr, recuo, 4);
+    rampa(recuo, (z.baixo + z.alto) / 2, 8);
+    rampa((z.baixo + z.alto) / 2, recuo - dir * 0.3 * l.atr, 10);
+    rampa(recuo - dir * 0.3 * l.atr, base - dir * 2 * l.atr, 60);
+    const v1 = [];
+    let ant = pontos[0];
+    let t = INICIO - 300 * M1;
+    for (const p of pontos) {
+      v1.push(vela(t, ant, Math.max(ant, p), Math.min(ant, p), p));
+      ant = p;
+      t += M1;
+    }
+    // As velas de 15M da janela, agregadas do 1M (o que o motor teria).
+    const v15b = [...v15];
+    for (let t15 = INICIO; t15 < INICIO + 3 * 3_600_000; t15 += M15) {
+      const cs = v1.filter((c) => c.time >= t15 && c.time < t15 + M15);
+      if (cs.length === 0) break;
+      v15b.push(vela(t15, cs[0].open, Math.max(...cs.map((c) => c.high)), Math.min(...cs.map((c) => c.low)), cs[cs.length - 1].close));
+    }
+    const r = tiroPoi(l, v1, INICIO + 3 * 3_600_000);
+    if (r.estado === 'disparado') return { v15: v15b, v1, tiro: r.tiro, n15: v15.length };
+  }
+  return null;
+}
+
+test('Asia Range: a análise completa dá o sinal uma vez, na vela de 15M do MSS de 1M', () => {
+  const c = cenarioCompleto();
+  assert.ok(c, 'um cenário com tiro');
   const sinais = [];
-  const razoes = [];
-  for (let i = 224; i < v.length; i++) {
-    const a = analisar(v, p, diarias, i);
-    razoes.push(`${new Date(v[i].time).toISOString().slice(11, 16)} ${a.porqueNao}`);
-    if (a.sinal) sinais.push(a.sinal);
+  const planos = [];
+  for (let i = c.n15; i < c.v15.length; i++) {
+    const velas = c.v15.slice(0, i + 1);
+    const fecho = velas[i].time + M15;
+    const ltf = c.v1.filter((x) => x.time + M1 <= fecho).slice(-300);
+    const a = analisarAsiaRange({ simbolo: 'GBPJPY', velas, par: null, ltf });
+    if (a.sinal && a.sinal.index === i) sinais.push(a.sinal);
+    planos.push(
+      ...executarEstrategiasValidadas(velas, { symbol: 'GBPJPY', timeframe: '15m' }, { algo: { diarias: [], par: null, ltf1: ltf } }, ['asia-range-algo']),
+    );
   }
-  assert.equal(sinais.length, 1, `um setup por dia — ${razoes.join(' | ')}`);
-  const s = sinais[0];
-  assert.equal(s.direccao, 'bullish');
-  assert.ok(Math.abs(s.stop - 99.63) < 1e-9, `stop no extremo da manipulação (${s.stop})`);
-  assert.ok(Math.abs(s.alvo - 101.92) < 1e-9, `alvo na máxima da Ásia (${s.alvo})`);
-  assert.ok(s.rr >= 2);
-  assert.ok(relogioLondres(s.time).minutos + 15 < 10 * 60, 'fecha antes das 10:00 de Londres');
+  assert.equal(sinais.length, 1, 'um sinal, na vela do MSS');
+  assert.equal(sinais[0].entrada, c.tiro.entrada);
+  assert.equal(sinais[0].stop, c.tiro.stop);
+  assert.equal(planos.length, 1, 'a estratégia emite uma vez');
+  assert.equal(planos[0].strategy, 'asia-range-algo');
+  assert.equal(planos[0].entryPrice, c.tiro.entrada);
 });
 
-test('Asia Range Algo: sem SMT não há sinal; à sexta-feira há', () => {
-  const { v, p, diarias } = cenario(true);
-  const razoes = new Set();
-  for (let i = 224; i < v.length; i++) {
-    const a = analisar(v, p, diarias, i);
-    assert.equal(a.sinal, null);
-    razoes.add(a.porqueNao);
-  }
-  assert.ok(razoes.has('sem divergência SMT na abertura de Londres'), [...razoes].join(' | '));
-
-  const sexta = cenario(false, 3);
-  let naSexta = 0;
-  for (let i = 224; i < sexta.v.length; i++) if (analisar(sexta.v, sexta.p, sexta.diarias, i).sinal) naSexta++;
-  assert.equal(naSexta, 1, 'à sexta-feira o setup também sai');
-});
-
-test('Asia Range Algo: o TESTE DO CORTE — o futuro removido não muda a decisão', () => {
-  const { v, p, diarias } = cenario(false);
-  for (let i = 224; i < v.length; i++) {
-    const cortada = analisarAsiaRange({
-      simbolo: 'GBPJPY',
-      velas: v.slice(0, i + 1),
-      diarias,
-      par: { simbolo: 'USDJPY', velas: p.slice(0, i + 1) },
-      viesForcado: VIES,
-      // 1M só até ao fim da vela i: o futuro de 1M também fica de fora.
-      ltf: em1m(v.slice(0, i + 1)),
-    });
-    const comFuturoDoPar = analisar(v, p, diarias, i);
-    assert.deepEqual(cortada.sinal, comFuturoDoPar.sinal, `vela ${i}: o par do futuro mudou a decisão`);
-    assert.equal(cortada.porqueNao, comFuturoDoPar.porqueNao);
-  }
-});
-
-test('Asia Range Algo e ICT ALGO: sem extra.algo (o cliente) não correm', () => {
-  const { v } = cenario(false);
-  const r = executarEstrategiasValidadas(v, { symbol: 'GBPJPY', timeframe: '15m' }, {});
+test('Asia Range Algo e ICT ALGO: sem extra.algo (o cliente) não correm; sem 1M não há sinal', () => {
+  const c = cenarioCompleto();
+  const r = executarEstrategiasValidadas(c.v15, { symbol: 'GBPJPY', timeframe: '15m' }, {});
   assert.equal(r.filter((s) => s.strategy === 'asia-range-algo' || s.strategy === 'ict-algo').length, 0);
-});
-
-test('Asia Range Algo: sem velas de 1M (sem confirmação) não há sinal', () => {
-  const { v, p, diarias } = cenario(false);
-  const razoes = new Set();
-  for (let i = 224; i < v.length; i++) {
-    const a = analisar(v, p, diarias, i, []);
+  for (let i = c.n15; i < c.v15.length; i++) {
+    const a = analisarAsiaRange({ simbolo: 'GBPJPY', velas: c.v15.slice(0, i + 1), par: null, ltf: [] });
     assert.equal(a.sinal, null);
-    razoes.add(a.porqueNao);
+    assert.equal(a.porqueNao, 'sem velas de 1M para a reversão');
   }
-  assert.ok(razoes.has('à espera de confirmação 1M'), [...razoes].join(' | '));
 });

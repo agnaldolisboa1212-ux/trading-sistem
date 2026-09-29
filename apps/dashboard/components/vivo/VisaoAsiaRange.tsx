@@ -5,8 +5,9 @@
  *
  * A análise é calculada no browser (`lib/analise-browser.ts`), a mesma que o motor
  * usa para gerar os sinais. Aqui só se mostra e se desenha, como nos prints do
- * journal: a caixa da Ásia, o POI de Londres, a linha do SMT do extremo
- * asiático ao pavio que o varreu, e a ferramenta de posição.
+ * journal: a caixa da Ásia, as caixas dos POI (topos/fundos de 15M por tocar),
+ * a linha do POI ao extremo que o preço lá fez, o MSS de 1M e a ferramenta de
+ * posição (desde 29/09/2026 — o setup do journal).
  */
 
 import { useEffect, useState } from 'react';
@@ -76,6 +77,9 @@ export function desenhoAsiaRange(
     d.linhas.push({ preco: a.asia.alto, rotulo: 'máx. Ásia', tipo: 'nivel', de: a.asia.ate + M15 });
     d.linhas.push({ preco: a.asia.baixo, rotulo: 'mín. Ásia', tipo: 'nivel', de: a.asia.ate + M15 });
   }
+  for (const z of a.pois ?? []) {
+    d.zonas.push({ de: z.origem, ate: Infinity, topo: z.alto, base: z.baixo, tipo: 'poi', rotulo: `POI ${z.lado}` });
+  }
   if (a.poiEntrada && a.poiEntrada.alto > a.poiEntrada.baixo) {
     const z = a.poiEntrada;
     d.zonas.push({ de: z.desde, ate: Infinity, topo: z.alto, base: z.baixo, tipo: 'poi', rotulo: `POI · ${z.rotulo}` });
@@ -101,8 +105,8 @@ export function desenhoAsiaRange(
       p0: s.varrimento.nivel,
       t1: s.varrimento.time,
       p1: s.varrimento.extremo,
-      rotulo: 'SMT',
-      tipo: 'smt',
+      rotulo: s.smt ? 'POI · SMT' : 'POI',
+      tipo: s.smt ? 'smt' : 'varrimento',
     });
     d.marcas!.push({ t: s.mss.time, p: s.mss.nivel, rotulo: 'MSS', tipo: 'mss' });
   }
@@ -123,7 +127,7 @@ export function VisaoAsiaRange({
     return (
       <div className="empty">
         <strong>A pedir a análise ao servidor…</strong>
-        Asia Range Algo: Ásia, varrimento em Londres, SMT e MSS, em 15M.
+        Asia Range Algo: estrutura de 15M, POI, e a reversão em 1M na janela de Londres.
       </div>
     );
   }
@@ -147,12 +151,24 @@ export function VisaoAsiaRange({
           </span>
         )}
         <span className="grow" />
-        <span className="faint">15M{a.par ? ` · SMT contra ${a.par}` : ''}</span>
+        <span className="faint">15M → 1M{a.par ? ` · SMT (confluência) com ${a.par}` : ''}</span>
       </div>
 
       {a.asia && (
         <p className="analise-viva__nota">
           Ásia (00:00–08:00 Londres): <b>{fmt(a.asia.baixo)}</b> – <b>{fmt(a.asia.alto)}</b>
+          {(a.pois ?? []).length > 0 ? (
+            <>
+              {' '}
+              · POI de {a.pois[0]!.lado}:{' '}
+              {a.pois.slice(0, 3).map((z, k) => (
+                <span key={z.chave}>
+                  {k > 0 ? ' · ' : ''}
+                  <b>{fmt(z.baixo)}</b> – <b>{fmt(z.alto)}</b>
+                </span>
+              ))}
+            </>
+          ) : null}
           {a.poiEntrada ? (
             <>
               {' '}
@@ -193,7 +209,9 @@ export function VisaoAsiaRange({
             </div>
           </div>
           <p className="analise-viva__razao">
-            Stop no extremo da manipulação; alvo na {s.rotuloAlvo}.
+            Tiro no POI {fmt(s.zonaBaixa)} – {fmt(s.zonaAlta)}: MSS de 1M às{' '}
+            {new Date(s.mss.time).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })}. Stop além do POI; alvo na{' '}
+            {s.rotuloAlvo}.{s.smt ? ' SMT a favor.' : ''}
           </p>
           {aoNegociar && (
             <button

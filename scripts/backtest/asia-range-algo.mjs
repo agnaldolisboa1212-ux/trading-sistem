@@ -6,6 +6,10 @@
  * (08:00–10:00), com a confirmação em 1M incluída. Um sinal conta só na vela em
  * que a função o dá; um por dia e por sentido, como ao vivo.
  *
+ * Desde 29/09/2026 a função é a do setup do journal (POI de 15M + MSS de 1M,
+ * janela 08:00–11:00 de Londres): a medição cobre essa janela e diz também
+ * quantos sinais por semana.
+ *
  * Simulação: entrada a mercado no fecho da vela do sinal, stop e alvo do sinal;
  * stop e alvo na mesma vela = stop; horizonte de 24h (a regra não tem saída por
  * tempo); custos de conta normal. Metades 2022-01→2024-06 e 2024-07→2026.
@@ -39,7 +43,7 @@ const JANELA_15M = 1200;
 /** Velas de confirmação por chamada: 300, como o motor ao vivo. */
 const LTF_VELAS = 300;
 
-const AO_VIVO = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD'];
+const AO_VIVO = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD', 'GBPUSD', 'EURUSD'];
 const CONTROLO = ['AUDJPY', 'CADJPY', 'CHFJPY', 'NZDJPY'];
 
 const ler = (par, tf) => {
@@ -95,7 +99,7 @@ function correr(par) {
   for (let i = inicio; i < v.length - 1; i++) {
     const l = relogioLondres(v[i].time);
     // Só a janela onde a função pode dar sinal: vela abre 08:00–09:45 de Londres.
-    if (l.minutos < 8 * 60 || l.minutos + 15 >= 10 * 60) continue;
+    if (l.minutos < 8 * 60 || l.minutos >= 11 * 60) continue;
 
     const velas = v.slice(i - JANELA_15M + 1, i + 1);
     const agora = v[i].time + M15;
@@ -117,7 +121,8 @@ function correr(par) {
     if (sim.r === null) continue;
     ops.push({ t: v[i].time, r: sim.r, alta: s.direccao === 'bullish', saida: sim.saida, rr: s.rr });
   }
-  return { ops, ref: refNome };
+  const semanas = (v[v.length - 1].time - v[inicio].time) / (7 * 86_400_000);
+  return { ops, ref: refNome, semanas };
 }
 
 function linha(rotulo, ops) {
@@ -163,7 +168,7 @@ for (const [titulo, lista] of [
       continue;
     }
     todas.push(...r.ops);
-    console.log(`${linha(`${par} (SMT ${r.ref})`, r.ops)}   ${((Date.now() - t0) / 1000).toFixed(0)}s`);
+    console.log(`${linha(`${par} (SMT ${r.ref})`, r.ops)}   ${(r.ops.length / r.semanas).toFixed(2)}/semana   ${((Date.now() - t0) / 1000).toFixed(0)}s`);
   }
   console.log('');
   console.log(linha('TODOS', todas));

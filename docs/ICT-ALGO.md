@@ -545,6 +545,48 @@ Réplica de 10 dias antes de publicar: 2 setups armados (USDJPY e EURUSD), ambos
 invalidados porque o preço foi ao alvo sem voltar à zona; 0 tiros. Os tiros vão
 ser raros, e isto **não foi medido** como estratégia: continua a ser alerta.
 
+### Porque o setup fixo quase não disparava, e o Asia Range dava 0 (29/09/2026, tarde)
+
+Réplica de 14–25/09 com velas da Deriv (histórico paginado — o endpoint público
+só dá uma janela por pedido: 1H ≈ 695 velas, 15M ≈ 8 dias, 1M ≈ 17 h):
+
+- **ICT ALGO**: 11 setups armados, 0 tiros. Quando o setup nascia, o preço já
+  tinha feito 50–83% do caminho zona → alvo (o alvo era o extremo do impulso,
+  que acabava de ser feito) e a zona (PD array ∩ OTE) media 0,01–0,5 ATR. 7 dos
+  11 morreram por "foi ao alvo sem passar pela zona".
+- **Asia Range**: 0 sinais. A regra exigia varrimento do extremo asiático E SMT;
+  o journal tem 46 operações ASIA RANGE em 12 semanas (~4/semana), com SMT em
+  metade e entrada no POI.
+
+Correcções (em produção):
+
+- `armarSetupIct` — zona = PD array inteiro (pedido do Agnaldo, opção a).
+  **Medido: não muda nada**: o PD array só alarga a zona do lado do stop; a
+  borda que o preço toca primeiro é a mesma.
+- `estadoDoSetup` — alvo móvel: se o preço toma o alvo antes de vir à zona, o
+  novo extremo passa a ser o alvo (ERL → IRL) em vez de o setup morrer.
+- `ict-fixo.ts` — a mesma chave não se arma duas vezes.
+- `analisarAsiaRange` reescrito como o setup do journal: estrutura de 15M,
+  POI de 15M por tocar, janela 08:00–11:00, `tiroPoi` (MSS de 1M no POI, stop
+  além do POI, alvo na liquidez oposta a ≥ 2R); SMT só confluência. São as
+  regras da versão A de `asia-range-poi.mjs` — a função de produção reproduz as
+  mesmas contagens (94/33/73/95/105/86).
+
+Medições 2022–2026 com custos (`scripts/backtest/ict-fixo.mjs`,
+`scripts/backtest/asia-range-algo.mjs`):
+
+| | principais | controlo | frequência |
+|---|---|---|---|
+| ICT fixo, regra antiga (A) | 39 tiros · −0,16R | 44 · −0,63R | ~0,03 por mercado e semana |
+| ICT fixo, PD array + alvo móvel (D) | 46 · −0,30R | 55 · −0,36R | ~0,03 por mercado e semana |
+| Asia Range (POI + 1M) | 486 · −0,08R (t=−0,8) | 283 · −0,08R (t=−0,6) | ~2 por semana nos 6 pares |
+
+Leitura: o ICT com setup de 1H e tiro de 15M dispara ~1 vez por mês nos 10
+instrumentos, e perde; o que o trava é o preço não voltar ao FVG/OB de 1H em
+24 h (a maioria expira). O Asia Range volta à frequência do journal, sem
+vantagem medida (USDCAD +0,38R, t=1,5, é um par em seis). Os dois continuam
+alerta.
+
 ---
 
 ## 7. Para acrescentar um modelo
