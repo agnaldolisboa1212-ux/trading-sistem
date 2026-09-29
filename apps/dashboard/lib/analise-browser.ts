@@ -99,7 +99,7 @@ export interface RespostaIct {
   em: number;
 }
 
-/** O placar de cada modelo precisa de história; a Deriv serve até 5000 por pedido. */
+/** O placar de cada modelo precisa de história; a Deriv serve uma janela por pedido e `velas-browser` pagina. */
 const VELAS_EXECUCAO = 3500;
 const cacheIct = new Map<string, { ultima: number; resposta: RespostaIct }>();
 

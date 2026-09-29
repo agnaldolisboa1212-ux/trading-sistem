@@ -21,9 +21,15 @@
  * O travão e a cache são os do servidor (`@trading/data/ritmo`): 15 pedidos de
  * seguida e depois 2 por segundo, a cópia vale até fechar a vela seguinte, e
  * um RateLimit pára a ligação 55 s servindo a última cópia guardada.
+ *
+ * E a paginação também (`@trading/data/paginar`): a Deriv devolve uma janela
+ * por pedido (695 velas de 1H, 620 de 15M), não as 3500 que o ICT ALGO pede.
+ * Cada página é um pedido e passa pelo travão; ao refrescar, a cópia guardada
+ * dá as velas antigas e só se pede o que falta até ela.
  */
 
 import type { Candle } from '@trading/core';
+import { paginarVelas, type OpcoesPaginacao, type PedirPagina } from '@trading/data/paginar';
 import { RitmoPedidos } from '@trading/data/ritmo';
 import { pedirDeriv } from './live';
 
@@ -51,37 +57,41 @@ interface Guardadas {
 const cache = new Map<string, Guardadas>();
 const emCurso = new Map<string, { count: number; promessa: Promise<Candle[]> }>();
 
-async function pedir(derivSymbol: string, gran: number, count: number): Promise<Candle[]> {
-  const libertar = await ritmo.vez();
-  let r: Record<string, unknown>;
-  try {
-    r = await pedirDeriv({
-      ticks_history: derivSymbol,
-      adjust_start_time: 1,
-      count,
-      end: 'latest',
-      start: 1,
-      style: 'candles',
-      granularity: gran,
-    });
-  } finally {
-    libertar();
-  }
-  const erro = r['error'] as { code?: string; message?: string } | undefined;
-  if (erro) {
-    if (erro.code === 'RateLimit') ritmo.bloquear();
-    throw new Error(`Deriv ${erro.code ?? 'erro'}: ${erro.message ?? ''}`.trim());
-  }
-  const brutas = (r['candles'] ?? []) as Array<{ epoch: number; open: number; high: number; low: number; close: number }>;
-  return brutas.map((c) => ({
-    time: Number(c.epoch) * 1000,
-    open: Number(c.open),
-    high: Number(c.high),
-    low: Number(c.low),
-    close: Number(c.close),
-    // A Deriv não entrega volume em ticks_history.
-    volume: 0,
-  }));
+/** Até `count` velas, por páginas; se uma página falhar, falha o conjunto (há a cópia guardada). */
+async function pedir(derivSymbol: string, gran: number, count: number, opcoes: OpcoesPaginacao): Promise<Candle[]> {
+  const pagina: PedirPagina = async (quantas, end) => {
+    const libertar = await ritmo.vez();
+    let r: Record<string, unknown>;
+    try {
+      r = await pedirDeriv({
+        ticks_history: derivSymbol,
+        adjust_start_time: 1,
+        count: quantas,
+        end,
+        start: 1,
+        style: 'candles',
+        granularity: gran,
+      });
+    } finally {
+      libertar();
+    }
+    const erro = r['error'] as { code?: string; message?: string } | undefined;
+    if (erro) {
+      if (erro.code === 'RateLimit') ritmo.bloquear();
+      throw new Error(`Deriv ${erro.code ?? 'erro'}: ${erro.message ?? ''}`.trim());
+    }
+    const brutas = (r['candles'] ?? []) as Array<{ epoch: number; open: number; high: number; low: number; close: number }>;
+    return brutas.map((c) => ({
+      time: Number(c.epoch) * 1000,
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close),
+      // A Deriv não entrega volume em ticks_history.
+      volume: 0,
+    }));
+  };
+  return (await paginarVelas(pagina, gran, count, opcoes)).velas;
 }
 
 /**
@@ -110,11 +120,16 @@ export async function velasFechadasBrowser(derivSymbol: string, gran: number, qu
   const igual = emCurso.get(chave);
   if (igual && igual.count >= count) return fechadas(await igual.promessa);
 
-  const promessa = pedir(derivSymbol, gran, count);
-  emCurso.set(chave, { count, promessa });
+  // Até à maior quantidade já guardada: as velas antigas vêm da cópia, e quem
+  // pede menos (o radar, 1500) não encurta a cópia de quem pede mais (o ICT, 3500).
+  // Sem vela fechada desde a cópia, só falta o que está para trás dela.
+  const alvo = Math.max(count, guardada?.count ?? 0);
+  const fresca = !!guardada && guardada.em >= periodo + FOLGA_FECHO_MS;
+  const promessa = pedir(derivSymbol, gran, alvo, { guardadas: guardada?.velas, fresca });
+  emCurso.set(chave, { count: alvo, promessa });
   try {
     const velas = await promessa;
-    cache.set(chave, { count, velas, em: Date.now() });
+    cache.set(chave, { count: alvo, velas, em: Date.now() });
     return fechadas(velas);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
