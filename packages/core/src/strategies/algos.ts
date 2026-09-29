@@ -12,10 +12,7 @@
 
 import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
-import { agregar, correrIctAlgo, sinalDaUltimaVela } from '../ict/algo.js';
-import { NOME_MODELO } from '../ict/types.js';
-import { confirmacaoLtf } from '../ict/confirmacao.js';
-import { TIMEFRAME_MS } from '../types/market.js';
+import type { EstadoSetup, SetupFixo } from '../ict/gatilho.js';
 import { AVISO_ASIA_RANGE, analisarAsiaRange } from './asia-range-algo.js';
 
 /** Dados que só o servidor entrega aos algos. */
@@ -31,6 +28,8 @@ export interface DadosAlgo {
   ltf?: readonly Candle[];
   /** Velas de 1M do próprio instrumento: a confirmação do Asia Range Algo. */
   ltf1?: readonly Candle[];
+  /** O setup fixo de 1H do ICT ALGO e o seu estado agora (o motor guarda-o entre passagens). */
+  ictFixo?: { setup: SetupFixo; estado: EstadoSetup };
 }
 
 interface Contexto {
@@ -42,61 +41,43 @@ export const AVISO_ICT_ALGO =
   'ICT ALGO sem vantagem medida: no backtest 2022–2026 com custos nenhum modo de entrada ficou positivo nas duas metades.';
 
 export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
-  if (!algo || algo.diarias.length < 45) return [];
-  const a = correrIctAlgo({
-    simbolo: ctx.symbol,
-    timeframe: ctx.timeframe,
-    velas,
-    diarias: algo.diarias,
-    semanais: agregar(algo.diarias, '1w'),
-    referencia: algo.diarias,
-    timeframeReferencia: '1d',
-    par: algo.par,
-  });
-  const s = sinalDaUltimaVela(a);
-  if (!s) return [];
-  const u = velas[velas.length - 1]!;
   /*
-   * A confirmação em 5M já não trava o aviso (28/09/2026). Travava-o: o setup
-   * só saía se a confirmação estivesse OK NA VELA em que nascia; se chegasse
-   * uma vela depois, nunca saía — e o gráfico mostrava-o horas como ordem
-   * pendente sem ele estar nos sinais. O ICT ALGO é alerta (a decisão é de quem
-   * opera): o setup sai quando nasce, e o texto diz em que ponto está a
-   * confirmação.
+   * O tiro do SETUP FIXO (29/09/2026). O setup lê-se em 1H e fica fixo (o motor
+   * guarda-o entre passagens — `pipeline/ict-fixo.ts`); aqui só sai o tiro, na
+   * vela de 15M em que `estadoDoSetup` o dispara: preço na zona do 1H e
+   * CHoCH/MSS de 15M a favor. Uma vez por setup.
    */
-  const conf = confirmacaoLtf(algo.ltf, s.direccao, u.time + TIMEFRAME_MS[ctx.timeframe]);
-  const modelo = NOME_MODELO[s.modelo];
+  if (ctx.timeframe !== '15m') return [];
+  const f = algo?.ictFixo;
+  const u = velas[velas.length - 1];
+  if (!f || !u || f.estado.estado !== 'disparado' || f.estado.tiro.time !== u.time) return [];
+  const { setup } = f;
+  const tiro = f.estado.tiro;
+  const venda = setup.direccao === 'bearish';
+  const leitura = setup.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.timeframe.toUpperCase()} ${p.titulo}: ${p.detalhe}`);
   return [
     {
       strategy: 'ict-algo',
       symbol: ctx.symbol,
       timeframe: ctx.timeframe,
-      direction: s.direccao,
+      direction: setup.direccao,
       regime: 'continuation',
       index: velas.length - 1,
       generatedAt: u.time,
       referencePrice: u.close,
-      entryZoneLow: s.zonaEntradaBaixa,
-      entryZoneHigh: s.zonaEntradaAlta,
-      entryPrice: s.entrada,
-      stopLoss: s.stop,
-      targets: [{ price: s.alvo, rMultiple: s.rr, closeFraction: 1, rationale: s.rotuloAlvo }],
-      maxRMultiple: s.rr,
-      entryType: s.tipoEntrada === 'pendente' ? 'limit' : 'market',
+      entryZoneLow: tiro.entrada,
+      entryZoneHigh: tiro.entrada,
+      entryPrice: tiro.entrada,
+      stopLoss: tiro.stop,
+      targets: [{ price: tiro.alvo, rMultiple: tiro.rr, closeFraction: 1, rationale: setup.rotuloAlvo }],
+      maxRMultiple: tiro.rr,
+      entryType: 'market',
       conviction: 0,
       rationale:
-        `${modelo}: ${s.tipoEntrada === 'pendente' ? 'ordem pendente na zona' : 'entrada a mercado'}. ` +
-        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ` +
-        `Confirmação 5M: ${conf.ok ? conf.detalhe : `ainda não — ${conf.detalhe}; espere a reversão em 1M/5M`}. ${AVISO_ICT_ALGO}`,
-      assumptions: [
-        ...s.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
-        `Confirmação 5M: ${conf.detalhe}`,
-      ],
-      warnings: [
-        ...(conf.ok ? [] : ['Sem confirmação em 5M ainda: espere a reversão antes de entrar.']),
-        ...s.avisos,
-        AVISO_ICT_ALGO,
-      ],
+        `Setup de 1H fixo (${setup.modelo}): ${venda ? 'venda' : 'compra'} na zona ${setup.zonaBaixa}–${setup.zonaAlta}, ` +
+        `alvo na ${setup.rotuloAlvo}. Tiro em 15M: ${tiro.detalhe}. Stop no extremo feito na zona. ${AVISO_ICT_ALGO}`,
+      assumptions: [...leitura, `15M: ${tiro.detalhe}`],
+      warnings: [AVISO_ICT_ALGO],
     },
   ];
 }

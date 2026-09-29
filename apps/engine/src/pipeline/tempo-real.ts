@@ -57,7 +57,6 @@ import {
 import { acharSimbolo, eventosAltoImpacto, mercadosAbertosDeriv, velasDeriv } from '@trading/data';
 import { createDbClient, isDbConfigured } from '@trading/db';
 import {
-  difundirAtencao,
   difundirAvisoOperacao,
   difundirSinalTempoReal,
   type SinalTempoReal,
@@ -66,6 +65,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { EngineConfig } from '../config.js';
 import { dirDados, tabelaAusente } from './estado.js';
 import { vigiarPois } from './alertas-poi.js';
+import { prepararIctFixo } from './ict-fixo.js';
+import { publicarJornal } from './jornal.js';
 import {
   GRANULARIDADE_S,
   avaliarPrecoActual,
@@ -102,7 +103,8 @@ const MIN_VELAS = 60;
 /** As estratégias que trazem o seu próprio timeframe e precisam de diário e par. */
 const ALGOS: readonly string[] = ['ict-algo', 'asia-range-algo'];
 /** Os timeframes em que algum algo corre: ICT ALGO em 15M/1H/4H, Asia Range em 15M. */
-const TIMEFRAMES_ALGOS: readonly string[] = ['15m', '1h', '4h'];
+/** Os algos disparam em 15M (o ICT ALGO lê o setup em 1H dentro de `ict-fixo.ts`). */
+const TIMEFRAMES_ALGOS: readonly string[] = ['15m'];
 /** Velas de execução para os algos (o ICT ALGO percorre a história para o placar). */
 const VELAS_ALGO = 1500;
 
@@ -116,17 +118,6 @@ const VELAS_ALGO = 1500;
  * repetidos.
  */
 const ultimaFechadaVista = new Map<string, number>();
-
-/**
- * Quando saiu o último boletim de "fica atento", e o que dizia.
- *
- * De hora a hora no máximo, e nunca duas vezes o mesmo texto: entre sinais as
- * condições mudam devagar, e repetir o mesmo boletim de hora a hora ensina a
- * ignorá-lo — que é o oposto do que ele serve.
- */
-let atencaoUltima = 0;
-let atencaoTexto = '';
-const ATENCAO_CADA_MS = 60 * 60_000;
 
 /**
  * Velas de outro timeframe do mesmo instrumento (as diárias da abertura do DAX),
@@ -638,6 +629,9 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
     }
   }
 
+  // ICT ALGO: o setup fixo de 1H de cada instrumento e o seu estado em 15M.
+  const ictFixos = await prepararIctFixo([...vigilancia.pares.keys()], erros);
+
   const registo = lerRegisto();
   const vistos = new Set(registo.ids);
 
@@ -798,8 +792,6 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
             .map((c) => acharSimbolo(c))
             .find((x) => x);
           const parVelas = parSim ? await fechadasDe(parSim.codigo, gran) : null;
-          // 5M: a confirmação do ICT ALGO (CHoCH/MSS e estrutura de 5M a favor).
-          const ltf = aplicaveis.some((e) => e.id === 'ict-algo') ? await fechadasDe(s.codigo, 300) : null;
           // 1M: a confirmação do Asia Range Algo (300 velas = 5 h: cobrem a janela de
           // 3 h da confirmação mais os 45 min de atraso máximo).
           const ltf1 = aplicaveis.some((e) => e.id === 'asia-range-algo') ? await fechadasDe(s.codigo, 60) : null;
@@ -808,8 +800,9 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
             algo: {
               diarias: diarias ?? [],
               par: parSim && parVelas ? { simbolo: parSim.codigo, velas: parVelas } : null,
-              ltf: ltf ?? undefined,
               ltf1: ltf1 ?? undefined,
+              // O tiro do setup fixo de 1H, quando sai nesta vela de 15M.
+              ictFixo: tf === '15m' ? ictFixos.get(s.codigo) : undefined,
             },
           };
         }
@@ -970,23 +963,14 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
   }
 
   /*
-   * O boletim de "fica atento", no fim da passagem.
-   *
-   * Sai DEPOIS dos sinais e só quando não há nada mais urgente a dizer: se esta
-   * passagem anunciou um sinal, o boletim espera pela próxima hora — ninguém
-   * precisa de saber o que está a caminho no mesmo minuto em que chega o que já
-   * chegou.
+   * O jornal dos sinais: 07:30, 12:45 e 21:30 (Lisboa), nos dias úteis — em vez
+   * do boletim "A que estar atento" de hora a hora (pedido de 29/09/2026). As
+   * proximidades desta passagem entram na secção "A que estar atento".
    */
-  if (novos.length === 0 && atencao.length > 0 && Date.now() - atencaoUltima >= ATENCAO_CADA_MS) {
-    const melhores = atencao.sort((a, b) => a.distanciaAtr - b.distanciaAtr).slice(0, 5);
-    const texto = melhores.map((p) => `${p.simbolo}${p.timeframe}${p.estrategia}${p.falta}`).join('|');
-    if (texto !== atencaoTexto) {
-      atencaoUltima = Date.now();
-      atencaoTexto = texto;
-      for (const r of await difundirAtencao(melhores)) {
-        if (!r.ok && !r.skipped) erros.push(`atenção ${r.channel}: ${r.error}`);
-      }
-    }
+  try {
+    await publicarJornal({ db, simbolos: [...vigilancia.pares.keys()], atencao, erros });
+  } catch (err) {
+    erros.push(`jornal: ${msg(err)}`);
   }
 
   // Alertas de POI (08:00–11:00 de Londres): o preço chegou a um POI de sessão

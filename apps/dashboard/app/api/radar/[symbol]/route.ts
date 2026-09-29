@@ -39,6 +39,7 @@ import {
 } from '@trading/core';
 import { acharSimbolo } from '@/lib/deriv/simbolos';
 import { guardarCacheVela, lerCacheVela } from '@/lib/cache-vela';
+import { lerSetupsIct } from '@/lib/motores';
 
 export const dynamic = 'force-dynamic';
 /** O SMT pode pedir até seis séries de referência; 60s é folgado mas seguro. */
@@ -63,7 +64,8 @@ const velasFechadas = (derivSymbol: string, gran: number, quantas = 320): Promis
  * Os dois grupos do painel de agentes:
  *
  *   algo     ICT ALGO e Asia Range Algo — trazem o seu timeframe (15M) e
- *            precisam de diário e par; correm sempre em 15M
+ *            precisam de diário e par; correm sempre em 15M (o ICT ALGO
+ *            dispara do setup fixo de 1H que o motor segue)
  *   basico   as outras estratégias, no timeframe escolhido
  *
  * Sem `grupo`, correm todas (compatibilidade).
@@ -80,8 +82,6 @@ const doGrupo = (grupo: Grupo) => (e: { id: string }) =>
         : grupo === 'basico'
           ? !ALGOS.includes(e.id)
           : true;
-/** O ICT ALGO executa em 15M, 1H e 4H; o Asia Range só em 15M. */
-const TF_ICT = new Set(['15m', '1h', '4h']);
 
 /** "Tente 1H ou 4H." — noutros timeframes deste instrumento há estratégia activa. */
 function outrosTimeframes(codigo: string, actual: string, grupo: Grupo = null): string {
@@ -107,7 +107,7 @@ export async function GET(
   // Os algos correm nos seus timeframes.
   const tfPedido = url.searchParams.get('tf') ?? '1d';
   const tfBruto =
-    grupo === 'algo' || grupo === 'asia' ? '15m' : grupo === 'ict' ? (TF_ICT.has(tfPedido) ? tfPedido : '15m') : tfPedido;
+    grupo === 'algo' || grupo === 'asia' ? '15m' : grupo === 'ict' ? '15m' : tfPedido;
   const tf = (GRANULARIDADE_S[tfBruto] ? tfBruto : '1d') as Timeframe;
   const canonico = symbol.toUpperCase();
   const em = Date.now();
@@ -174,22 +174,23 @@ export async function GET(
       const parSim = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
       const temIct = estrategias.some((e) => e.id === 'ict-algo');
       const temAsia = estrategias.some((e) => e.id === 'asia-range-algo');
-      const [diarias, parVelas, ltf, ltf1] = await Promise.all([
+      const [diarias, parVelas, ltf1, setups] = await Promise.all([
         velasFechadas(s.deriv, GRANULARIDADE_S['1d']!, 300),
         parSim ? velasFechadas(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
-        // 5M: a confirmação do ICT ALGO.
-        temIct ? velasFechadas(s.deriv, 300, 300).catch(() => []) : Promise.resolve([]),
         // 1M: a confirmação do Asia Range Algo — as mesmas 300 velas fechadas que o
         // motor usa (5 h: a janela de 3 h mais os 45 min de atraso), a mesma estrutura.
         temAsia ? velasFechadas(s.deriv, 60, 301).catch(() => []) : Promise.resolve([]),
+        // O ICT ALGO dispara do setup fixo de 1H que o motor está a seguir.
+        temIct ? lerSetupsIct() : Promise.resolve({} as Awaited<ReturnType<typeof lerSetupsIct>>),
       ]);
+      const reg = setups[s.codigo];
       extra = {
         ...extra,
         algo: {
           diarias,
           par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null,
-          ltf,
           ltf1,
+          ictFixo: reg?.setup && reg.estado ? { setup: reg.setup, estado: reg.estado } : undefined,
         },
       };
     }

@@ -514,6 +514,37 @@ Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
 (0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção
 vela a vela.
 
+### Setup fixo de 1H e tiro em 15M (29/09/2026)
+
+Pedido do Agnaldo: o setup em 1H e a confirmação/entrada em 15M (em vez de
+15M/5M); depois de dar um sinal, o algoritmo fixa-se nesse setup em vez de saltar
+para outro; e o disparo é um "tiro certeiro", justificado de cima para baixo.
+A confirmação em 5M foi retirada.
+
+- **Core** — `ict/gatilho.ts`: `armarSetupIct` arma um `SetupFixo` quando um
+  setup nasce na última vela de 1H fechada (zona, stop, alvo, passos top-down;
+  validade de 24 h). `estadoDoSetup` percorre as velas de 15M fechadas: à espera
+  da zona → na zona → **disparado** quando há uma CHoCH/MSS de 15M a favor
+  depois do toque (`confirmacaoLtf` com passo de 15M). A entrada é o fecho dessa
+  vela, o stop é o extremo feito desde o toque (no mínimo ¼ ATR15), o alvo é o
+  do 1H, e só dispara com RR ≥ 2. Invalida-se se tocar o stop do 1H antes ou se
+  for ao alvo sem passar pela zona. Tem testes, incluindo o teste do corte.
+- **Motor** — `pipeline/ict-fixo.ts` guarda o estado em `data/ict-setups.json`
+  (setup activo e os últimos 20 que acabaram). `planIctAlgo` só emite na vela de
+  15M do tiro: um sinal por setup.
+- **Painel** — a aba ICT ALGO lê sempre o 1H e mostra o cartão "Setup fixo 1H →
+  tiro em 15M" (`/api/ict/fixos`). As abas ICT e Asia Range desenham e listam os
+  sinais **já enviados** (48 h, com o estado), para não desaparecerem quando a
+  análise de agora muda.
+- **Jornal** — `pipeline/jornal.ts`: três edições por dia útil (07:30 · 12:45 ·
+  21:30, Lisboa), por Telegram (completo) e push (resumo): sinais novos, em
+  aberto, fechados com R, total do dia, setups ICT armados, POI de Londres (de
+  manhã) e "a que estar atento". Substitui o boletim de hora a hora.
+
+Réplica de 10 dias antes de publicar: 2 setups armados (USDJPY e EURUSD), ambos
+invalidados porque o preço foi ao alvo sem voltar à zona; 0 tiros. Os tiros vão
+ser raros, e isto **não foi medido** como estratégia: continua a ser alerta.
+
 ---
 
 ## 7. Para acrescentar um modelo

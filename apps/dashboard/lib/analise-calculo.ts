@@ -9,7 +9,6 @@
 
 import {
   agregar,
-  confirmacaoLtf,
   correrIctAlgo,
   executarEstrategiasValidadas,
   type AnaliseIct,
@@ -27,7 +26,6 @@ export type Trabalho =
       execucao: Candle[];
       diarias: Candle[];
       par: { simbolo: string; velas: Candle[] } | null;
-      velas5m: Candle[];
       portfolio: string[];
     }
   | {
@@ -55,10 +53,6 @@ export function fazer(t: Trabalho): unknown {
       // O dia do viés a partir de agora: a mesma leitura em 15M, 1H e 4H.
       agora: Date.now(),
     });
-    if (analise.sinal) {
-      const ult = t.execucao[t.execucao.length - 1];
-      analise.confirmacao = confirmacaoLtf(t.velas5m, analise.sinal.direccao, (ult?.time ?? Date.now()) + t.granS * 1000);
-    }
     return analise;
   }
   return executarEstrategiasValidadas(t.velas, { symbol: t.simbolo, timeframe: t.timeframe }, t.extra, t.ids);

@@ -151,10 +151,10 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'ict-algo',
     nome: 'ICT ALGO',
     descricao:
-      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). Só envia com confirmação em 5M (CHoCH/MSS e estrutura de 5M a favor).',
+      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). O setup lê-se em 1H e fica FIXO; o tiro sai em 15M, quando o preço entra na zona do 1H e o 15M confirma a reversão (29/09/2026).',
     instrumentos: ICT_ALGO_EM_TESTE,
-    // Os três timeframes de execução do algoritmo (os medidos no backtest).
-    timeframes: ['15m', '1h', '4h'],
+    // O setup é de 1H (dentro do motor); o tiro sai no fecho de uma vela de 15M.
+    timeframes: ['15m'],
     entrada: 'A do modelo escolhido: ordem pendente no PD array (FVG/OB) ou a mercado na vela de rejeição, dentro das killzones de Londres ou Nova Iorque.',
     saida: 'Stop estrutural do modelo (extremo varrido ou swing); alvo na liquidez mais próxima que pague pelo menos 2R.',
     emTeste: {

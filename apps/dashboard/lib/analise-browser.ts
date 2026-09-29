@@ -21,6 +21,8 @@ import {
   type AnaliseIct,
   type Candle,
   type DadosExtra,
+  type EstadoSetup,
+  type SetupFixo,
   type StrategySignal,
   type Timeframe,
 } from '@trading/core';
@@ -112,6 +114,18 @@ async function portfolioDoPerfil(): Promise<string[]> {
   return lista;
 }
 
+/** O setup fixo do ICT ALGO que o motor está a seguir (`/api/ict/fixos`). */
+async function ictFixoDoMotor(codigo: string): Promise<{ setup: SetupFixo; estado: EstadoSetup } | undefined> {
+  try {
+    const r = await fetch(`/api/ict/fixos?s=${encodeURIComponent(codigo)}`, { cache: 'no-store' });
+    const j = (await r.json()) as { registo?: { setup: SetupFixo | null; estado: EstadoSetup | null } | null };
+    const reg = j.registo;
+    return reg?.setup && reg.estado ? { setup: reg.setup, estado: reg.estado } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function analisarIctBrowser(codigo: string, tf: '15m' | '1h' | '4h'): Promise<RespostaIct> {
   const em = Date.now();
   const s = acharSimbolo(codigo.toUpperCase());
@@ -132,14 +146,11 @@ export async function analisarIctBrowser(codigo: string, tf: '15m' | '1h' | '4h'
   let execucao: Candle[];
   let diarias: Candle[];
   let parVelas: Candle[];
-  let velas5m: Candle[];
   try {
-    [execucao, diarias, parVelas, velas5m] = await Promise.all([
+    [execucao, diarias, parVelas] = await Promise.all([
       velasFechadasBrowser(s.deriv, gran, VELAS_EXECUCAO),
       velasFechadasBrowser(s.deriv, DIA_S, 400),
       parSimbolo ? velasFechadasBrowser(parSimbolo.deriv, gran, VELAS_EXECUCAO).catch(() => []) : Promise.resolve([]),
-      // 5M: a confirmação do sinal (a mesma que o motor exige para o enviar).
-      velasFechadasBrowser(s.deriv, 300, 300).catch(() => []),
     ]);
   } catch (e) {
     return { analise: null, porqueNao: falha(e), em };
@@ -159,7 +170,6 @@ export async function analisarIctBrowser(codigo: string, tf: '15m' | '1h' | '4h'
     execucao,
     diarias,
     par: parSimbolo && parVelas.length > 0 ? { simbolo: parSimbolo.codigo, velas: parVelas } : null,
-    velas5m,
     portfolio,
   });
   const resposta: RespostaIct = { analise, em: Date.now() };
@@ -308,21 +318,21 @@ export async function radarBrowser(simbolo: string, tfPedido: string, grupo: Gru
       const parSim = paresSmtIct(s.codigo).map((c) => acharSimbolo(c)).find((x) => x) ?? null;
       const temIct = estrategias.some((e) => e.id === 'ict-algo');
       const temAsia = estrategias.some((e) => e.id === 'asia-range-algo');
-      const [diarias, parVelas, ltf, ltf1] = await Promise.all([
+      const [diarias, parVelas, ltf1, ictFixo] = await Promise.all([
         velasFechadasBrowser(s.deriv, DIA_S, 300),
         parSim ? velasFechadasBrowser(parSim.deriv, gran, 1500).catch(() => []) : Promise.resolve([]),
-        // 5M: a confirmação do ICT ALGO.
-        temIct ? velasFechadasBrowser(s.deriv, 300, 300).catch(() => []) : Promise.resolve([]),
         // 1M: a confirmação do Asia Range Algo (as 300 velas do motor).
         temAsia ? velasFechadasBrowser(s.deriv, 60, 300).catch(() => []) : Promise.resolve([]),
+        // O ICT ALGO dispara do setup fixo de 1H que o motor está a seguir.
+        temIct ? ictFixoDoMotor(s.codigo) : Promise.resolve(undefined),
       ]);
       extra = {
         ...extra,
         algo: {
           diarias,
           par: parSim && parVelas.length > 0 ? { simbolo: parSim.codigo, velas: parVelas } : null,
-          ltf,
           ltf1,
+          ictFixo,
         },
       };
     }

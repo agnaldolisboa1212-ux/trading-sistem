@@ -652,7 +652,9 @@ export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: s
       alvo ? `Alvo ${n(alvo.preco)} (${alvo.r.toFixed(1)}R)` : 'Alvo: defina-o no gráfico',
       ...(agora && s.precoActual !== undefined ? [`Agora ${n(s.precoActual)} · ${agora}`] : []),
       ...(s.noticia ? [`⚠ ${s.noticia.slice(0, 140)}`] : []),
-      `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
+      s.estrategia === 'ict-algo'
+        ? `Tiro certeiro: setup de 1H fixo, e o 15M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
+        : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
     ],
   };
 }
@@ -981,6 +983,169 @@ export async function difundirAlertaPoi(a: AlertaPoi): Promise<NotifyResult[]> {
       urgencia: 'high',
       topico: `poi-${a.simbolo}`,
       simbolo: a.simbolo,
+    }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// O jornal dos sinais — três edições por dia
+// ---------------------------------------------------------------------------
+
+/** Um sinal, como o jornal o conta. */
+export interface LinhaJornal {
+  simbolo: string;
+  timeframe: string;
+  estrategia: string;
+  direccao: 'bullish' | 'bearish';
+  entrada: number;
+  stop: number;
+  alvo: { preco: number; r: number } | null;
+  geradoEm: number;
+  estado: string | null;
+  resultadoR: number | null;
+  casas: number;
+}
+
+/**
+ * Uma edição do jornal (pedido do Agnaldo, 29/09/2026: "3x ao dia, como se
+ * fosse um jornal de todos os sinais"). Substitui o boletim "A que estar
+ * atento" de hora a hora. Ver `apps/engine/src/pipeline/jornal.ts`.
+ */
+export interface EdicaoJornal {
+  /** "Manhã · antes de Londres" */
+  titulo: string;
+  em: number;
+  /** Início do período coberto (a edição anterior). */
+  desde: number;
+  novos: LinhaJornal[];
+  emAberto: LinhaJornal[];
+  fechados: LinhaJornal[];
+  /** Soma em R das operações fechadas hoje (Londres), e quantas. */
+  dia: { r: number; n: number };
+  /** Os setups fixos do ICT ALGO (1H) que o motor segue, e onde estão. */
+  setupsIct: Array<{
+    simbolo: string;
+    casas: number;
+    direccao: 'bullish' | 'bearish';
+    modelo: string;
+    zonaBaixa: number;
+    zonaAlta: number;
+    alvo: number;
+    estado: string;
+  }>;
+  /** Os POI da sessão de Londres (só na edição da manhã). */
+  pois: Array<{ simbolo: string; casas: number; lado: 'venda' | 'compra'; zonas: Array<{ baixo: number; alto: number }> }>;
+  atencao: Proximidade[];
+}
+
+const ESTADO_JORNAL: Record<string, string> = {
+  'a-aguardar-entrada': 'à espera da entrada',
+  'em-curso': 'em curso',
+  'alvo-atingido': 'alvo atingido ✅',
+  'stop-atingido': 'stop ❌',
+  perdido: 'sem entrada',
+  expirado: 'expirado',
+};
+
+function linhaDoJornal(s: LinhaJornal, comResultado: boolean): string {
+  const n = (v: number) => v.toFixed(s.casas);
+  const lado = s.direccao === 'bullish' ? '🟢 COMPRA' : '🔴 VENDA';
+  const alvo = s.alvo ? ` · alvo ${n(s.alvo.preco)} (${s.alvo.r.toFixed(1)}R)` : '';
+  const estado = s.estado ? ESTADO_JORNAL[s.estado] ?? s.estado : 'sem estado';
+  const r = comResultado && s.resultadoR !== null ? ` · ${s.resultadoR >= 0 ? '+' : ''}${s.resultadoR.toFixed(1)}R` : '';
+  return (
+    `${lado} ${s.simbolo} ${s.timeframe} · ${nomeDeEstrategia(s.estrategia)} (${horaLondres(s.geradoEm)})` +
+    `\n   entrada ${n(s.entrada)} · stop ${n(s.stop)}${alvo} — ${estado}${r}`
+  );
+}
+
+/** Máximo de linhas por secção: o Telegram corta nos 4096 caracteres. */
+const MAX_POR_SECCAO = 12;
+
+export function formatarJornal(j: EdicaoJornal): string {
+  const nl = String.fromCharCode(10);
+  const out: string[] = [`📰 *${escapeMarkdown(`Jornal dos sinais · ${j.titulo}`)}*`, escapeMarkdown(quandoLondres(j.em)), ''];
+  const seccao = (titulo: string, linhas: string[], vazio: string) => {
+    out.push(`*${escapeMarkdown(titulo)}*`);
+    if (linhas.length === 0) out.push(escapeMarkdown(vazio));
+    for (const l of linhas.slice(0, MAX_POR_SECCAO)) out.push(escapeMarkdown(l));
+    if (linhas.length > MAX_POR_SECCAO) out.push(escapeMarkdown(`… e mais ${linhas.length - MAX_POR_SECCAO}`));
+    out.push('');
+  };
+
+  seccao(
+    `Novos desde as ${horaLondres(j.desde)} (${j.novos.length})`,
+    j.novos.map((s) => linhaDoJornal(s, false)),
+    'Nenhum sinal novo.',
+  );
+  seccao(`Em aberto (${j.emAberto.length})`, j.emAberto.map((s) => linhaDoJornal(s, false)), 'Nada em aberto.');
+  seccao(
+    `Fechados desde as ${horaLondres(j.desde)} (${j.fechados.length})`,
+    j.fechados.map((s) => linhaDoJornal(s, true)),
+    'Nenhuma operação fechou.',
+  );
+  out.push(
+    escapeMarkdown(
+      j.dia.n > 0
+        ? `Hoje: ${j.dia.n} operação(ões) fechada(s), ${j.dia.r >= 0 ? '+' : ''}${j.dia.r.toFixed(1)}R no total.`
+        : 'Hoje: nenhuma operação fechada ainda.',
+    ),
+  );
+  out.push('');
+
+  seccao(
+    'ICT ALGO · setups fixos de 1H',
+    j.setupsIct.map((s) => {
+      const n = (v: number) => v.toFixed(s.casas);
+      return `${s.direccao === 'bullish' ? 'compra' : 'venda'} ${s.simbolo} · ${s.modelo} · zona ${n(s.zonaBaixa)}–${n(s.zonaAlta)} → alvo ${n(s.alvo)} — ${s.estado}`;
+    }),
+    'Nenhum setup armado: o tiro de 15M só sai de um setup de 1H.',
+  );
+
+  if (j.pois.length > 0) {
+    seccao(
+      'POI de Londres (08:00–11:00)',
+      j.pois.map((p) => {
+        const n = (v: number) => v.toFixed(p.casas);
+        return `${p.simbolo} · ${p.lado === 'venda' ? 'vendas acima' : 'compras abaixo'}: ${p.zonas.map((z) => `${n(z.baixo)}–${n(z.alto)}`).join(' · ')}`;
+      }),
+      '',
+    );
+  }
+
+  if (j.atencao.length > 0) {
+    out.push(`*${escapeMarkdown('A que estar atento')}*`);
+    for (const p of j.atencao) {
+      const f = frasesDeAtencao(p);
+      out.push(escapeMarkdown(`${f.titulo} — ${f.corpo}`));
+    }
+    out.push('');
+  }
+  out.push(`_${escapeMarkdown('Próximas edições: 07:30 · 12:45 · 21:30 (Lisboa). Os sinais continuam a chegar na hora.')}_`);
+
+  let texto = out.join(nl);
+  if (texto.length > 4000) texto = `${texto.slice(0, 3990)}${nl}…`;
+  return texto;
+}
+
+/** Telegram por inteiro; push com o resumo (para todos, sem filtro de instrumento). */
+export async function difundirJornal(j: EdicaoJornal): Promise<NotifyResult[]> {
+  const partes = [
+    `${j.novos.length} novo(s)`,
+    `${j.emAberto.length} em aberto`,
+    j.dia.n > 0 ? `hoje ${j.dia.r >= 0 ? '+' : ''}${j.dia.r.toFixed(1)}R` : null,
+    j.setupsIct.length > 0 ? `${j.setupsIct.length} setup(s) ICT armado(s)` : null,
+  ].filter((x): x is string => x !== null);
+  return Promise.all([
+    sendTelegram(formatarJornal(j)),
+    sendPush({
+      titulo: `📰 Jornal dos sinais · ${j.titulo}`,
+      corpo: partes.join(' · '),
+      url: '/',
+      tag: 'jornal',
+      validadeS: 4 * 3600,
+      urgencia: 'normal',
+      topico: 'jornal',
     }),
   ]);
 }
