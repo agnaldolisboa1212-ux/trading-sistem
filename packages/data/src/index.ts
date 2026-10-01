@@ -29,6 +29,14 @@ export {
   velasFechadasDeriv,
 } from './providers/deriv.js';
 export { RitmoPedidos, type OpcoesRitmo } from './providers/ritmo.js';
+export {
+  HISTORIA_MS,
+  MAX_PAGINAS,
+  paginarVelas,
+  type OpcoesPaginacao,
+  type PedirPagina,
+  type VelasPaginadas,
+} from './providers/paginar.js';
 /*
  * Seleccao explicita, e nao `export *`: o catalogo exporta nomes genericos
  * (`Timeframe`, `TIMEFRAMES`, `TODOS`) que colidiriam com o resto do pacote. O

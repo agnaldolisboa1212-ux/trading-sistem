@@ -404,10 +404,237 @@ são todos anteriores à entrada).
   Asia Range ao vivo continua o que era (MSS em 15M, confirmação em 1M, em
   teste e com o aviso).
 
+### Asia Range POI — a estratégia do journal descrita pelo Agnaldo (26/09/2026): chumbou
+
+O setup, nas palavras do Agnaldo e nos prints (TradingView e Notion): POI = os
+retângulos roxos/azuis (prints) e cinzentos (Notion) — topos e fundos de
+sessões anteriores (2–3 dias), da vela do extremo, prolongados até o preço lá
+voltar; viés = a estrutura de mercado (as linhas vermelhas são BOS/MSS);
+depois da Ásia, antes da sobreposição com Nova Iorque, o preço vai (nem sempre)
+a um POI; MSS na micro-estrutura (1M) e entrada no regresso ao "POI em micro
+timeframe"; alvo na liquidez do lado oposto (daí os RR de 7 a 18). SMT como
+confluência (ex.: GBPJPY sobe ao POI e o USDJPY desce). Notas do journal: a
+divergência SMT só vale a partir das 9h.
+
+`scripts/backtest/asia-range-poi.mjs`, regras no cabeçalho, fixadas antes de
+correr; 8 pares ao vivo (os do journal e dos prints) e 4 de controlo, 2022+,
+1M do HistData.
+
+| Versão | Custos | Ao vivo (8 pares) | Controlo (4 pares) |
+|---|---|---|---|
+| A — entrada a mercado no MSS de 1M | normais | 730 op · −0,160R · t=−2,1 | 282 · −0,115R |
+| A | sem custos | +0,072R · t=1,0 (+0,112 / +0,026) | +0,116R · t=0,9 |
+| C — limite no micro-POI (order block de 1M) | normais | 549 · −0,393R · t=−3,7 | 223 · −0,204R |
+| C | metade | −0,204R · t=−2,0 | −0,022R |
+| C | sem custos | −0,014R | +0,159R · t=0,9 |
+| C, só com SMT | sem custos | 63 · −0,048R | 56 · +0,152R |
+
+- **Nenhuma versão passa.** Com custos perdem; sem custos ficam perto de zero.
+  A versão A é a primeira de todas as medições com o bruto positivo também no
+  controlo, mas com t≈1 — não se distingue do acaso.
+- **O SMT não acrescenta** nada medível.
+- **A entrada no micro-POI (C) é pior do que a mercado (A)**: a mesma selecção
+  adversa das ordens limite medida no ICT ALGO — as ordens que enchem são as
+  que o preço atravessa.
+- **Os stops curtos são o problema dos custos**: o stop da C fica a poucos pips
+  e o custo de uma conta normal (3 pips no GBPJPY) pesa mais do que 1R numa
+  perda.
+- As compras foram positivas sem custos nos dois grupos (A: +0,179R e +0,317R;
+  C: +0,202R e +0,507R) e as vendas negativas. Não foi fixado antes: pode ser o
+  regime de 2022–2026 (iene fraco), não uma regra.
+- Diferença que ficou por medir: o stop. A regra fixada pôs o stop no extremo
+  da zona do POI de 15M (stop médio 1,6–2,3 ATR); no desenho do Agnaldo o stop
+  fica logo acima do máximo feito no micro-POI.
+
+### ICT Power of 3 — as regras do site (26/09/2026): chumbou
+
+`scripts/backtest/asia-range-po3.mjs`, regras de
+theinnercircletraders.com/ict-power-of-3 fixadas antes de correr: viés diário;
+Ásia 20:00–02:00 de Nova Iorque; Judas swing na killzone de Londres (02:00–05:00
+NY) contra o viés; CHoCH = vela a favor que fecha de volta para dentro da Ásia;
+entrada no fecho; stop no pavio do Judas; alvo na liquidez diária (máximo/mínimo
+do dia ou da semana anterior, ≥ 2R); saída às 11:00 NY. Mesmos 8 + 4 pares.
+
+| CHoCH | Custos | Ao vivo | Controlo |
+|---|---|---|---|
+| 5M (o site) | normais | 3762 op · −0,375R · t=−7,2 | 1553 · −0,437R |
+| 5M | sem custos | +0,071R · t=1,4 | −0,011R |
+| 15M ("a análise parte do 15M") | normais | 3344 · −0,302R · t=−7,4 | 1370 · −0,348R |
+| 15M | sem custos | +0,005R | −0,053R |
+
+Dá muitas operações (o Judas swing acontece em ~40% dos dias), mas o alvo na
+liquidez diária fica longe (RR planeado 9–13) e só 18–23% acertam: sem custos
+é zero, com custos perde.
+
+### Fibonacci como estratégia própria — e se os números são especiais (27/09/2026)
+
+`scripts/backtest/fibonacci.mjs`, regras fixadas antes de correr: perna de
+impulso (fundo → topo que parte o topo anterior, ≥ 2 ATR), ordem limite no
+recuo, stop nos 100%, alvo na extensão de 127,2%, ordem cancelada com topo novo
+ou ao fim de 2 dias, operação até 2 dias. Níveis de Fibonacci (38,2 / 50 /
+61,8 / 78,6%) contra níveis PLACEBO que não são de Fibonacci (45 / 55 / 70%),
+com as mesmas regras. 8 pares ao vivo + 4 de controlo, 2022+.
+
+| 1H, com custos | Ao vivo | Controlo |
+|---|---|---|
+| 38,2% (Fib) · 1,1R | 4027 op · 48% · −0,053R | −0,066R |
+| 45% (placebo) · 1,3R | 44% · −0,066R | −0,082R |
+| 50% (Fib) · 1,5R | 41% · −0,066R | −0,085R |
+| 55% (placebo) · 1,8R | 38% · −0,071R | −0,095R |
+| 61,8% (Fib) · 2,3R | 4713 op · 32% · −0,100R | −0,132R |
+| 70% (placebo) · 3,2R | 26% · −0,132R | −0,170R |
+| 78,6% (Fib) · 4,9R | 19% · −0,166R | −0,209R |
+
+Sem custos, todos os níveis dão entre −0,05R e +0,01R, em 1H e em 15M (15M
+com custos: −0,12R a −0,37R). O acerto é o de um passeio aleatório: chegar ao
+alvo antes do stop tem probabilidade risco ÷ (risco + ganho) — no 61,8%,
+0,382 ÷ 1,272 = 30%, medido 30–33%; no 38,2%, 48,6%, medido 47–49%. Os níveis
+de Fibonacci ficam na mesma curva suave dos placebos: o número não tem nada de
+especial; com custos, recuos de qualquer profundidade perdem.
+
+### ICT ALGO e Asia Range Algo passam a ALERTA (26/09/2026)
+
+A pedido do Agnaldo ("não desliga mas muda para POI, eu serei a decisão"): as
+duas continuam a correr e a avisar, mas `SO_ALERTA` (core) faz com que o
+Telegram e o push saiam como "📍 SETUP … zona de VENDA/COMPRA" — zona de
+entrada, invalidação, liquidez alvo e "a decisão é sua" —, a automação de
+ordens recuse-as (motor e `decidirAutomacao`, com teste) e a lista de sinais e o
+painel da automação as marquem como "só alerta".
+
+### Alertas de POI (26/09/2026)
+
+O setup do journal passa a AVISO: `poisDeSessao`/`toquesPoi` no core (as regras
+do asia-range-poi.mjs), `pipeline/alertas-poi.ts` no motor (08:00–11:00 de
+Londres, forex e metais dos portfólios, Telegram + push uma vez por POI e por
+dia) e a aba "POI" no gráfico. No backtest do GBPJPY, Londres chegou a um POI
+do lado da estrutura em ~20% dos dias: cerca de um aviso por semana e por par.
+
 Ferramentas: `ict-algo.mjs` aceita `CONFIRMAR=1` (a confirmação em 5M de
 `planIctAlgo`, via o novo parâmetro `aceitar` de `percorrerIct`) e `CUSTO_MULT`
 (0 = sem custos); `asia-range-algo.mjs` corre o `analisarAsiaRange` de produção
 vela a vela.
+
+### Setup fixo de 1H e tiro em 15M (29/09/2026)
+
+Pedido do Agnaldo: o setup em 1H e a confirmação/entrada em 15M (em vez de
+15M/5M); depois de dar um sinal, o algoritmo fixa-se nesse setup em vez de saltar
+para outro; e o disparo é um "tiro certeiro", justificado de cima para baixo.
+A confirmação em 5M foi retirada.
+
+- **Core** — `ict/gatilho.ts`: `armarSetupIct` arma um `SetupFixo` quando um
+  setup nasce na última vela de 1H fechada (zona, stop, alvo, passos top-down;
+  validade de 24 h). `estadoDoSetup` percorre as velas de 15M fechadas: à espera
+  da zona → na zona → **disparado** quando há uma CHoCH/MSS de 15M a favor
+  depois do toque (`confirmacaoLtf` com passo de 15M). A entrada é o fecho dessa
+  vela, o stop é o extremo feito desde o toque (no mínimo ¼ ATR15), o alvo é o
+  do 1H, e só dispara com RR ≥ 2. Invalida-se se tocar o stop do 1H antes ou se
+  for ao alvo sem passar pela zona. Tem testes, incluindo o teste do corte.
+- **Motor** — `pipeline/ict-fixo.ts` guarda o estado em `data/ict-setups.json`
+  (setup activo e os últimos 20 que acabaram). `planIctAlgo` só emite na vela de
+  15M do tiro: um sinal por setup.
+- **Painel** — a aba ICT ALGO lê sempre o 1H e mostra o cartão "Setup fixo 1H →
+  tiro em 15M" (`/api/ict/fixos`). As abas ICT e Asia Range desenham e listam os
+  sinais **já enviados** (48 h, com o estado), para não desaparecerem quando a
+  análise de agora muda.
+- **Jornal** — `pipeline/jornal.ts`: três edições por dia útil (07:30 · 12:45 ·
+  21:30, Lisboa), por Telegram (completo) e push (resumo): sinais novos, em
+  aberto, fechados com R, total do dia, setups ICT armados, POI de Londres (de
+  manhã) e "a que estar atento". Substitui o boletim de hora a hora.
+
+Réplica de 10 dias antes de publicar: 2 setups armados (USDJPY e EURUSD), ambos
+invalidados porque o preço foi ao alvo sem voltar à zona; 0 tiros. Os tiros vão
+ser raros, e isto **não foi medido** como estratégia: continua a ser alerta.
+
+### Porque o setup fixo quase não disparava, e o Asia Range dava 0 (29/09/2026, tarde)
+
+Réplica de 14–25/09 com velas da Deriv (histórico paginado — o endpoint público
+só dá uma janela por pedido: 1H ≈ 695 velas, 15M ≈ 8 dias, 1M ≈ 17 h):
+
+- **ICT ALGO**: 11 setups armados, 0 tiros. Quando o setup nascia, o preço já
+  tinha feito 50–83% do caminho zona → alvo (o alvo era o extremo do impulso,
+  que acabava de ser feito) e a zona (PD array ∩ OTE) media 0,01–0,5 ATR. 7 dos
+  11 morreram por "foi ao alvo sem passar pela zona".
+- **Asia Range**: 0 sinais. A regra exigia varrimento do extremo asiático E SMT;
+  o journal tem 46 operações ASIA RANGE em 12 semanas (~4/semana), com SMT em
+  metade e entrada no POI.
+
+Correcções (em produção):
+
+- `armarSetupIct` — zona = PD array inteiro (pedido do Agnaldo, opção a).
+  **Medido: não muda nada**: o PD array só alarga a zona do lado do stop; a
+  borda que o preço toca primeiro é a mesma.
+- `estadoDoSetup` — alvo móvel: se o preço toma o alvo antes de vir à zona, o
+  novo extremo passa a ser o alvo (ERL → IRL) em vez de o setup morrer.
+- `ict-fixo.ts` — a mesma chave não se arma duas vezes.
+- `analisarAsiaRange` reescrito como o setup do journal: estrutura de 15M,
+  POI de 15M por tocar, janela 08:00–11:00, `tiroPoi` (MSS de 1M no POI, stop
+  além do POI, alvo na liquidez oposta a ≥ 2R); SMT só confluência. São as
+  regras da versão A de `asia-range-poi.mjs` — a função de produção reproduz as
+  mesmas contagens (94/33/73/95/105/86).
+
+Medições 2022–2026 com custos (`scripts/backtest/ict-fixo.mjs`,
+`scripts/backtest/asia-range-algo.mjs`):
+
+| | principais | controlo | frequência |
+|---|---|---|---|
+| ICT fixo, regra antiga (A) | 39 tiros · −0,16R | 44 · −0,63R | ~0,03 por mercado e semana |
+| ICT fixo, PD array + alvo móvel (D) | 46 · −0,30R | 55 · −0,36R | ~0,03 por mercado e semana |
+| Asia Range (POI + 1M) | 486 · −0,08R (t=−0,8) | 283 · −0,08R (t=−0,6) | ~2 por semana nos 6 pares |
+
+Leitura: o ICT com setup de 1H e tiro de 15M dispara ~1 vez por mês nos 10
+instrumentos, e perde; o que o trava é o preço não voltar ao FVG/OB de 1H em
+24 h (a maioria expira). O Asia Range volta à frequência do journal, sem
+vantagem medida (USDCAD +0,38R, t=1,5, é um par em seis). Os dois continuam
+alerta.
+
+### Mais sinais e mais acerto — variantes medidas sem sobreajuste (29/09/2026, noite)
+
+Pedido do Agnaldo: configurar os dois algoritmos "com os melhores trades" para
+serem mais assertivos e darem mais sinais. Escolher parâmetros pelos melhores
+trades do passado é sobreajuste; o método foi fixado ANTES de correr:
+
+- variantes das boas práticas ICT e do journal, uma mudança de cada vez;
+- escolha só na 1.ª metade (2022-01 → 2024-06), pares ao vivo, pelo objectivo
+  **R por semana** (média × sinais por semana — premeia mais sinais e mais
+  acerto, castiga sinais que perdem); depois a combinação das que melhoram;
+- validação: média > 0 na 2.ª metade E nos mercados de controlo.
+
+**ICT ALGO** (`scripts/backtest/ict-fixo.mjs`, 16 combinações de validade 48 h,
+gatilho 5M, toque a ¼ ATR, RR 1,5):
+
+| | tiros/sem (10 instr.) | acerto | 1.ª metade | 2.ª metade | controlo |
+|---|---|---|---|---|---|
+| gatilho 15M (a regra até hoje) | 0,32 | 22% | −0,51R | +0,09R | −0,36R |
+| **gatilho 5M** (vencedor) | 0,70 | 31% | −0,06R | +0,10R | −0,20R |
+| 5M + 48 h + RR 1,5 (combinação) | 0,92 | 32% | −0,13R | +0,18R | −0,10R |
+
+O vencedor **não passa** (controlo negativo), mas é melhor do que o 15M em
+todas as amostras — mais do dobro dos tiros, mais acerto, menos perda, também
+no controlo. Como o ICT é alerta, **o gatilho passou a 5M** (`PASSO_GATILHO_ICT`;
+o setup continua a ler-se em 1H). Nota: isto troca o "confirmação em 15M" que o
+Agnaldo tinha escolhido; volta-se atrás mudando uma constante.
+
+**Asia Range** (`scripts/backtest/asia-range-variantes.mjs`, funções de
+produção, simulação em 1M):
+
+| | sinais/sem (6 pares) | acerto | 1.ª metade | 2.ª metade | controlo |
+|---|---|---|---|---|---|
+| base (produção) | 1,99 | 25% | +0,03R | −0,19R | −0,12R |
+| janela até às 13:00 | 2,89 | 24% | −0,12R | −0,21R | −0,14R |
+| + sessão de Nova Iorque | 3,02 | 25% | −0,02R | −0,21R | −0,24R |
+| POI de 5 dias | 2,20 | 25% | −0,05R | −0,15R | −0,11R |
+| swings de 4 velas | 2,51 | 24% | −0,11R | −0,17R | −0,19R |
+| alvo a 1,5R | 2,11 | 28% | +0,01R | −0,13R | −0,12R |
+| alvo fixo a 2R | 2,32 | 35% | −0,10R | −0,20R | −0,06R |
+| exigir SMT | 0,50 | 26% | +0,17R | −0,35R | −0,29R |
+| viés diário alinhado | 0,83 | 27% | +0,19R | −0,20R | −0,25R |
+| SMT + viés diário | 0,20 | 29% | +0,25R | −0,47R | −0,34R |
+
+Os sinais a mais perdem; os filtros que "melhoram" (SMT, viés diário) só
+melhoram na 1.ª metade e falham fora dela — o retrato do sobreajuste. **Nada
+passa, e nada é melhor do que a base em todas as amostras: o Asia Range fica
+como está.** O que decide o resultado continua a ser a leitura de quem opera
+(o journal teve +0,63R por ideia); os alertas levam-no ao sítio certo.
 
 ---
 

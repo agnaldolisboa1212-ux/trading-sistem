@@ -258,3 +258,92 @@ A correção (`packages/data/src/providers/ritmo.ts` e `deriv.ts`):
 
 Verificado contra a Deriv: 60 séries diferentes pedidas de uma vez passaram
 todas em 23 s, sem RateLimit; pedidas outra vez, vieram da cache em 0,01 s.
+
+### 8b. O travão não chegou: o IP do servidor é limitado — as análises passam para o browser
+
+Depois do travão, em produção (sábado, mercado fechado, quase sem tráfego
+nosso), as rotas `/api/ict` e `/api/asia-range` continuavam com "Deriv
+RateLimit", e o motor — noutra ligação — levava RateLimit em `active_symbols`.
+Daqui, noutro IP, 60 séries de uma vez passavam todas; um teste longo a 1
+pedido por segundo acabou com a Deriv a deixar de responder e a fechar a
+ligação ao fim de ~2 minutos. Conclusão: o endpoint público limita o IP do
+servidor, que no alojamento é partilhado com outros sites. A documentação da
+Deriv não publica números ("os limites variam") e recomenda cache, recuo e
+subscrições em vez de pedidos repetidos.
+
+O gráfico já vivia de uma ligação direta do browser (`live.ts`). As análises
+passaram a viver também:
+
+- `lib/deriv/velas-browser.ts` — velas fechadas pedidas pela ligação do
+  browser, com o mesmo travão (`@trading/data/ritmo`) e a cache até ao fecho da
+  vela seguinte;
+- `lib/analise.worker.ts` + `lib/analise-calculo.ts` — o ICT ALGO (~1,3 s com
+  3500 velas) e as estratégias dos agentes correm num Web Worker, sem congelar
+  o ecrã; sem worker, correm na thread principal;
+- `lib/analise-browser.ts` — `analisarIctBrowser`, `analisarAsiaBrowser` e
+  `radarBrowser`: as mesmas séries e o mesmo formato das rotas antigas. A aba do
+  ICT, a do Asia Range e o painel de agentes já não pedem nada ao servidor.
+
+Verificado em Node contra a Deriv: Asia Range do GBPJPY em 2,2 s; o radar de 8
+pares em cada grupo (básico, ICT, Asia) sem erros; a segunda volta da cache.
+
+O que continua no servidor: o motor (sinais, Telegram) e o acompanhamento da
+lista de sinais (`/api/sinais`). Se o IP continuar limitado nos dias de
+mercado, o passo seguinte é o motor usar a ligação autenticada da conta Deriv
+(OTP, como o `conta-ouvinte`) ou correr num servidor com IP próprio.
+
+### 8c. A Deriv devolve uma janela, não as velas pedidas — paginação
+
+Medido a 29/09/2026 (`ticks_history`, `end: 'latest'`, `count: 5000`): cada
+pedido devolve uma **janela de 1000 × granularidade**, com menos velas onde o
+mercado fecha — e nada para lá de **um ano**, em nenhuma granularidade.
+
+| Granularidade | Velas por pedido | Janela |
+|---|---|---|
+| 1M | 1000 | ~17 h |
+| 15M | 620 no EURUSD, 374 no Nasdaq | ~10 dias |
+| 1H | 695 no EURUSD, 439 no Nasdaq, 1000 no BTC/V75 | ~6 semanas |
+| 4H | 713 no EURUSD | ~5,5 meses |
+| 1D | 260 no EURUSD | o ano inteiro que há |
+
+Quem pedia mais recebia menos, sem aviso: o setup fixo do ICT ALGO pedia 3500
+velas de 1H e corria sobre 695 (seis semanas, não os meses dos backtests), o
+tempo real pedia 1500 de 15M e recebia 620, o diário pedia 400 e recebia 260.
+
+**A correção** (`packages/data/src/providers/paginar.ts`, usada por
+`velasDeriv` no servidor e por `velas-browser.ts` no browser): com `end` = a
+primeira vela − 1 s vem a janela anterior; repete-se até haver as velas
+pedidas. Três cuidados, os três medidos:
+
+- a primeira vela de uma janela cortada a meio vem **parcial**, com o epoch do
+  corte fora da grelha (10:55 numa vela de 15M): deita-se fora, e a página
+  seguinte traz a vela inteira;
+- um `end` com o mercado fechado recua sozinho até à última vela
+  (`adjust_start_time`) — o fim de semana não dá páginas vazias;
+- a história acaba a um ano (aí pára sem pedir) ou, num instrumento mais novo,
+  quando uma página não traz nenhuma vela mais antiga. O diário fica nas ~260.
+
+Cada página é um pedido e passa pelo travão. Se uma falha, falha o conjunto —
+meia série seria outra vez menos história sem aviso — e vale a cópia guardada.
+
+**O custo.** A cópia guardada liga-se às páginas: ao refrescar, só se pede até
+à última vela guardada (as velas fechadas não mudam), e uma cópia ainda fresca
+só precisa do que está para trás dela (o tempo real pede 1500 de 15M segundos
+depois de o setup fixo pedir 1000). Verificado contra a Deriv, com a sequência
+de séries do motor para a vigilância por omissão:
+
+| Passagem | Pedidos | Tempo |
+|---|---|---|
+| a primeira (arranque do motor) | 105 (antes ~40) | 65 s, sem erros |
+| a seguinte, na mesma vela | 0 | 0,4 s |
+| a de cada vela nova | um por série, como antes | — |
+
+A primeira passagem cabe no travão (15 de seguida, depois 2 por segundo) e no
+que foi medido como seguro (90 pedidos em série em 36 s). É o custo de cada
+arranque do motor; se o IP do servidor levar RateLimit a meio, a ligação pára
+55 s e as passagens seguintes completam o que faltou — o que chegou fica
+guardado. `apps/engine/test/paginar-deriv.test.mjs` fixa isto com uma Deriv
+falsa que devolve janelas, incluindo o orçamento das passagens.
+
+Fica de fora, por não precisar: o `DerivProvider` do varrimento MMXM (diário e
+semanal, a que o limite de um ano já corta tudo) e as miniaturas do gráfico.

@@ -36,7 +36,7 @@ import { quebrasDeEstrutura, serieAtrIct, swingsConfirmados, tendenciasPorVela }
 import { breakerBlocks, fairValueGaps, marcarEstados, orderBlocks } from './arrays.js';
 import { pocasDeCalendario, pocasDeSwings, varrimentos } from './liquidez.js';
 import { velaReferencia, type VelaReferencia } from './crt.js';
-import { viesDiario } from './vies.js';
+import { viesDoDia } from './vies.js';
 import { lerRegime } from './regime.js';
 import { ultimaFechadaAte } from './tempo.js';
 import type { ContextoModelo } from './modelos/comum.js';
@@ -74,6 +74,13 @@ export interface EntradaIct {
   custo?: number;
   /** Modelo de entrada (ver `entrada.ts`). Por omissão, o limite do PD array. */
   modoEntrada?: ModoEntrada;
+  /**
+   * O instante real da análise (ms). Na ÚLTIMA vela, o dia do viés lê-se
+   * a partir daqui e não do fecho da vela: sem isto, ao fim de semana o 4H
+   * (última vela fecha à meia-noite) e o 1H (às 22:00) liam dias diferentes.
+   * Sem ele (backtests), vale o fecho da vela.
+   */
+  agora?: number;
 }
 
 export interface EstruturasIct {
@@ -89,6 +96,8 @@ export interface EstruturasIct {
   obs: PdArray[];
   breakers: PdArray[];
   pocas: PocaLiquidez[];
+  /** As poças de liquidez do DIÁRIO — o viés diário lê-se só nelas (`viesDoDia`). */
+  pocasDiarias: PocaLiquidez[];
   varrimentos: Varrimento[];
   diarias: readonly Candle[];
   semanais: readonly Candle[];
@@ -96,6 +105,7 @@ export interface EstruturasIct {
   referencia: readonly Candle[];
   tfRef: Timeframe;
   par: { simbolo: string; velas: readonly Candle[] } | null;
+  agora?: number;
 }
 
 /** Calcula uma vez tudo o que as velas contêm. */
@@ -132,6 +142,8 @@ export function prepararEstruturas(input: EntradaIct): EstruturasIct {
     obs,
     breakers,
     pocas,
+    // O viés diário lê-se só no diário: igual em qualquer timeframe de execução.
+    pocasDiarias: pocasDeSwings(swingsConfirmados(input.diarias), serieAtrIct(input.diarias), input.diarias),
     varrimentos: vs,
     diarias: input.diarias,
     semanais: input.semanais,
@@ -139,6 +151,7 @@ export function prepararEstruturas(input: EntradaIct): EstruturasIct {
     referencia: input.referencia,
     tfRef: input.timeframeReferencia,
     par: input.par ?? null,
+    agora: input.agora,
   };
 }
 
@@ -164,19 +177,18 @@ const MIN_SEMANAS = 4;
 export function avaliarVela(e: EstruturasIct, i: number, modo: ModoEntrada = 'borda'): AvaliacaoVela | null {
   const agora = e.velas[i];
   if (!agora || !((e.atr[i] ?? 0) > 0)) return null;
-  const instante = agora.time + e.tfMs;
+  const instante =
+    i === e.velas.length - 1 && e.agora !== undefined ? Math.max(agora.time + e.tfMs, e.agora) : agora.time + e.tfMs;
   const iDia = ultimaFechadaAte(e.diarias, DIA, instante);
   const iSem = ultimaFechadaAte(e.semanais, SEMANA, instante);
   if (iDia < MIN_DIAS || iSem < MIN_SEMANAS) return null;
 
-  const vies = viesDiario({
+  const vies = viesDoDia({
     velasDiarias: e.diarias,
     iDia,
     swingsSemanais: e.swingsSemanais,
     iSemanal: iSem,
-    pocas: e.pocas,
-    iExecucao: i,
-    preco: agora.close,
+    pocasDiarias: e.pocasDiarias,
   });
   const rc = velaReferencia(e.referencia, e.tfRef, TIMEFRAME_MS[e.tfRef], instante);
   const regime = lerRegime({
@@ -276,7 +288,7 @@ export function percorrerIct(
    * carteira: pode sair numa vela seguinte, quando confirmar, como ao vivo.
    * As sombras (e com elas o placar) não passam pelo filtro, também como ao vivo.
    */
-  aceitar?: (s: NonNullable<ResultadoModelo['sinal']>, i: number) => boolean,
+  aceitar?: (s: NonNullable<ResultadoModelo['sinal']>, i: number, carteira: 'estrutural' | 'comQuarentena') => boolean,
 ): Percurso {
   const sombras: OperacaoIct[] = [];
   const registos: RegistoOperacao[] = [];
@@ -308,13 +320,13 @@ export function percorrerIct(
       }
     }
 
-    for (const c of Object.values(carteiras)) {
+    for (const [nome, c] of Object.entries(carteiras) as Array<['estrutural' | 'comQuarentena', (typeof carteiras)['estrutural']]>) {
       if (i < c.livreEm) continue;
       const placar = c.quarentena ? calcularPlacar(registos, av.instante) : [];
       const esc = escolherModelo(av.regime, av.resultados, placar, c.quarentena, c.usadas);
       const s = esc.escolhido?.sinal;
       if (!s) continue;
-      if (aceitar && !aceitar(s, i)) continue;
+      if (aceitar && !aceitar(s, i, nome)) continue;
       c.usadas.add(s.chave);
       const { sim, op } = operacao(s, i);
       if (op) c.ops.push(op);

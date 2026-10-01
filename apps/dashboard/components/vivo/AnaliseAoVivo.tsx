@@ -31,6 +31,9 @@ import type { PlanoParaOrdem } from './Negociar';
 import { quandoNoticia, usarNoticias } from './usarNoticias';
 import { VisaoIct, desenhoIct, usarIct } from './VisaoIct';
 import { VisaoAsiaRange, desenhoAsiaRange, usarAsiaRange } from './VisaoAsiaRange';
+import { SinaisEnviados } from './SinaisEnviados';
+import { desenhoEnviados, desenhoIctFixo, juntarDesenhos, usarIctFixo, usarSinaisEnviados } from './usarSinaisEnviados';
+import { VisaoPoi, desenhoPoi, usarPoi } from './VisaoPoi';
 import { ASIA_RANGE_EM_TESTE, estrategiaEmTeste, estrategiasPara } from '@trading/core';
 import {
   analisarVisoes,
@@ -107,6 +110,8 @@ function visoesOrdenadas(codigo: string, tf: string) {
     if (v.id === 'ict-algo') return 0.5;
     // O Asia Range Algo só existe nos pares do journal: logo a seguir ali, no fim nos outros.
     if (v.id === 'asia-range-algo') return daqui.has('asia-range-algo') || ASIA_RANGE_EM_TESTE.includes(codigo) ? 0.6 : 2.5;
+    // Os POI de Londres são do forex e dos metais (a janela de Londres).
+    if (v.id === 'poi') return acharSimbolo(codigo)?.deriv.startsWith('frx') ? 0.7 : 2.6;
     if (v.contexto) return 3;
     const ids: string[] = [...daqui];
     return ids.includes(v.id) || (v.id === 'tendencia-cripto' && ids.some((i) => i.startsWith('tendencia')))
@@ -180,7 +185,10 @@ export function AnaliseAoVivo({
   }, [velas, nFechadas]);
 
   // O VWAP dos índices precisa das diárias para confirmar o regime.
-  const diarias = usarDiarias(codigo, estrategiasPara(codigo, tf).some((e) => e.id === 'compra-vwap-indices'));
+  const diarias = usarDiarias(
+    codigo,
+    estrategiasPara(codigo, tf).some((e) => e.id === 'compra-vwap-indices' || e.id === 'venda-vwap-indices'),
+  );
 
   const analise = useMemo(() => {
     if (candles.length < MIN_VELAS) return { pronta: false as const, velas: candles.length };
@@ -199,6 +207,11 @@ export function AnaliseAoVivo({
   // O ICT ALGO corre no servidor: só se pede quando a secção está aberta.
   const ict = usarIct(codigo, tf, visao === 'ict-algo');
   const asia = usarAsiaRange(codigo, visao === 'asia-range-algo');
+  // O setup fixo do motor e os sinais já enviados: ficam no gráfico mesmo
+  // depois de a análise de agora mudar.
+  const ictFixo = usarIctFixo(codigo, visao === 'ict-algo');
+  const enviados = usarSinaisEnviados(codigo, visao === 'ict-algo' || visao === 'asia-range-algo');
+  const poi = usarPoi(codigo, visao === 'poi');
   const doServidor = VISOES_DO_SERVIDOR.includes(visao);
 
   // Injectar os sinais do servidor nas visões que não conseguem calcular sozinhas
@@ -235,14 +248,23 @@ export function AnaliseAoVivo({
     visao === 'mmxm'
       ? `mmxm|${mmxmActivo?.titulo ?? ''}|${mmxmActivo?.desenho.linhas.length ?? 0}`
       : visao === 'ict-algo'
-        ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}|${chave}`
+        ? `ict|${ict?.chave ?? ''}|${ict?.em ?? 0}|${chave}|${JSON.stringify(ictFixo?.estado ?? null)}|${enviados.map((s) => s.id).join(',')}`
         : visao === 'asia-range-algo'
-          ? `asia|${asia?.codigo ?? ''}|${asia?.em ?? 0}|${chave}`
-          : `${chave}|${visao}`;
+          ? `asia|${asia?.codigo ?? ''}|${asia?.em ?? 0}|${chave}|${enviados.map((s) => s.id).join(',')}`
+          : visao === 'poi'
+            ? `poi|${poi?.codigo ?? ''}|${poi?.em ?? 0}|${chave}`
+            : `${chave}|${visao}`;
   useEffect(() => {
     if (visao === 'mmxm') aoMudarDesenho(mmxmActivo?.desenho ?? DESENHO_VAZIO);
-    else if (visao === 'ict-algo') aoMudarDesenho(desenhoIct(ict?.analise ?? null, candles, tf));
-    else if (visao === 'asia-range-algo') aoMudarDesenho(desenhoAsiaRange(asia?.analise ?? null, candles, tf));
+    else if (visao === 'ict-algo') {
+      // Com um setup fixo, é esse que se desenha — não o setup de agora.
+      const a = ict?.analise ?? null;
+      const base = desenhoIct(a && ictFixo?.setup ? { ...a, sinal: null } : a, candles, tf);
+      aoMudarDesenho(juntarDesenhos(base, desenhoIctFixo(ictFixo), desenhoEnviados(enviados, 'ict-algo')));
+    } else if (visao === 'asia-range-algo') {
+      aoMudarDesenho(juntarDesenhos(desenhoAsiaRange(asia?.analise ?? null, candles, tf), desenhoEnviados(enviados, 'asia-range-algo')));
+    }
+    else if (visao === 'poi') aoMudarDesenho(desenhoPoi(poi));
     else aoMudarDesenho(actual?.desenho ?? DESENHO_VAZIO);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);
@@ -256,12 +278,18 @@ export function AnaliseAoVivo({
   /** Ponto de cor no botão: há um plano vivo nesta estratégia? */
   const marca = (id: VisaoId): string => {
     if (id === 'ict-algo') {
-      const s = ict?.analise?.sinal;
+      // O ponto é o setup fixo que o motor segue, não a leitura de agora.
+      const s = ictFixo?.setup;
       return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
     }
     if (id === 'asia-range-algo') {
       const s = asia?.analise?.sinal;
       return s ? (s.direccao === 'bullish' ? 'compra' : 'venda') : '';
+    }
+    if (id === 'poi') {
+      // Um POI tocado (e ainda válido) na janela de hoje.
+      const t = poi?.toques.find((x) => !x.invalido);
+      return t ? t.zona.lado : '';
     }
     if (!visoesComServidor || id === 'mmxm') return '';
     const sv = visoesComServidor[id as keyof typeof visoesComServidor]?.sinal;
@@ -322,6 +350,15 @@ export function AnaliseAoVivo({
                 <em>{sa.rr.toFixed(1)}R</em>
               </span>
             </>
+          ) : visao === 'poi' ? (
+            <span className="grow">
+              <b>POI de Londres</b>
+              <em>
+                {poi?.leitura
+                  ? `${poi.leitura.pois.length} POI ${poi.leitura.vies === 'bearish' ? 'acima (vendas)' : 'abaixo (compras)'}${poi.toques.length > 0 ? ` · ${poi.toques.length} tocado(s)` : ''}`
+                  : (poi?.erro ?? 'a calcular os POI…')}
+              </em>
+            </span>
           ) : visao === 'asia-range-algo' ? (
             <span className="grow">
               <b>Asia Range Algo</b>
@@ -397,9 +434,17 @@ export function AnaliseAoVivo({
 
       <div className="analise-viva__corpo">
         {visao === 'ict-algo' ? (
-          <VisaoIct estado={ict} tf={tf} casas={casas} aoNegociar={aoNegociar} />
+          <>
+            <VisaoIct estado={ict} tf={tf} casas={casas} aoNegociar={aoNegociar} fixo={ictFixo} />
+            <SinaisEnviados sinais={enviados} estrategia="ict-algo" fmt={fmt} />
+          </>
         ) : visao === 'asia-range-algo' ? (
-          <VisaoAsiaRange estado={asia} casas={casas} aoNegociar={aoNegociar} />
+          <>
+            <VisaoAsiaRange estado={asia} casas={casas} aoNegociar={aoNegociar} />
+            <SinaisEnviados sinais={enviados} estrategia="asia-range-algo" fmt={fmt} />
+          </>
+        ) : visao === 'poi' ? (
+          <VisaoPoi estado={poi} casas={casas} />
         ) : visao === 'mmxm' ? (
           <VisaoMmxm codigo={codigo} mmxm={mmxmActivo} casas={casas} aoCarregar={mmxm === undefined} />
         ) : !analise.pronta ? (
@@ -430,7 +475,7 @@ export function AnaliseAoVivo({
               <button type="button" className="visoes__linha" onClick={() => aoMudarVisao('asia-range-algo')}>
                 <span className="grow">
                   <strong>Asia Range Algo</strong>
-                  <em>o modelo do journal · Ásia, varrimento em Londres, SMT e MSS (pares JPY e USDCAD)</em>
+                  <em>o modelo do journal · Ásia, varrimento em Londres, SMT e MSS (pares JPY, USDCAD, GBPUSD e EURUSD)</em>
                 </span>
                 <span aria-hidden="true">›</span>
               </button>

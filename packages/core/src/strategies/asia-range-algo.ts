@@ -1,95 +1,83 @@
 /**
- * Asia Range Algo — a estratégia do journal do Agnaldo, à parte do ICT ALGO.
+ * Asia Range Algo — a estratégia do journal do Agnaldo (reescrita a 29/09/2026).
  *
- * O "Model # ASIA RANGE" do "Trader's Master Journal" (119 das 126 operações
- * registadas), com as regras das notas "Estudos do JPY" tal como foram fixadas
- * e medidas em `scripts/backtest/jpy-londres.mjs` — a "entrada 2", a da
- * confirmação, a única com resultado positivo (+0,117R, t=1,1, 71 operações em
- * 15M 2022+). Sem vantagem estatística provada: corre ao vivo, EM TESTE, para
- * os resultados reais decidirem.
+ * A versão anterior exigia que Londres varresse o extremo da Ásia E que houvesse
+ * SMT, com MSS de 15M e confirmação de 1M: deu 0 sinais nas duas semanas de
+ * 14–25/09/2026 e 8 em 4,7 anos de backtest. O journal ("Trader's Master
+ * Journal") tem 46 operações ASIA RANGE em 12 semanas seguidas (jul–set 2025),
+ * ~4 por semana, e o Agnaldo descreveu-a assim (26/09/2026):
  *
- *   1  Viés        as cinco perguntas do viés diário (as do ICT ALGO); sem
- *                  viés não se opera
- *   2  Ásia        a faixa das 00:00 às 08:00 de Londres
- *   3  Londres     o par passa o extremo asiático CONTRA o viés (numa compra,
- *                  o mínimo), a partir das 08:00
- *   4  SMT         o par correlacionado NÃO passa o seu extremo asiático —
- *                  "divergência entre GBPJPY e USDJPY"
- *   5  MSS         o primeiro fecho além do último swing confirmado antes do
- *                  extremo da manipulação
- *   5b Confirmação CHoCH/MSS e estrutura de 1M a favor (as "sniper entries" do
- *                  journal); pode chegar até 45 min depois do MSS. Entrada a
- *                  mercado no fecho da vela de 15M em que fica confirmado
- *   6  Alvo        o extremo OPOSTO da Ásia ("capturar a alta da sessão
- *                  asiática") ou o POI de Londres, o mais próximo que pague 2R
+ *   1  Estrutura  o viés é a estrutura de mercado de 15M — o lado da última
+ *                 quebra (BOS/CHoCH/MSS) confirmada até às 08:00 de Londres
+ *   2  POI        os topos e fundos de 15M dos 3 dias anteriores ainda por
+ *                 tocar (as caixas roxas/cinzentas), do lado da estrutura: numa
+ *                 venda acima do preço, numa compra abaixo
+ *   3  Ásia       00:00–08:00 de Londres
+ *   4  Janela     08:00–11:00 de Londres (antes da sobreposição com Nova Iorque)
+ *   5  Toque      o preço entra num POI
+ *   6  1M         a reversão em 1M no POI (MSS) — é o sinal
+ *   7  Stop/alvo  além do POI; a liquidez oposta por tomar a pelo menos 2R
  *
- * Stop para lá do POI de entrada que cobre o extremo da manipulação (ou do
- * próprio extremo), com margem de 0,1 ATR — `stopAlemDoPoi` — e a pelo menos
- * ¼ de ATR. A vela do MSS tem de
- * fechar antes das 10:00 de Londres — o fim da killzone de Londres. Um setup por
- * dia e sentido. Opera também às sextas (a pedido, 25/09/2026 — as notas
- * originais não operavam). Só 15M.
+ * O SMT é confluência (no journal, em metade das operações): diz-se, não trava.
  *
- * Usa as PEÇAS do ICT ALGO (estruturas, viés, POI) como biblioteca, mas não é
- * um modelo dele: tem o seu nome, os seus sinais e a sua contabilidade.
+ * As peças são `poisDeSessao` e `tiroPoi` (ict/poi-sessao.ts) — as regras da
+ * versão A de `scripts/backtest/asia-range-poi.mjs` (26/09/2026): 730 operações
+ * em 2022+ em 8 pares, −0,16R por operação com custos (t=−2,1), ~0 sem custos.
+ * Sem vantagem medida: sai como ALERTA (`SO_ALERTA`), a decisão é de quem opera.
  *
  * PUREZA: sem rede nem relógio; só lê velas fechadas até à última.
  */
 
 import type { Candle } from '../types/market.js';
-import { agregar } from '../ict/algo.js';
-import { prepararEstruturas, type EstruturasIct } from '../ict/motor.js';
-import { viesDiario } from '../ict/vies.js';
-import { relogioLondres, ultimaFechadaAte } from '../ict/tempo.js';
-import { confirmacaoLtf } from '../ict/confirmacao.js';
-import { faixaAsiaticaLondres, poiLondres, stopAlemDoPoi, type FaixaAsiatica, type PoiLondres } from '../ict/poi.js';
+import { relogioLondres } from '../ict/tempo.js';
+import { faixaAsiaticaLondres, type FaixaAsiatica, type PoiEntrada, type PoiLondres } from '../ict/poi.js';
+import { poisDeSessao, tiroPoi, type LeituraPoi, type ZonaPoi } from '../ict/poi-sessao.js';
 import type { IctDireccao, PassoTopDown } from '../ict/types.js';
 
-const DIA = 86_400_000;
-const SEMANA = 7 * DIA;
-const INICIO_LONDRES = 8 * 60;
-const FIM_JANELA = 10 * 60;
-/** O RR mínimo do ICT ALGO ("3:1 or better"; 2 é a fasquia). */
-export const RR_MINIMO_ASIA = 2;
-/** Distância mínima do stop, em ATR: abaixo disto o spread come a operação. */
-const RISCO_MINIMO_ATR = 0.25;
 const M15 = 900_000;
-/** A confirmação é em 1M (era 3M até 25/09/2026). */
-const M1 = 60_000;
-/** Velas de 15M depois do MSS em que a confirmação de 1M ainda pode chegar (45 min). */
-const ATRASO_MAXIMO = 3;
+/** O RR mínimo do alvo (o do setup do journal). */
+export const RR_MINIMO_ASIA = 2;
 
 /** Aviso que acompanha todos os sinais desta estratégia. */
 export const AVISO_ASIA_RANGE =
-  'Estratégia do journal, sem vantagem medida: no backtest 15M 2022+ a entrada na confirmação deu +0,12R por operação ' +
-  '(t=1,1, 71 operações) com alvo a 3,5R. Esta versão (alvo na Ásia/POI, confirmação 1M) deu 8 sinais em 4,7 anos, ' +
-  'todos no stop: não há amostra para a medir.';
+  'Setup do journal (POI de 15M + reversão em 1M), sem vantagem medida: no backtest 2022+ (730 operações em 8 pares) ' +
+  'deu −0,16R por operação com custos e ~0 sem custos. É um alerta: a decisão é sua.';
 
 export interface SinalAsiaRange {
   direccao: IctDireccao;
-  /** Abertura da vela do MSS (ms). */
+  /** Abertura da vela de 1M do MSS (ms). */
   time: number;
+  /** Índice da vela de 15M em que o MSS de 1M aconteceu. */
   index: number;
   entrada: number;
   stop: number;
   alvo: number;
   rr: number;
   rotuloAlvo: string;
-  /** Zona de entrada: o corpo da vela do MSS. */
+  /** Zona de entrada: o POI. */
   zonaAlta: number;
   zonaBaixa: number;
-  /** O varrimento: do extremo asiático (nível) ao pavio (extremo). */
+  /** Do POI (borda e vela de origem) ao extremo que o preço fez nele. */
   varrimento: { nivel: number; nivelTime: number; extremo: number; time: number };
   mss: { nivel: number; time: number };
+  /** O par correlacionado andou ao contrário (confluência); null = sem dados. */
+  smt?: boolean | null;
   chave: string;
 }
 
 export interface AnaliseAsiaRange {
   simbolo: string;
   par: string | null;
+  /** A estrutura de 15M (aFavor: sempre 1 — um só voto, o da estrutura). */
   vies: { direccao: IctDireccao | 'neutral'; aFavor: number } | null;
   asia: (FaixaAsiatica & { de: number; ate: number }) | null;
+  /** Os POI do dia, do lado da estrutura (as caixas do journal). */
+  pois: ZonaPoi[];
+  /** A quebra de estrutura de 15M que dá o viés. */
+  estrutura: LeituraPoi['estrutura'] | null;
+  /** Já não se usam (versão anterior); ficam para o desenho antigo não partir. */
   poi: PoiLondres | null;
+  poiEntrada: PoiEntrada | null;
   passos: PassoTopDown[];
   sinal: SinalAsiaRange | null;
   porqueNao: string | null;
@@ -107,291 +95,157 @@ function px(v: number): string {
   const a = Math.abs(v);
   return v.toFixed(a >= 1000 ? 2 : a >= 10 ? 3 : 5);
 }
-
-/** As estruturas do ICT para a série de 15M. */
-function estruturas(simbolo: string, velas: readonly Candle[], diarias: readonly Candle[], par: EntradaAsia['par']): EstruturasIct {
-  return prepararEstruturas({
-    simbolo,
-    timeframe: '15m',
-    velas,
-    diarias,
-    semanais: agregar(diarias, '1w'),
-    referencia: diarias,
-    timeframeReferencia: '1d',
-    par,
-  });
-}
+const hhmm = (t: number): string => {
+  const l = relogioLondres(t);
+  return `${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+};
+const NOME_QUEBRA: Record<string, string> = { bos: 'BOS', choch: 'CHoCH', mss: 'MSS' };
 
 export interface EntradaAsia {
   simbolo: string;
-  /** Velas FECHADAS de 15M. A decisão é na última. */
+  /** Velas FECHADAS de 15M (pelo menos ~4 dias). A decisão é na última. */
   velas: readonly Candle[];
-  /** Velas diárias FECHADAS do próprio instrumento (viés). */
-  diarias: readonly Candle[];
+  /** Não se usa desde 29/09/2026 (o viés é a estrutura de 15M); fica por compatibilidade. */
+  diarias?: readonly Candle[];
+  /** Velas de 15M do par correlacionado: só para dizer se há SMT (confluência). */
   par: { simbolo: string; velas: readonly Candle[] } | null;
-  /** Velas FECHADAS de 1M do próprio instrumento: a confirmação. Sem elas não há sinal. */
+  /** Velas FECHADAS de 1M do próprio instrumento: a reversão. Sem elas não há sinal. */
   ltf?: readonly Candle[];
-  /** Substitui o viés calculado — só para testes com cenários construídos. */
-  viesForcado?: { direccao: IctDireccao; aFavor: number };
 }
 
 /**
- * A leitura completa na última vela: os passos, o sinal se houver, a faixa
- * asiática e o POI — para o motor, para o radar e para a aba do gráfico.
+ * A leitura completa na última vela de 15M: os passos, os POI, a Ásia e o sinal
+ * se o MSS de 1M aconteceu dentro dela — para o motor, o radar e a aba do gráfico.
  */
 export function analisarAsiaRange(input: EntradaAsia): AnaliseAsiaRange {
-  const { simbolo, velas, diarias } = input;
+  const { simbolo, velas } = input;
   const base: AnaliseAsiaRange = {
     simbolo,
     par: input.par?.simbolo ?? null,
     vies: null,
     asia: null,
+    pois: [],
+    estrutura: null,
     poi: null,
+    poiEntrada: null,
     passos: [],
     sinal: null,
     porqueNao: null,
   };
   const acabar = (porque: string): AnaliseAsiaRange => ({ ...base, porqueNao: porque });
   if (velas.length < 120) return acabar(`Só ${velas.length} velas de 15M; são precisas 120.`);
-  if (diarias.length < 45) return acabar('Sem velas diárias suficientes para o viés.');
 
-  const e = estruturas(simbolo, velas, diarias, input.par);
   const i = velas.length - 1;
   const agora = velas[i]!;
+  const fecho = agora.time + M15;
   const passos = base.passos;
 
-  // Faixa asiática e POI: desenham-se sempre, haja setup ou não.
   const asia = faixaAsiaticaLondres(velas, i);
   if (asia) base.asia = { ...asia, de: velas[asia.i0]!.time, ate: velas[asia.i1]!.time };
 
-  // 1 — Viés
-  const instante = agora.time + 900_000;
-  const iDia = ultimaFechadaAte(e.diarias, DIA, instante);
-  const iSem = ultimaFechadaAte(e.semanais, SEMANA, instante);
-  if (iDia < 20 || iSem < 4) return acabar('História diária ou semanal insuficiente para o viés.');
-  const vies =
-    input.viesForcado ??
-    viesDiario({
-      velasDiarias: e.diarias,
-      iDia,
-      swingsSemanais: e.swingsSemanais,
-      iSemanal: iSem,
-      pocas: e.pocas,
-      iExecucao: i,
-      preco: agora.close,
-    });
-  base.vies = { direccao: vies.direccao, aFavor: vies.aFavor };
-  if (vies.direccao === 'neutral') {
-    passos.push(passo(1, '1d', 'Viés diário', 'falhou', 'Empate nas cinco perguntas — sem viés não se opera.'));
-    return acabar('sem viés diário');
+  // 1 — Estrutura de 15M (o viés) e os POI do dia.
+  const leitura = poisDeSessao(velas, fecho);
+  if (!leitura) {
+    passos.push(passo(1, '15m', 'Estrutura de 15M', 'espera', 'Sem quebra de estrutura de 15M, ou sem 3 dias de história para os POI.'));
+    return acabar('sem estrutura de 15M para o viés');
   }
-  const d = vies.direccao;
-  const alta = d === 'bullish';
-  passos.push(passo(1, '1d', 'Viés diário', 'ok', `${alta ? 'Alta' : 'Baixa'}, ${vies.aFavor} de 5.`));
+  const venda = leitura.vies === 'bearish';
+  base.vies = { direccao: leitura.vies, aFavor: 1 };
+  base.estrutura = leitura.estrutura;
+  base.pois = leitura.pois;
+  passos.push(
+    passo(
+      1,
+      '15m',
+      'Estrutura de 15M',
+      'ok',
+      `${NOME_QUEBRA[leitura.estrutura.tipo] ?? leitura.estrutura.tipo} de ${venda ? 'baixa' : 'alta'} em ${px(leitura.estrutura.nivel)} — ` +
+        `só ${venda ? 'vendas em POI acima do preço' : 'compras em POI abaixo do preço'}.${leitura.provisoria ? ' Leitura provisória até às 08:00.' : ''}`,
+    ),
+  );
 
-  if (asia) {
-    const oposto = alta ? asia.alto : asia.baixo;
-    base.poi = poiLondres({
-      velas,
-      i,
-      direccao: d,
-      referencia: alta ? Math.max(oposto, agora.close) : Math.min(oposto, agora.close),
-      pocas: e.pocas,
-      pdArrays: [...e.obs, ...e.fvgs, ...e.breakers],
-    });
+  // 2 — Ásia
+  if (leitura.asia) {
+    passos.push(passo(2, '15m', 'Ásia', 'ok', `${px(leitura.asia.baixo)} – ${px(leitura.asia.alto)} (00:00–08:00 de Londres).`));
+  } else {
+    passos.push(passo(2, '15m', 'Ásia', 'espera', 'Ainda sem velas da Ásia deste dia.'));
   }
 
-  // 2 — Janela e faixa asiática
-  const l = relogioLondres(agora.time);
-  if (!asia) {
-    passos.push(passo(2, '15m', 'Faixa asiática', 'espera', 'A Ásia (00:00–08:00 de Londres) ainda não acabou ou tem poucas velas.'));
-    return acabar('sem faixa asiática');
+  // 3 — POI
+  if (leitura.pois.length === 0) {
+    passos.push(passo(3, '15m', 'POI', 'falhou', `Nenhum ${venda ? 'topo' : 'fundo'} de 15M dos 3 dias anteriores por tocar do lado da estrutura.`));
+    return acabar('sem POI por tocar do lado da estrutura');
   }
-  passos.push(passo(2, '15m', 'Faixa asiática', 'ok', `${px(asia.baixo)} – ${px(asia.alto)} (00:00–08:00 de Londres).`));
-  // A vela abre depois das 08:00 e FECHA antes das 10:00 de Londres (fim da killzone).
-  if (l.minutos < INICIO_LONDRES || l.minutos + 15 >= FIM_JANELA) {
-    passos.push(passo(3, 'tempo', 'Abertura de Londres', 'espera', 'Fora das 08:00–10:00 de Londres.'));
-    return acabar('fora da janela de Londres');
-  }
+  const lista = leitura.pois
+    .slice(0, 3)
+    .map((z) => `${px(z.baixo)}–${px(z.alto)}`)
+    .join(' · ');
+  passos.push(passo(3, '15m', 'POI', 'ok', `${leitura.pois.length} ${venda ? 'topo(s)' : 'fundo(s)'} por tocar: ${lista}.`));
 
-  // 3 — Manipulação
-  const extremoAsia = alta ? asia.baixo : asia.alto;
-  let iLon0 = -1;
-  let extremo = alta ? Infinity : -Infinity;
-  let iExtremo = -1;
-  for (let k = asia.i1 + 1; k <= i; k++) {
-    const c = velas[k]!;
-    if (relogioLondres(c.time).minutos < INICIO_LONDRES) continue;
-    if (iLon0 < 0) iLon0 = k;
-    if (alta ? c.low < extremo : c.high > extremo) {
-      extremo = alta ? c.low : c.high;
-      iExtremo = k;
-    }
+  // 4 — Janela de Londres
+  if (fecho <= leitura.inicio) {
+    passos.push(passo(4, 'tempo', 'Janela de Londres', 'espera', 'Antes das 08:00 — o viés e os POI ainda podem mudar.'));
+    return acabar('antes da janela de Londres');
   }
-  const varreu = iExtremo >= 0 && (alta ? extremo < extremoAsia : extremo > extremoAsia);
-  if (!varreu) {
-    passos.push(passo(3, '15m', 'Varrimento da Ásia', 'espera', `Londres ainda não passou a ${alta ? 'mínima' : 'máxima'} da Ásia (${px(extremoAsia)}).`));
-    return acabar('extremo asiático por varrer');
+  if (!input.ltf || input.ltf.length === 0) {
+    passos.push(passo(4, '1m', 'Reversão em 1M', 'espera', 'Sem velas de 1M — sem a reversão em 1M não há sinal.'));
+    return acabar('sem velas de 1M para a reversão');
   }
-  passos.push(passo(3, '15m', 'Varrimento da Ásia', 'ok', `Pavio a ${px(extremo)}, além de ${px(extremoAsia)}.`));
+  const fechada = fecho >= leitura.fim;
+  passos.push(passo(4, 'tempo', 'Janela de Londres', fechada ? 'espera' : 'ok', fechada ? '08:00–11:00 de Londres — já fechou.' : '08:00–11:00 de Londres.'));
 
-  // 4 — SMT
-  if (!input.par || input.par.velas.length < 30) {
-    passos.push(passo(4, '15m', 'Divergência SMT', 'espera', 'Sem par correlacionado — a estratégia exige SMT.'));
-    return acabar('sem par correlacionado para confirmar SMT');
+  // 5 — Toque no POI e reversão em 1M
+  const r = tiroPoi(leitura, input.ltf, fecho, input.par?.velas ?? null);
+  if (!r.tiro) {
+    const veredicto = r.estado === 'invalidado' || r.estado === 'sem-alvo' || fechada ? 'falhou' : 'espera';
+    passos.push(passo(5, '1m', 'POI e reversão em 1M', veredicto, r.detalhe));
+    const porque: Record<string, string> = {
+      'antes-da-janela': 'antes da janela de Londres',
+      'sem-toque': fechada ? 'Londres não chegou ao POI' : 'Londres ainda não chegou ao POI',
+      'na-zona': fechada ? 'tocou o POI sem MSS de 1M' : 'no POI, à espera do MSS de 1M',
+      invalidado: 'o preço passou o POI (invalidado)',
+      'sem-alvo': `nenhum alvo paga ${RR_MINIMO_ASIA}R`,
+    };
+    return acabar(porque[r.estado] ?? r.detalhe);
   }
-  const smt = smtAsiatico(input.par.velas, velas[asia.i0]!.time, velas[asia.i1]!.time, velas[iLon0]!.time, agora.time, alta);
-  if (!smt.ha) {
-    passos.push(passo(4, '15m', 'Divergência SMT', 'falhou', `Contra ${input.par.simbolo}: ${smt.detalhe}.`));
-    return acabar('sem divergência SMT na abertura de Londres');
-  }
-  passos.push(passo(4, '15m', 'Divergência SMT', 'ok', `Contra ${input.par.simbolo}: ${smt.detalhe}.`));
+  const t = r.tiro;
+  passos.push(passo(5, '1m', 'Toque no POI', 'ok', `${px(t.zona.baixo)}–${px(t.zona.alto)} às ${hhmm(t.tocadoEm)}; extremo ${px(t.extremo)} às ${hhmm(t.extremoEm)}.`));
+  passos.push(passo(6, '1m', 'Reversão em 1M (MSS)', 'ok', `Fecho de 1M em ${px(t.entrada)} às ${hhmm(t.time)}, além do swing de ${px(t.nivelMss)}.`));
+  passos.push(passo(7, '15m', 'Stop e alvo', 'ok', `Stop em ${px(t.stop)}, além do POI; alvo ${t.alvo.rotulo} em ${px(t.alvo.preco)} — ${t.alvo.r.toFixed(1)}R.`));
+  passos.push(
+    passo(
+      8,
+      '15m',
+      'SMT (confluência)',
+      t.smt ? 'ok' : 'espera',
+      t.smt === true
+        ? `${input.par?.simbolo} andou ao contrário até ao POI — divergência a favor.`
+        : t.smt === false
+          ? `Sem divergência com ${input.par?.simbolo} (não é condição).`
+          : 'Sem par correlacionado para medir (não é condição).',
+    ),
+  );
 
-  // 5 — MSS
-  if (i <= iExtremo) {
-    passos.push(passo(5, '15m', 'MSS', 'espera', 'A manipulação ainda está a fazer o extremo.'));
-    return acabar('sem MSS depois do varrimento');
-  }
-  let nivel: number | null = null;
-  for (let s = e.swings.length - 1; s >= 0; s--) {
-    const w = e.swings[s]!;
-    if (w.index >= iExtremo || w.confirmadoEm > i) continue;
-    if (w.kind === (alta ? 'high' : 'low')) {
-      nivel = w.price;
-      break;
-    }
-  }
-  if (nivel === null) {
-    passos.push(passo(5, '15m', 'MSS', 'espera', 'Sem swing confirmado antes do extremo para quebrar.'));
-    return acabar('sem swing para o MSS');
-  }
-  const alem = (c: Candle) => (alta ? c.close > nivel! : c.close < nivel!);
-  let iMss = -1;
-  for (let k = iExtremo + 1; k <= i; k++) {
-    if (alem(velas[k]!)) {
-      iMss = k;
-      break;
-    }
-  }
-  if (iMss < 0 || !alem(agora)) {
-    passos.push(passo(5, '15m', 'MSS', 'espera', `Ainda sem fecho ${alta ? 'acima' : 'abaixo'} de ${px(nivel)}.`));
-    return acabar('à espera do MSS');
-  }
-  passos.push(passo(5, '15m', 'MSS', 'ok', `Fecho em ${px(velas[iMss]!.close)}, além de ${px(nivel)}.`));
-
-  // 6 — Confirmação em 1M (CHoCH/MSS e estrutura de 1M a favor). Pode chegar
-  // até ATRASO_MAXIMO velas de 15M depois do MSS; o sinal sai na PRIMEIRA vela
-  // em que está confirmado, e nunca outra vez.
-  if (i - iMss > ATRASO_MAXIMO) {
-    passos.push(passo(6, '1m', 'Confirmação 1M', 'falhou', 'A confirmação não chegou a tempo depois do MSS.'));
-    return acabar('sem confirmação 1M a tempo');
-  }
-  const confEm = (k: number) => confirmacaoLtf(input.ltf, d, velas[k]!.time + M15, M1);
-  for (let k = iMss; k < i; k++) {
-    if (confEm(k).ok) {
-      passos.push(passo(6, '1m', 'Confirmação 1M', 'falhou', 'Já confirmado numa vela anterior — a entrada já foi dada.'));
-      return acabar('entrada já dada');
-    }
-  }
-  const conf = confEm(i);
-  if (!conf.ok) {
-    passos.push(passo(6, '1m', 'Confirmação 1M', 'espera', `À espera: ${conf.detalhe}. Sem ela o sinal não é enviado.`));
-    return acabar('à espera de confirmação 1M');
-  }
-  passos.push(passo(6, '1m', 'Confirmação 1M', 'ok', `${conf.detalhe}.`));
-
-  // 6 — Risco e alvo
-  // O stop vai para lá do POI de onde o preço reagiu (OB/FVG/breaker a favor
-  // que cobre o extremo da manipulação); a confirmação de 3M só decide a entrada.
-  const entrada = agora.close;
-  const atr = e.atr[i] ?? 0;
-  const alemDoPoi = stopAlemDoPoi({ direccao: d, entrada, stop: extremo, zonas: [...e.obs, ...e.fvgs, ...e.breakers], i, atr });
-  const stop = alemDoPoi.stop;
-  const risco = alta ? entrada - stop : stop - entrada;
-  if (!(risco > 0) || (atr > 0 && risco < RISCO_MINIMO_ATR * atr)) {
-    passos.push(passo(7, '15m', 'Risco', 'falhou', 'Stop demasiado curto — o spread come a operação.'));
-    return acabar('stop demasiado curto');
-  }
-  const oposto = alta ? asia.alto : asia.baixo;
-  const alvos = [
-    { preco: oposto, rotulo: alta ? 'máxima da Ásia' : 'mínima da Ásia' },
-    ...(base.poi ? [{ preco: base.poi.preco, rotulo: `POI de Londres · ${base.poi.rotulo}` }] : []),
-  ]
-    .filter((a) => (alta ? a.preco > entrada : a.preco < entrada))
-    .sort((a, b) => (alta ? a.preco - b.preco : b.preco - a.preco));
-  const alvo = alvos[0];
-  if (!alvo) {
-    passos.push(passo(7, '15m', 'Alvo', 'falhou', 'Não há liquidez por tomar à frente da entrada.'));
-    return acabar('sem alvo à frente da entrada');
-  }
-  const rr = Math.abs(alvo.preco - entrada) / risco;
-  if (rr < RR_MINIMO_ASIA) {
-    passos.push(passo(7, '15m', 'Alvo', 'falhou', `${alvo.rotulo} em ${px(alvo.preco)} paga só ${rr.toFixed(1)}R — abaixo de ${RR_MINIMO_ASIA}R.`));
-    return acabar(`RR insuficiente (${rr.toFixed(1)}R)`);
-  }
-  passos.push(passo(7, '15m', 'Alvo', 'ok', `${alvo.rotulo} em ${px(alvo.preco)} — ${rr.toFixed(1)}R.`));
-
-  const iNivelAsia = alta ? asia.iBaixo : asia.iAlto;
+  // A vela de 15M em que o MSS de 1M aconteceu.
+  let k = i;
+  while (k > 0 && velas[k]!.time > t.time) k--;
   return {
     ...base,
     sinal: {
-      direccao: d,
-      time: agora.time,
-      index: i,
-      entrada,
-      stop,
-      alvo: alvo.preco,
-      rr,
-      rotuloAlvo: alvo.rotulo,
-      zonaAlta: Math.max(agora.open, agora.close),
-      zonaBaixa: Math.min(agora.open, agora.close),
-      varrimento: { nivel: extremoAsia, nivelTime: velas[iNivelAsia]!.time, extremo, time: velas[iExtremo]!.time },
-      mss: { nivel, time: velas[iMss]!.time },
-      chave: `asia-range-algo|${asia.dia}|${d}`,
+      direccao: leitura.vies,
+      time: t.time,
+      index: k,
+      entrada: t.entrada,
+      stop: t.stop,
+      alvo: t.alvo.preco,
+      rr: t.alvo.r,
+      rotuloAlvo: t.alvo.rotulo,
+      zonaAlta: t.zona.alto,
+      zonaBaixa: t.zona.baixo,
+      varrimento: { nivel: venda ? t.zona.baixo : t.zona.alto, nivelTime: t.zona.origem, extremo: t.extremo, time: t.extremoEm },
+      mss: { nivel: t.nivelMss, time: t.time },
+      smt: t.smt,
+      chave: `asia-range-algo|${leitura.dia}|${leitura.vies}`,
     },
   };
-}
-
-/**
- * SMT na abertura de Londres: o par correlacionado passou o SEU extremo
- * asiático entre o início de Londres e agora? Se não passou, há divergência.
- * Só lê velas do par até `ate` — o mesmo instante da vela a decidir.
- */
-function smtAsiatico(
-  par: readonly Candle[],
-  asiaDe: number,
-  asiaAte: number,
-  londresDe: number,
-  ate: number,
-  alta: boolean,
-): { ha: boolean; detalhe: string } {
-  let alto = -Infinity;
-  let baixo = Infinity;
-  let nAsia = 0;
-  let extremo = alta ? Infinity : -Infinity;
-  let nLondres = 0;
-  let lo = 0;
-  let hi = par.length;
-  while (lo < hi) {
-    const meio = (lo + hi) >> 1;
-    if (par[meio]!.time < asiaDe) lo = meio + 1;
-    else hi = meio;
-  }
-  for (let k = lo; k < par.length; k++) {
-    const c = par[k]!;
-    if (c.time > ate) break;
-    if (c.time <= asiaAte) {
-      alto = Math.max(alto, c.high);
-      baixo = Math.min(baixo, c.low);
-      nAsia++;
-    } else if (c.time >= londresDe) {
-      extremo = alta ? Math.min(extremo, c.low) : Math.max(extremo, c.high);
-      nLondres++;
-    }
-  }
-  if (nAsia < 8 || nLondres === 0) return { ha: false, detalhe: 'sem velas alinhadas do par na Ásia e em Londres' };
-  const passou = alta ? extremo < baixo : extremo > alto;
-  return passou
-    ? { ha: false, detalhe: `também passou a sua ${alta ? 'mínima' : 'máxima'} da Ásia — não há divergência` }
-    : { ha: true, detalhe: `não passou a sua ${alta ? 'mínima' : 'máxima'} da Ásia (${px(alta ? baixo : alto)})` };
 }

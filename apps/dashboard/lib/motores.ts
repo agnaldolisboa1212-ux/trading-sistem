@@ -238,3 +238,18 @@ export async function lerSinaisTempoReal(limite = 8): Promise<SinalTempoRealLinh
       geradoEm: new Date(s.geradoEm).toISOString(),
     }));
 }
+
+/**
+ * O setup fixo do ICT ALGO de cada instrumento, tal como o motor o guarda
+ * (`apps/engine/src/pipeline/ict-fixo.ts` → `data/ict-setups.json`).
+ */
+export interface RegistoIctPainel {
+  setup: import('@trading/core').SetupFixo | null;
+  estado: import('@trading/core').EstadoSetup | null;
+  ultimo1h: number;
+  historico: Array<{ setup: import('@trading/core').SetupFixo; fim: string; em: number; detalhe: string }>;
+}
+
+export async function lerSetupsIct(): Promise<Record<string, RegistoIctPainel>> {
+  return (await lerJson<Record<string, RegistoIctPainel>>('ict-setups.json')) ?? {};
+}

@@ -12,9 +12,9 @@
  *   4  os sete        o que cada modelo vê neste momento, e onde parou
  *   5  o placar       como cada modelo tem corrido NESTE instrumento
  *
- * Tudo vem do servidor, calculado sobre velas reais da Deriv. Nada é simulado,
- * nada é aleatório, nada tem preços escritos à mão — que era exactamente o que
- * o painel anterior fazia.
+ * Tudo é calculado sobre velas reais da Deriv, pedidas pelo próprio browser
+ * (`lib/analise-browser.ts`). Nada é simulado, nada é aleatório, nada tem
+ * preços escritos à mão — que era exactamente o que o painel anterior fazia.
  */
 
 import { useEffect, useState } from 'react';
@@ -22,11 +22,16 @@ import type { AnaliseIct, ModeloIct, PassoTopDown, SinalIct, Varrimento } from '
 import { NOME_MODELO, relogioLondres } from '@trading/core';
 import { formatarPreco } from '@/lib/deriv/simbolos';
 import { DESENHO_VAZIO, type Desenho } from '@/lib/visoes';
+import { analisarIctBrowser } from '@/lib/analise-browser';
 import type { PlanoParaOrdem } from './Negociar';
+import type { RegistoIct } from './usarSinaisEnviados';
 
-/** Timeframes em que o algoritmo executa. Noutros, corre em 1H e diz-se. */
-const TF_EXECUCAO = new Set(['15m', '1h', '4h']);
-export const tfDoIct = (tf: string) => (TF_EXECUCAO.has(tf) ? tf : '1h');
+/**
+ * O setup lê-se SEMPRE em 1H (pedido do Agnaldo, 29/09/2026); a confirmação e
+ * o tiro saem em 5M, no motor (`ict/gatilho.ts`). Em qualquer gráfico, a
+ * análise mostrada é a de 1H.
+ */
+export const tfDoIct = (_tf: string) => '1h';
 
 const NOME_REGIME: Record<string, string> = {
   manipulacao: 'Manipulação',
@@ -52,9 +57,9 @@ interface Estado {
 }
 
 /**
- * Pede a análise ICT ao servidor quando a secção está aberta, e renova-a a
- * cada minuto — o algoritmo decide sobre velas fechadas, e um minuto chega
- * para apanhar o fecho de uma vela de 15M sem martelar a rede.
+ * Calcula a análise ICT quando a secção está aberta, e renova-a a cada minuto —
+ * o algoritmo decide sobre velas fechadas, e um minuto chega para apanhar o
+ * fecho de uma vela de 15M. Entre fechos, as velas e a análise vêm da cache.
  */
 export function usarIct(codigo: string, tf: string, activo: boolean): Estado | null {
   const tfIct = tfDoIct(tf);
@@ -66,14 +71,13 @@ export function usarIct(codigo: string, tf: string, activo: boolean): Estado | n
     let cancelado = false;
     const pedir = async () => {
       try {
-        const r = await fetch(`/api/ict/${encodeURIComponent(codigo)}?tf=${tfIct}`, { cache: 'no-store' });
-        const j = (await r.json()) as { analise?: AnaliseIct | null; porqueNao?: string; erro?: string; em?: number };
+        const j = await analisarIctBrowser(codigo, tfIct as '15m' | '1h' | '4h');
         if (cancelado) return;
         setEstado({
           chave,
           analise: j.analise ?? null,
-          erro: j.analise ? null : (j.porqueNao ?? j.erro ?? 'sem resposta do servidor'),
-          em: j.em ?? Date.now(),
+          erro: j.analise ? null : (j.porqueNao ?? 'sem análise'),
+          em: j.em,
         });
       } catch (e) {
         if (!cancelado) setEstado({ chave, analise: null, erro: e instanceof Error ? e.message : String(e), em: Date.now() });
@@ -168,13 +172,23 @@ function linhasAsia(d: Desenho, caixas: Desenho['zonas'], ultima: number | undef
 }
 
 /**
- * O POI de Londres: para onde a sessão vai, no sentido do viés. Uma zona quando
- * é um PD array, uma linha quando é uma poça de liquidez — como nos prints do
- * journal ("SESSION HIGH", a caixa onde o preço já tinha reagido).
+ * Os dois POI do dia, como nos prints do journal:
+ *
+ *   · o POI DE ENTRADA — o order block por mitigar de onde o preço pode
+ *     partir no sentido do viés (a caixa onde o preço reage), em zona;
+ *   · o ALVO — a liquidez para onde Londres vai ("SESSION HIGH"): uma zona
+ *     quando é um PD array, uma linha quando é uma poça de liquidez.
  */
-function desenharPoi(d: Desenho, poi: AnaliseIct['poi'] | null): void {
+export function desenharPoi(
+  d: Desenho,
+  poi: AnaliseIct['poi'] | null,
+  entrada: AnaliseIct['poiEntrada'] | null = null,
+): void {
+  if (entrada && entrada.alto > entrada.baixo) {
+    d.zonas.push({ de: entrada.desde, ate: Infinity, topo: entrada.alto, base: entrada.baixo, tipo: 'poi', rotulo: `POI · ${entrada.rotulo}` });
+  }
   if (!poi) return;
-  const rotulo = `POI · ${poi.rotulo}`;
+  const rotulo = `alvo · ${poi.rotulo}`;
   if (poi.origem === 'pd-array' && poi.alto > poi.baixo) {
     d.zonas.push({ de: poi.desde, ate: Infinity, topo: poi.alto, base: poi.baixo, tipo: 'poi', rotulo });
   } else {
@@ -206,7 +220,7 @@ export function desenhoIct(a: AnaliseIct | null, velas: readonly VelaSimples[] =
     segmentos: [],
   };
   if (intradiario) linhasAsia(d, caixas, velas[velas.length - 1]?.time);
-  desenharPoi(d, a.poi ?? null);
+  desenharPoi(d, a.poi ?? null, a.poiEntrada ?? null);
   const s = a.sinal;
 
   if (s) {
@@ -280,12 +294,10 @@ function CartaoSinalIct({
   s,
   fmt,
   aoNegociar,
-  confirmacao,
 }: {
   s: SinalIct;
   fmt: (v: number) => string;
   aoNegociar?: (plano: PlanoParaOrdem) => void;
-  confirmacao?: AnaliseIct['confirmacao'];
 }) {
   const compra = s.direccao === 'bullish';
   return (
@@ -296,13 +308,9 @@ function CartaoSinalIct({
         <span className="grow" />
         <span className="analise-viva__r">{s.rr.toFixed(1)}R</span>
       </div>
-      {confirmacao && (
-        <div className={`analise-viva__nota ${confirmacao.ok ? 'bull-t' : 'warn-t'}`}>
-          {confirmacao.ok
-            ? `✓ Confirmado em 5M: ${confirmacao.detalhe}.`
-            : `À espera de confirmação em 5M (${confirmacao.detalhe}). Sem ela o sinal não é enviado nem entra na lista.`}
-        </div>
-      )}
+      <div className="analise-viva__nota">
+        Leitura de 1H de agora. O sinal só é enviado quando o preço vier à zona e o 5M confirmar a reversão (o tiro).
+      </div>
       <div className="analise-viva__estado vivo">
         Regime {NOME_REGIME[s.regime]?.toLowerCase()} ·{' '}
         {s.tipoEntrada === 'pendente' ? 'ordem pendente: entra no regresso do preço à zona' : 'entrada a mercado, no fecho da vela de rejeição'}
@@ -352,16 +360,143 @@ function CartaoSinalIct({
   );
 }
 
+const FIM_SETUP: Record<string, string> = {
+  invalidado: 'invalidado',
+  expirado: 'expirou',
+  'tiro-fechado': 'tiro fechado',
+};
+
+/**
+ * O setup FIXO que o motor está a seguir: armado numa vela de 1H, fica até
+ * disparar o tiro em 5M, ser invalidado ou expirar — não muda com a análise
+ * de agora. É daqui, e só daqui, que sai o sinal do ICT ALGO.
+ */
+function CartaoSetupFixo({
+  r,
+  fmt,
+  aoNegociar,
+}: {
+  r: RegistoIct | null;
+  fmt: (v: number) => string;
+  aoNegociar?: (plano: PlanoParaOrdem) => void;
+}) {
+  const s = r?.setup;
+  const e = r?.estado;
+  const hist = [...(r?.historico ?? [])].reverse().slice(0, 3);
+  const hora = (t: number) => new Date(t).toLocaleString('pt-PT', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+  return (
+    <div className="visoes__estruturas">
+      <div className="visoes__subtitulo">Setup fixo 1H → tiro em 5M (o que o motor segue)</div>
+      {!s || !e ? (
+        <p className="analise-viva__nota">
+          Nenhum setup armado. O motor arma um quando nasce um setup numa vela de 1H fechada, e fica com ele até ao tiro, à
+          invalidação ou 24 h.
+        </p>
+      ) : (
+        <div className={`analise-viva__sinal ${s.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+          <div className="analise-viva__cab">
+            <span className={`lado-pill ${s.direccao === 'bullish' ? 'compra' : 'venda'}`}>
+              {s.direccao === 'bullish' ? 'COMPRA' : 'VENDA'}
+            </span>
+            <strong>{s.modelo}</strong>
+            <span className="grow" />
+            <span className="faint">armado {hora(s.formadoEm)}</span>
+          </div>
+          <div className={`analise-viva__estado ${e.estado === 'disparado' ? 'vivo' : ''}`}>
+            {e.estado === 'a-espera-da-zona'
+              ? `À espera de que o preço venha à zona do 1H (válido até ${hora(s.expiraEm)}).`
+              : e.estado === 'na-zona'
+                ? `Na zona — ${e.detalhe}.`
+                : e.estado === 'disparado'
+                  ? `TIRO DISPARADO em 5M: ${e.tiro.detalhe}.`
+                  : e.estado === 'invalidado'
+                    ? `Invalidado: ${e.motivo}.`
+                    : 'Expirou sem confirmação em 5M.'}
+          </div>
+          {e.estado === 'disparado' ? (
+            <div className="analise-viva__niveis">
+              <div>
+                <span>entrada</span>
+                <b>{fmt(e.tiro.entrada)}</b>
+              </div>
+              <div className="stop">
+                <span>stop</span>
+                <b>{fmt(e.tiro.stop)}</b>
+              </div>
+              <div className="alvo">
+                <span>alvo · {e.tiro.rr.toFixed(1)}R</span>
+                <b>{fmt(e.tiro.alvo)}</b>
+              </div>
+            </div>
+          ) : (
+            <p className="analise-viva__razao">
+              Zona {fmt(s.zonaBaixa)} – {fmt(s.zonaAlta)} · stop do 1H {fmt(s.stop)} ·{' '}
+              {'alvo' in e && e.alvo !== undefined && e.alvo !== s.alvo
+                ? `alvo ${fmt(e.alvo)} (o novo extremo: a perna tomou o alvo do 1H, ${fmt(s.alvo)}, antes de recuar).`
+                : `alvo ${fmt(s.alvo)} (${s.rotuloAlvo}).`}
+            </p>
+          )}
+          <details className="ict__bloco">
+            <summary>Porque este setup (de cima para baixo)</summary>
+            <Passos passos={s.passos} />
+          </details>
+          {e.estado === 'disparado' && aoNegociar && (
+            <button
+              type="button"
+              className="btn ghost block"
+              style={{ marginTop: 12 }}
+              onClick={() =>
+                aoNegociar({
+                  direccao: s.direccao,
+                  entrada: e.tiro.entrada,
+                  stop: e.tiro.stop,
+                  alvos: [{ preco: e.tiro.alvo, r: e.tiro.rr }],
+                  origem: `ICT ALGO · tiro 5M · ${s.modelo}`,
+                  id: `${s.chave}|tiro`,
+                })
+              }
+            >
+              Levar o tiro para a ordem
+            </button>
+          )}
+        </div>
+      )}
+      {hist.length > 0 && (
+        <ul className="ict__modelos">
+          {hist.map((h) => (
+            <li key={`${h.setup.chave}-${h.em}`}>
+              <span className="ict__icone" aria-hidden="true">
+                ·
+              </span>
+              <span className="ict__passo-texto">
+                <b>
+                  {h.setup.direccao === 'bullish' ? 'compra' : 'venda'} · {h.setup.modelo}
+                  <em>{FIM_SETUP[h.fim] ?? h.fim}</em>
+                </b>
+                <span className="faint">
+                  armado {hora(h.setup.formadoEm)} — {h.detalhe}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function VisaoIct({
   estado,
   tf,
   casas,
   aoNegociar,
+  fixo = null,
 }: {
   estado: Estado | null;
   tf: string;
   casas: number;
   aoNegociar?: (plano: PlanoParaOrdem) => void;
+  fixo?: RegistoIct | null;
 }) {
   const fmt = (v: number) => formatarPreco(v, casas);
   if (!estado) {
@@ -397,22 +532,38 @@ export function VisaoIct({
         <span className="grow" />
         <span className="faint">{a.timeframe.toUpperCase()}</span>
       </div>
-      {tfDoIct(tf) !== tf && (
-        <p className="analise-viva__nota">O algoritmo executa em 15M, 1H ou 4H; neste gráfico de {tf.toUpperCase()} mostra a leitura de 1H.</p>
+      {tf !== '1h' && (
+        <p className="analise-viva__nota">
+          O setup do ICT ALGO lê-se em 1H e o tiro sai em 5M; neste gráfico de {tf.toUpperCase()} mostra-se a leitura de 1H.
+        </p>
       )}
 
-      {a.poi && (
+      <CartaoSetupFixo r={fixo} fmt={fmt} aoNegociar={aoNegociar} />
+
+      {(a.poiEntrada || a.poi) && (
         <p className="analise-viva__nota">
-          POI de Londres: <b>{fmt(a.poi.preco)}</b> · {a.poi.rotulo}
-          {a.poi.origem === 'pd-array' ? ` (zona ${fmt(a.poi.baixo)} – ${fmt(a.poi.alto)})` : ''}
+          {a.poiEntrada ? (
+            <>
+              POI de entrada ({a.poiEntrada.rotulo}): <b>{fmt(a.poiEntrada.baixo)}</b> – <b>{fmt(a.poiEntrada.alto)}</b>, de
+              onde o preço pode partir
+            </>
+          ) : (
+            'Sem order block por mitigar do lado do recuo'
+          )}
+          {a.poi ? (
+            <>
+              {' '}
+              · alvo: <b>{fmt(a.poi.preco)}</b> ({a.poi.rotulo})
+            </>
+          ) : null}
         </p>
       )}
 
       {a.sinal ? (
-        <CartaoSinalIct s={a.sinal} fmt={fmt} aoNegociar={aoNegociar} confirmacao={a.confirmacao} />
+        <CartaoSinalIct s={a.sinal} fmt={fmt} aoNegociar={aoNegociar} />
       ) : (
         <div className="empty">
-          <strong>Sem setup neste momento.</strong>
+          <strong>Sem setup novo em 1H neste momento.</strong>
           {a.porqueNao}
         </div>
       )}

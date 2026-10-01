@@ -37,7 +37,7 @@ import { opcoesPorTimeframe } from './simular.js';
 import { custoTipico } from './custos.js';
 import { pocasActivasEm } from './liquidez.js';
 import { passo } from './modelos/comum.js';
-import { faixaAsiaticaLondres, poiLondres } from './poi.js';
+import { faixaAsiaticaLondres, poiEntrada, poiLondres } from './poi.js';
 
 export type { EntradaIct } from './motor.js';
 
@@ -65,6 +65,7 @@ function vazia(simbolo: string, timeframe: Timeframe, porqueNao: string): Analis
     varrimentos: [],
     quebras: [],
     poi: null,
+    poiEntrada: null,
     avisos: [],
   };
 }
@@ -173,6 +174,10 @@ export function correrIctAlgo(input: EntradaIct): AnaliseIct {
     varrimentos: e.varrimentos.filter((v) => v.index <= i && i - v.index <= 100),
     quebras: e.quebras.filter((q) => q.index <= i && i - q.index <= 100),
     poi: poiDaAnalise(e, i, av.vies.direccao),
+    poiEntrada:
+      av.vies.direccao === 'bullish' || av.vies.direccao === 'bearish'
+        ? poiEntrada({ velas: e.velas, i, direccao: av.vies.direccao, pdArrays: [...e.obs, ...e.breakers, ...e.fvgs] })
+        : null,
     avisos,
   };
 }

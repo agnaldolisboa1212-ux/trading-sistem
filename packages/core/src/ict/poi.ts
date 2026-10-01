@@ -174,6 +174,10 @@ const PARES_DO_JOURNAL: Readonly<Record<string, readonly string[]>> = {
   // O USDCAD do journal: o DXY (a referência do universo) não existe na Deriv;
   // o USDCHF tem o mesmo dólar na base e anda no mesmo sentido.
   USDCAD: ['USDCHF'],
+  // GBPUSD e EURUSD (27/09/2026): um é o par do outro — a mesma libra/euro
+  // contra o mesmo dólar; divergem quando uma das duas moedas se mexe sozinha.
+  GBPUSD: ['EURUSD'],
+  EURUSD: ['GBPUSD'],
 };
 
 export function paresSmtIct(simbolo: string): string[] {
@@ -224,4 +228,57 @@ export function stopAlemDoPoi(input: {
   }
   const base = poi ? (alta ? Math.min(stop, poi.baixo) : Math.max(stop, poi.alto)) : stop;
   return { stop: alta ? base - margem : base + margem, poi };
+}
+
+export interface PoiEntrada {
+  /** Zona do PD array (order block, se houver). */
+  alto: number;
+  baixo: number;
+  tipo: 'order-block' | 'breaker' | 'fvg';
+  rotulo: string;
+  /** Instante em que a zona nasceu, para o desenho começar aí. */
+  desde: number;
+}
+
+/**
+ * O POI DE ENTRADA — de onde o preço pode partir: no sentido do viés, o PD
+ * array por mitigar mais próximo do lado para onde o preço pode recuar. Viés de
+ * alta → uma zona de ALTA (procura) abaixo do preço; de baixa → uma zona de
+ * BAIXA (oferta) acima. Primeiro os order blocks; sem nenhum, um breaker; sem
+ * nenhum, um FVG.
+ *
+ * É o complemento do `poiLondres`, que é o destino (a liquidez para onde o
+ * preço vai). Um marca a entrada possível, o outro o alvo.
+ */
+export function poiEntrada(input: {
+  velas: readonly Candle[];
+  i: number;
+  direccao: IctDireccao;
+  pdArrays: readonly PdArray[];
+  /** Só zonas nascidas nas últimas N velas. */
+  janela?: number;
+}): PoiEntrada | null {
+  const { velas, i, direccao, pdArrays } = input;
+  const janela = input.janela ?? 300;
+  if (direccao !== 'bullish' && direccao !== 'bearish') return null;
+  const alta = direccao === 'bullish';
+  const preco = velas[i]?.close;
+  if (preco === undefined) return null;
+  const vivas = pdArrays.filter(
+    (a) =>
+      a.lado === direccao &&
+      a.confirmadoEm <= i &&
+      (a.mitigadoEm === null || a.mitigadoEm > i) &&
+      i - a.index <= janela &&
+      // Do lado do recuo: abaixo do preço numa compra, acima numa venda.
+      (alta ? a.alto < preco : a.baixo > preco),
+  );
+  for (const tipo of ['order-block', 'breaker', 'fvg'] as const) {
+    const zonas = vivas
+      .filter((a) => a.tipo === tipo)
+      .sort((a, b) => (alta ? b.alto - a.alto : a.baixo - b.baixo));
+    const z = zonas[0];
+    if (z) return { alto: z.alto, baixo: z.baixo, tipo, rotulo: z.rotulo, desde: velas[z.index]?.time ?? z.time };
+  }
+  return null;
 }

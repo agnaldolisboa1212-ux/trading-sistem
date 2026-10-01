@@ -19,7 +19,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { acharSimbolo, formatarPreco } from '@/lib/deriv/simbolos';
 import { planoInvalidado, planoVivo, ROTULO_PLANO, type EstadoPlano } from '@/lib/estado-sinal';
-import { nomeDeEstrategia } from '@trading/core';
+import { nomeDeEstrategia, soAlerta } from '@trading/core';
 
 interface Sinal {
   id: string;
@@ -283,6 +283,7 @@ function LinhaSinal({
             {formatarPreco(s.stopActual ?? s.stop, casas)}
             {s.stopActual !== null && s.stopActual !== undefined && s.stopActual !== s.stop ? ' (subiu)' : ''} ·{' '}
             {nomeDeEstrategia(s.estrategia)}
+            {soAlerta(s.estrategia) ? <span className="selo-sem-taxa"> alerta · decisão sua</span> : null}
             {s.ultimoEvento ? ` · ${s.ultimoEvento}` : ''}
             {avisoEntrada(s)}
           </em>

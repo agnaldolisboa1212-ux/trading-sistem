@@ -12,10 +12,7 @@
 
 import type { Candle, Timeframe } from '../types/market.js';
 import type { StrategySignal } from './types.js';
-import { agregar, correrIctAlgo, sinalDaUltimaVela } from '../ict/algo.js';
-import { NOME_MODELO } from '../ict/types.js';
-import { confirmacaoLtf } from '../ict/confirmacao.js';
-import { TIMEFRAME_MS } from '../types/market.js';
+import type { EstadoSetup, SetupFixo } from '../ict/gatilho.js';
 import { AVISO_ASIA_RANGE, analisarAsiaRange } from './asia-range-algo.js';
 
 /** Dados que só o servidor entrega aos algos. */
@@ -31,6 +28,8 @@ export interface DadosAlgo {
   ltf?: readonly Candle[];
   /** Velas de 1M do próprio instrumento: a confirmação do Asia Range Algo. */
   ltf1?: readonly Candle[];
+  /** O setup fixo de 1H do ICT ALGO e o seu estado agora (o motor guarda-o entre passagens). */
+  ictFixo?: { setup: SetupFixo; estado: EstadoSetup };
 }
 
 interface Contexto {
@@ -42,57 +41,52 @@ export const AVISO_ICT_ALGO =
   'ICT ALGO sem vantagem medida: no backtest 2022–2026 com custos nenhum modo de entrada ficou positivo nas duas metades.';
 
 export function planIctAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
-  if (!algo || algo.diarias.length < 45) return [];
-  const a = correrIctAlgo({
-    simbolo: ctx.symbol,
-    timeframe: ctx.timeframe,
-    velas,
-    diarias: algo.diarias,
-    semanais: agregar(algo.diarias, '1w'),
-    referencia: algo.diarias,
-    timeframeReferencia: '1d',
-    par: algo.par,
-  });
-  const s = sinalDaUltimaVela(a);
-  if (!s) return [];
-  const u = velas[velas.length - 1]!;
-  // Sem confirmação em 5M não há sinal: nem aviso, nem entrada na lista.
-  const conf = confirmacaoLtf(algo.ltf, s.direccao, u.time + TIMEFRAME_MS[ctx.timeframe]);
-  if (!conf.ok) return [];
-  const modelo = NOME_MODELO[s.modelo];
+  /*
+   * O tiro do SETUP FIXO (29/09/2026). O setup lê-se em 1H e fica fixo (o motor
+   * guarda-o entre passagens — `pipeline/ict-fixo.ts`); aqui só sai o tiro, no
+   * fecho da vela de 15M que contém a vela do gatilho (5M desde 29/09/2026) em
+   * que `estadoDoSetup` o dispara: preço na zona do 1H e CHoCH/MSS a favor.
+   * Uma vez por setup.
+   */
+  if (ctx.timeframe !== '15m') return [];
+  const f = algo?.ictFixo;
+  const u = velas[velas.length - 1];
+  if (!f || !u || f.estado.estado !== 'disparado') return [];
+  if (f.estado.tiro.time < u.time || f.estado.tiro.time >= u.time + 15 * 60_000) return [];
+  const { setup } = f;
+  const tiro = f.estado.tiro;
+  const venda = setup.direccao === 'bearish';
+  const leitura = setup.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.timeframe.toUpperCase()} ${p.titulo}: ${p.detalhe}`);
   return [
     {
       strategy: 'ict-algo',
       symbol: ctx.symbol,
       timeframe: ctx.timeframe,
-      direction: s.direccao,
+      direction: setup.direccao,
       regime: 'continuation',
       index: velas.length - 1,
       generatedAt: u.time,
       referencePrice: u.close,
-      entryZoneLow: s.zonaEntradaBaixa,
-      entryZoneHigh: s.zonaEntradaAlta,
-      entryPrice: s.entrada,
-      stopLoss: s.stop,
-      targets: [{ price: s.alvo, rMultiple: s.rr, closeFraction: 1, rationale: s.rotuloAlvo }],
-      maxRMultiple: s.rr,
-      entryType: s.tipoEntrada === 'pendente' ? 'limit' : 'market',
+      entryZoneLow: tiro.entrada,
+      entryZoneHigh: tiro.entrada,
+      entryPrice: tiro.entrada,
+      stopLoss: tiro.stop,
+      targets: [{ price: tiro.alvo, rMultiple: tiro.rr, closeFraction: 1, rationale: setup.rotuloAlvo }],
+      maxRMultiple: tiro.rr,
+      entryType: 'market',
       conviction: 0,
       rationale:
-        `${modelo}: ${s.tipoEntrada === 'pendente' ? 'ordem pendente na zona' : 'entrada a mercado'}. ` +
-        `Stop no ${s.rotuloStop}; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). Confirmação: ${conf.detalhe}. ${AVISO_ICT_ALGO}`,
-      assumptions: [
-        ...s.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
-        `Confirmação 5M: ${conf.detalhe}`,
-      ],
-      warnings: [...s.avisos, AVISO_ICT_ALGO],
+        `Setup de 1H fixo (${setup.modelo}): ${venda ? 'venda' : 'compra'} na zona ${setup.zonaBaixa}–${setup.zonaAlta}, ` +
+        `alvo na ${setup.rotuloAlvo}. Tiro em 5M: ${tiro.detalhe}. Stop no extremo feito na zona. ${AVISO_ICT_ALGO}`,
+      assumptions: [...leitura, `5M: ${tiro.detalhe}`],
+      warnings: [AVISO_ICT_ALGO],
     },
   ];
 }
 
 export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo: DadosAlgo | undefined): StrategySignal[] {
   if (!algo || ctx.timeframe !== '15m') return [];
-  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, diarias: algo.diarias, par: algo.par, ltf: algo.ltf1 });
+  const a = analisarAsiaRange({ simbolo: ctx.symbol, velas, par: algo.par, ltf: algo.ltf1 });
   const s = a.sinal;
   if (!s || s.index !== velas.length - 1) return [];
   const u = velas[s.index]!;
@@ -114,8 +108,9 @@ export function planAsiaRangeAlgo(velas: readonly Candle[], ctx: Contexto, algo:
       maxRMultiple: s.rr,
       conviction: 0,
       rationale:
-        `Londres varreu a ${s.direccao === 'bullish' ? 'mínima' : 'máxima'} da Ásia com SMT contra ${a.par} e fez MSS. ` +
-        `Stop para lá do POI da manipulação; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R). ${AVISO_ASIA_RANGE}`,
+        `O preço chegou ao POI de ${s.direccao === 'bullish' ? 'compra' : 'venda'} (${s.zonaBaixa}–${s.zonaAlta}, topo/fundo de 15M por tocar) ` +
+        `na janela de Londres e fez MSS em 1M. Stop além do POI; alvo na ${s.rotuloAlvo} (${s.rr.toFixed(1)}R).` +
+        `${s.smt === true ? ` SMT a favor contra ${a.par}.` : ''} ${AVISO_ASIA_RANGE}`,
       assumptions: a.passos.filter((p) => p.veredicto === 'ok').map((p) => `${p.titulo}: ${p.detalhe}`),
       warnings: [AVISO_ASIA_RANGE],
     },

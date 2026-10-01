@@ -18,7 +18,7 @@
  */
 
 import type { ExitSignal, TradeSignal } from '@trading/core';
-import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, type SinalIct } from '@trading/core';
+import { frasesDeAtencao, type Proximidade, nomeDeEstrategia, NOME_MODELO, relogioLondres, soAlerta, type SinalIct } from '@trading/core';
 
 
 export interface NotifyResult {
@@ -635,8 +635,72 @@ export async function difundirSinalIct(s: SinalIct, casas: number): Promise<Noti
   ]);
 }
 
+/**
+ * Alerta de setup — o sinal de uma estratégia `soAlerta` (ICT ALGO, Asia Range
+ * Algo), dito como zona e não como ordem: a decisão é de quem opera.
+ */
+export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: string[] } {
+  const venda = s.direccao === 'bearish';
+  const n = (v: number) => v.toFixed(s.casas);
+  const alvo = s.alvos[0];
+  const agora = frasePreco(s);
+  const pendente = s.estadoPreco === 'a-aguardar';
+  return {
+    titulo: `${venda ? '🔴 VENDA' : '🟢 COMPRA'} · ${s.simbolo} ${s.timeframe} · ${nomeDeEstrategia(s.estrategia)} (alerta)`,
+    corpo: [
+      `Possível entrada ${n(s.entrada)}${pendente ? ' (o preço ainda não chegou: ordem limite)' : ''} · stop ${n(s.stop)}`,
+      alvo ? `Alvo ${n(alvo.preco)} (${alvo.r.toFixed(1)}R)` : 'Alvo: defina-o no gráfico',
+      ...(agora && s.precoActual !== undefined ? [`Agora ${n(s.precoActual)} · ${agora}`] : []),
+      ...(s.noticia ? [`⚠ ${s.noticia.slice(0, 140)}`] : []),
+      s.estrategia === 'ict-algo'
+        ? `Tiro certeiro: setup de 1H fixo, e o 5M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
+        : s.estrategia === 'asia-range-algo'
+          ? `Tiro no POI: o preço chegou ao POI de 15M na janela de Londres e fez MSS em 1M. A decisão é sua.`
+          : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
+    ],
+  };
+}
+
+export function formatarAlertaSetup(s: SinalTempoReal): string {
+  const { titulo, corpo } = linhasAlertaSetup(s);
+  const razao = s.razao.length > 320 ? `${s.razao.slice(0, 317)}...` : s.razao;
+  return [
+    `*${escapeMarkdown(titulo)}*`,
+    '',
+    ...corpo.map(escapeMarkdown),
+    '',
+    `_${escapeMarkdown(razao)}_`,
+    '',
+    `_${escapeMarkdown('Alerta, não sinal: sem vantagem medida no backtest 2022–2026, e a automação de ordens não o executa.')}_`,
+  ].join(String.fromCharCode(10));
+}
+
+async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
+  const { titulo, corpo } = linhasAlertaSetup(s);
+  return Promise.all([
+    sendTelegram(formatarAlertaSetup(s)),
+    sendToN8n('signal.realtime', { ...s, geradoEm: new Date(s.geradoEm).toISOString(), soAlerta: true }),
+    sendPush({
+      titulo,
+      corpo: corpo.join(String.fromCharCode(10)),
+      // A análise parte do 15M, na aba da estratégia que deu o alerta.
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=15m&v=${s.estrategia}`,
+      tag: s.id,
+      validadeS: s.validadeAvisoS,
+      urgencia: 'high',
+      topico: `${s.simbolo}-${s.timeframe}`,
+      simbolo: s.simbolo,
+      // Sem `timeframe`: os algos trazem o seu (15M) e correm para quem segue o
+      // instrumento — como na lista de sinais. Com ele, o filtro dos timeframes
+      // do perfil (ex.: 1D/4H/1H/30M) deitava fora todos os alertas de 15M.
+    }),
+  ]);
+}
+
 /** Difunde um sinal de tempo real por Telegram, n8n e push. */
 export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyResult[]> {
+  // ICT ALGO e Asia Range Algo: alerta de setup, a decisão é de quem opera.
+  if (soAlerta(s.estrategia)) return difundirAlertaSetup(s);
   const compra = s.direccao === 'bullish';
   const estrategia = nomeDeEstrategia(s.estrategia);
   return Promise.all([
@@ -820,4 +884,270 @@ export function formatarAtencao(lista: readonly Proximidade[]): string {
 export async function difundirAtencao(lista: readonly Proximidade[]): Promise<NotifyResult[]> {
   if (lista.length === 0) return [];
   return Promise.all([sendTelegram(formatarAtencao(lista))]);
+}
+
+// ---------------------------------------------------------------------------
+// Alertas de POI (o setup Asia Range do journal): o preço chegou ao POI
+// ---------------------------------------------------------------------------
+
+/**
+ * O preço chegou a um POI de sessão na janela de Londres (08:00–11:00), do lado
+ * da estrutura de mercado. Não é um sinal: a decisão da entrada em 1M (MSS + OB)
+ * é de quem opera. Ver `poisDeSessao` em @trading/core.
+ */
+export interface AlertaPoi {
+  simbolo: string;
+  casas: number;
+  lado: 'venda' | 'compra';
+  estrutura: { tipo: 'bos' | 'choch' | 'mss'; em: number };
+  poi: { baixo: number; alto: number; origem: number };
+  tocadoEm: number;
+  preco: number;
+  asia: { baixo: number; alto: number } | null;
+  liquidez: ReadonlyArray<{ preco: number; rotulo: string }>;
+  /** Plano de referência (`planoPoi`): possível entrada, stop e alvo. */
+  plano: { entrada: number; stop: number; alvo: { preco: number; rotulo: string; r: number } | null };
+  chave: string;
+}
+
+const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+/** "qui 10/02 22:30" em hora de Londres. */
+function quandoLondres(t: number): string {
+  const l = relogioLondres(t);
+  const u = new Date(t);
+  // Diferença de Londres para UTC (0 ou 60 minutos): a data de Londres.
+  const desvioMin = (l.minutos - (u.getUTCHours() * 60 + u.getUTCMinutes()) + 1440) % 1440;
+  const d = new Date(t + desvioMin * 60_000);
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${DIAS_SEMANA[l.diaSemana]} ${dd}/${mm} ${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+}
+
+function horaLondres(t: number): string {
+  const l = relogioLondres(t);
+  return `${String(l.hora).padStart(2, '0')}:${String(l.minuto).padStart(2, '0')}`;
+}
+
+const NOME_QUEBRA: Record<string, string> = { bos: 'BOS', choch: 'CHoCH', mss: 'MSS' };
+
+/** As linhas do alerta, sem formatação (servem ao Telegram e ao push). */
+export function linhasAlertaPoi(a: AlertaPoi): { titulo: string; corpo: string[] } {
+  const f = (x: number) => x.toFixed(a.casas);
+  const venda = a.lado === 'venda';
+  const p = a.plano;
+  return {
+    titulo: `${venda ? '🔴 VENDA' : '🟢 COMPRA'} · ${a.simbolo} · POI alcançado`,
+    corpo: [
+      `Possível entrada ${f(p.entrada)} (meio do POI) · stop ${f(p.stop)}`,
+      p.alvo
+        ? `Alvo ${f(p.alvo.preco)} (${p.alvo.rotulo}, ${p.alvo.r.toFixed(1)}R)`
+        : 'Alvo: sem liquidez oposta por tomar — defina-o no gráfico',
+      `Estrutura de 15M de ${venda ? 'baixa' : 'alta'} (${NOME_QUEBRA[a.estrutura.tipo] ?? a.estrutura.tipo} às ${horaLondres(a.estrutura.em)})`,
+      `POI ${f(a.poi.baixo)} – ${f(a.poi.alto)} (${venda ? 'topo' : 'fundo'} de ${quandoLondres(a.poi.origem)})`,
+      `Tocado às ${horaLondres(a.tocadoEm)} de Londres, a ${f(a.preco)}`,
+      ...(a.asia ? [`Ásia ${f(a.asia.baixo)} – ${f(a.asia.alto)}`] : []),
+      ...(a.liquidez.length > 0
+        ? [`Liquidez do lado oposto: ${a.liquidez.slice(0, 2).map((l) => `${f(l.preco)} (${l.rotulo})`).join(' · ')}`]
+        : []),
+      `A decisão é sua: entre só com a reversão em 1M no POI (MSS + OB).`,
+    ],
+  };
+}
+
+/** Mensagem de Telegram (MarkdownV2). */
+export function formatarAlertaPoi(a: AlertaPoi): string {
+  const { titulo, corpo } = linhasAlertaPoi(a);
+  const nl = String.fromCharCode(10);
+  return [
+    `*${escapeMarkdown(titulo)}*`,
+    '',
+    ...corpo.map(escapeMarkdown),
+    '',
+    `_${escapeMarkdown('Alerta, não sinal: a regra mecânica de entrada não teve vantagem medida (backtest 2022–2026). A decisão é sua.')}_`,
+  ].join(nl);
+}
+
+/** Telegram e push (o push só chega a quem segue o instrumento). */
+export async function difundirAlertaPoi(a: AlertaPoi): Promise<NotifyResult[]> {
+  const { titulo, corpo } = linhasAlertaPoi(a);
+  return Promise.all([
+    sendTelegram(formatarAlertaPoi(a)),
+    sendPush({
+      titulo,
+      corpo: corpo.slice(0, 4).join(String.fromCharCode(10)),
+      // Abre o gráfico de 15M na aba dos POI: a análise parte do 15M (os POI e a
+      // estrutura); o 1M é só para a confirmação da entrada.
+      url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=15m&v=poi`,
+      tag: `poi-${a.chave}`,
+      // A janela acaba às 11:00 de Londres: depois disso o aviso já não serve.
+      validadeS: 3600,
+      urgencia: 'high',
+      topico: `poi-${a.simbolo}`,
+      simbolo: a.simbolo,
+    }),
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// O jornal dos sinais — três edições por dia
+// ---------------------------------------------------------------------------
+
+/** Um sinal, como o jornal o conta. */
+export interface LinhaJornal {
+  simbolo: string;
+  timeframe: string;
+  estrategia: string;
+  direccao: 'bullish' | 'bearish';
+  entrada: number;
+  stop: number;
+  alvo: { preco: number; r: number } | null;
+  geradoEm: number;
+  estado: string | null;
+  resultadoR: number | null;
+  casas: number;
+}
+
+/**
+ * Uma edição do jornal (pedido do Agnaldo, 29/09/2026: "3x ao dia, como se
+ * fosse um jornal de todos os sinais"). Substitui o boletim "A que estar
+ * atento" de hora a hora. Ver `apps/engine/src/pipeline/jornal.ts`.
+ */
+export interface EdicaoJornal {
+  /** "Manhã · antes de Londres" */
+  titulo: string;
+  em: number;
+  /** Início do período coberto (a edição anterior). */
+  desde: number;
+  novos: LinhaJornal[];
+  emAberto: LinhaJornal[];
+  fechados: LinhaJornal[];
+  /** Soma em R das operações fechadas hoje (Londres), e quantas. */
+  dia: { r: number; n: number };
+  /** Os setups fixos do ICT ALGO (1H) que o motor segue, e onde estão. */
+  setupsIct: Array<{
+    simbolo: string;
+    casas: number;
+    direccao: 'bullish' | 'bearish';
+    modelo: string;
+    zonaBaixa: number;
+    zonaAlta: number;
+    alvo: number;
+    estado: string;
+  }>;
+  /** Os POI da sessão de Londres (só na edição da manhã). */
+  pois: Array<{ simbolo: string; casas: number; lado: 'venda' | 'compra'; zonas: Array<{ baixo: number; alto: number }> }>;
+  atencao: Proximidade[];
+}
+
+const ESTADO_JORNAL: Record<string, string> = {
+  'a-aguardar-entrada': 'à espera da entrada',
+  'em-curso': 'em curso',
+  'alvo-atingido': 'alvo atingido ✅',
+  'stop-atingido': 'stop ❌',
+  perdido: 'sem entrada',
+  expirado: 'expirado',
+};
+
+function linhaDoJornal(s: LinhaJornal, comResultado: boolean): string {
+  const n = (v: number) => v.toFixed(s.casas);
+  const lado = s.direccao === 'bullish' ? '🟢 COMPRA' : '🔴 VENDA';
+  const alvo = s.alvo ? ` · alvo ${n(s.alvo.preco)} (${s.alvo.r.toFixed(1)}R)` : '';
+  const estado = s.estado ? ESTADO_JORNAL[s.estado] ?? s.estado : 'sem estado';
+  const r = comResultado && s.resultadoR !== null ? ` · ${s.resultadoR >= 0 ? '+' : ''}${s.resultadoR.toFixed(1)}R` : '';
+  return (
+    `${lado} ${s.simbolo} ${s.timeframe} · ${nomeDeEstrategia(s.estrategia)} (${horaLondres(s.geradoEm)})` +
+    `\n   entrada ${n(s.entrada)} · stop ${n(s.stop)}${alvo} — ${estado}${r}`
+  );
+}
+
+/** Máximo de linhas por secção: o Telegram corta nos 4096 caracteres. */
+const MAX_POR_SECCAO = 12;
+
+export function formatarJornal(j: EdicaoJornal): string {
+  const nl = String.fromCharCode(10);
+  const out: string[] = [`📰 *${escapeMarkdown(`Jornal dos sinais · ${j.titulo}`)}*`, escapeMarkdown(quandoLondres(j.em)), ''];
+  const seccao = (titulo: string, linhas: string[], vazio: string) => {
+    out.push(`*${escapeMarkdown(titulo)}*`);
+    if (linhas.length === 0) out.push(escapeMarkdown(vazio));
+    for (const l of linhas.slice(0, MAX_POR_SECCAO)) out.push(escapeMarkdown(l));
+    if (linhas.length > MAX_POR_SECCAO) out.push(escapeMarkdown(`… e mais ${linhas.length - MAX_POR_SECCAO}`));
+    out.push('');
+  };
+
+  seccao(
+    `Novos desde as ${horaLondres(j.desde)} (${j.novos.length})`,
+    j.novos.map((s) => linhaDoJornal(s, false)),
+    'Nenhum sinal novo.',
+  );
+  seccao(`Em aberto (${j.emAberto.length})`, j.emAberto.map((s) => linhaDoJornal(s, false)), 'Nada em aberto.');
+  seccao(
+    `Fechados desde as ${horaLondres(j.desde)} (${j.fechados.length})`,
+    j.fechados.map((s) => linhaDoJornal(s, true)),
+    'Nenhuma operação fechou.',
+  );
+  out.push(
+    escapeMarkdown(
+      j.dia.n > 0
+        ? `Hoje: ${j.dia.n} operação(ões) fechada(s), ${j.dia.r >= 0 ? '+' : ''}${j.dia.r.toFixed(1)}R no total.`
+        : 'Hoje: nenhuma operação fechada ainda.',
+    ),
+  );
+  out.push('');
+
+  seccao(
+    'ICT ALGO · setups fixos de 1H',
+    j.setupsIct.map((s) => {
+      const n = (v: number) => v.toFixed(s.casas);
+      return `${s.direccao === 'bullish' ? 'compra' : 'venda'} ${s.simbolo} · ${s.modelo} · zona ${n(s.zonaBaixa)}–${n(s.zonaAlta)} → alvo ${n(s.alvo)} — ${s.estado}`;
+    }),
+    'Nenhum setup armado: o tiro de 15M só sai de um setup de 1H.',
+  );
+
+  if (j.pois.length > 0) {
+    seccao(
+      'POI de Londres (08:00–11:00)',
+      j.pois.map((p) => {
+        const n = (v: number) => v.toFixed(p.casas);
+        return `${p.simbolo} · ${p.lado === 'venda' ? 'vendas acima' : 'compras abaixo'}: ${p.zonas.map((z) => `${n(z.baixo)}–${n(z.alto)}`).join(' · ')}`;
+      }),
+      '',
+    );
+  }
+
+  if (j.atencao.length > 0) {
+    out.push(`*${escapeMarkdown('A que estar atento')}*`);
+    for (const p of j.atencao) {
+      const f = frasesDeAtencao(p);
+      out.push(escapeMarkdown(`${f.titulo} — ${f.corpo}`));
+    }
+    out.push('');
+  }
+  out.push(`_${escapeMarkdown('Próximas edições: 07:30 · 12:45 · 21:30 (Lisboa). Os sinais continuam a chegar na hora.')}_`);
+
+  let texto = out.join(nl);
+  if (texto.length > 4000) texto = `${texto.slice(0, 3990)}${nl}…`;
+  return texto;
+}
+
+/** Telegram por inteiro; push com o resumo (para todos, sem filtro de instrumento). */
+export async function difundirJornal(j: EdicaoJornal): Promise<NotifyResult[]> {
+  const partes = [
+    `${j.novos.length} novo(s)`,
+    `${j.emAberto.length} em aberto`,
+    j.dia.n > 0 ? `hoje ${j.dia.r >= 0 ? '+' : ''}${j.dia.r.toFixed(1)}R` : null,
+    j.setupsIct.length > 0 ? `${j.setupsIct.length} setup(s) ICT armado(s)` : null,
+  ].filter((x): x is string => x !== null);
+  return Promise.all([
+    sendTelegram(formatarJornal(j)),
+    sendPush({
+      titulo: `📰 Jornal dos sinais · ${j.titulo}`,
+      corpo: partes.join(' · '),
+      url: '/',
+      tag: 'jornal',
+      validadeS: 4 * 3600,
+      urgencia: 'normal',
+      topico: 'jornal',
+    }),
+  ]);
 }

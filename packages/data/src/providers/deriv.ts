@@ -28,6 +28,7 @@ import {
   type CandleRequest,
   type DataProvider,
 } from '../types.js';
+import { paginarVelas, type OpcoesPaginacao, type PedirPagina } from './paginar.js';
 import { RitmoPedidos } from './ritmo.js';
 
 /**
@@ -428,12 +429,18 @@ export async function velasDeriv(
     return (await emCurso.promessa).slice(-count);
   }
 
-  const promessa = pedirVelas(derivSymbol, granularidade, count);
-  pedidosVelas.set(chave, { count, promessa });
+  // Refresca ate a maior quantidade ja guardada: com a copia, as velas antigas
+  // nao custam pedidos (`paginar.ts`), e quem pede menos (o setup fixo, 1000 de
+  // 15M) nao encurta a copia de quem pede mais (o tempo real, 1500). Uma copia
+  // ainda fresca so precisa do que falta para tras dela.
+  const alvo = Math.max(count, guardada?.count ?? 0);
+  const fresca = !!guardada && agora - guardada.em < ttlVelas(granularidade);
+  const promessa = pedirVelas(derivSymbol, granularidade, alvo, { guardadas: guardada?.velas, fresca, agora });
+  pedidosVelas.set(chave, { count: alvo, promessa });
   try {
     const velas = await promessa;
-    cacheVelas.set(chave, { count, velas, em: Date.now() });
-    return velas;
+    cacheVelas.set(chave, { count: alvo, velas, em: Date.now() });
+    return velas.slice(-count);
   } catch (err) {
     // Limite de pedidos atingido (ou fila cheia): velas com poucos minutos valem
     // mais do que um painel vazio. So se servem se cobrirem o pedido e nao forem
@@ -468,6 +475,11 @@ export async function velasDeriv(
  *   · o ritmo da ligacao (`ritmo.ts`): no maximo 4 em voo e um a cada 0,5 s;
  *   · RateLimit NAO se repete (as repeticoes mantinham a ligacao bloqueada):
  *     a ligacao para 55 s e serve-se a ultima copia guardada, se for recente.
+ *
+ * Desde 29/09/2026 um pedido de mais velas do que a janela da Deriv sao varias
+ * paginas (`paginar.ts`) — cada uma um pedido, pelo travao. A copia guardada
+ * poupa-as: ao refrescar, so se pede ate a ultima vela guardada, e o resto vem
+ * da copia. 3500 velas de 1H custam seis pedidos a primeira vez e um depois.
  */
 
 interface VelasGuardadas {
@@ -487,38 +499,52 @@ function ttlVelas(granularidade: number): number {
   return Math.min(60_000, Math.max(15_000, (granularidade * 1000) / 4));
 }
 
-async function pedirVelas(derivSymbol: string, granularidade: number, count: number): Promise<Candle[]> {
-  let resposta: Record<string, unknown>;
-  try {
-    resposta = await conexao.send({
-      ticks_history: derivSymbol,
-      adjust_start_time: 1,
-      count,
-      end: 'latest',
-      start: 1,
-      style: 'candles',
-      granularity: granularidade,
-    });
-  } catch (err) {
-    throw new ProviderError(`Deriv ${err instanceof Error ? err.message : String(err)}`, 'deriv', true);
-  }
+/**
+ * Ate `count` velas, por paginas: a Deriv devolve uma janela por pedido, nao a
+ * quantidade pedida (`paginar.ts`, com as medicoes). Cada pagina e um pedido e
+ * passa pelo travao da ligacao; se uma falhar, falha o conjunto — meia serie
+ * seria outra vez menos historia sem aviso, e quem chama tem a copia guardada.
+ */
+async function pedirVelas(
+  derivSymbol: string,
+  granularidade: number,
+  count: number,
+  opcoes: OpcoesPaginacao,
+): Promise<Candle[]> {
+  const pagina: PedirPagina = async (quantas, end) => {
+    let resposta: Record<string, unknown>;
+    try {
+      resposta = await conexao.send({
+        ticks_history: derivSymbol,
+        adjust_start_time: 1,
+        count: quantas,
+        end,
+        start: 1,
+        style: 'candles',
+        granularity: granularidade,
+      });
+    } catch (err) {
+      throw new ProviderError(`Deriv ${err instanceof Error ? err.message : String(err)}`, 'deriv', true);
+    }
 
-  const erro = resposta['error'] as { code?: string; message?: string } | undefined;
-  if (erro) {
-    throw new ProviderError(`Deriv ${erro.code}: ${erro.message}`, 'deriv', erro.code !== 'InvalidSymbol');
-  }
+    const erro = resposta['error'] as { code?: string; message?: string } | undefined;
+    if (erro) {
+      throw new ProviderError(`Deriv ${erro.code}: ${erro.message}`, 'deriv', erro.code !== 'InvalidSymbol');
+    }
 
-  const brutas = (resposta['candles'] ?? []) as DerivCandle[];
-  return normalizeCandles(
-    brutas.map((c) => ({
-      time: Number(c.epoch) * 1000,
-      open: Number(c.open),
-      high: Number(c.high),
-      low: Number(c.low),
-      close: Number(c.close),
-      volume: 0,
-    })),
-  );
+    const brutas = (resposta['candles'] ?? []) as DerivCandle[];
+    return normalizeCandles(
+      brutas.map((c) => ({
+        time: Number(c.epoch) * 1000,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: 0,
+      })),
+    );
+  };
+  return (await paginarVelas(pagina, granularidade, count, opcoes)).velas;
 }
 
 /** Um pedido feito tao perto do fecho pode ainda nao trazer a vela que acabou de fechar. */

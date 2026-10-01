@@ -23,7 +23,7 @@ const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..') + '/';
 const core = await import(pathToFileURL(RAIZ + 'packages/core/dist/index.js').href);
 const { velasDeriv } = await import(pathToFileURL(RAIZ + 'packages/data/dist/index.js').href);
 const { acharSimbolo } = await import(pathToFileURL(RAIZ + 'packages/data/dist/deriv-simbolos.js').href);
-const { planIctAlgo, planAsiaRangeAlgo, acompanharOperacao, paresSmtIct } = core;
+const { planAsiaRangeAlgo, acompanharOperacao, paresSmtIct } = core;
 
 const SIMBOLO = (process.argv[2] ?? 'US30').toUpperCase();
 const ALGOS = ['ict-algo', 'asia-range-algo'];
@@ -105,7 +105,13 @@ const ltf1 = sinal.estrategia === 'asia-range-algo' ? ate(await pedir(SIMBOLO, 6
 
 const algo = { diarias, par, ltf, ltf1 };
 const ctx = { symbol: SIMBOLO, timeframe: tf };
-const [novo] = sinal.estrategia === 'ict-algo' ? planIctAlgo(velas, ctx, algo) : planAsiaRangeAlgo(velas, ctx, algo);
+// O ICT ALGO passou a disparar a partir do setup fixo de 1H que o motor guarda
+// entre passagens (gatilho.ts); sem esse estado não há como o reconstruir aqui.
+if (sinal.estrategia === 'ict-algo') {
+  console.log('\nO ICT ALGO usa agora o setup fixo de 1H guardado pelo motor; este script só revê o Asia Range Algo.');
+  process.exit(0);
+}
+const [novo] = planAsiaRangeAlgo(velas, ctx, algo);
 
 const fmt = (x) => (x == null ? '—' : Number(x).toFixed(sim?.casas ?? 2));
 const antigo = {

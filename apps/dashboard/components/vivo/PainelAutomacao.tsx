@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { ESTRATEGIAS_ACTIVAS, estrategiaEmTeste } from '@trading/core';
+import { ESTRATEGIAS_ACTIVAS, estrategiaEmTeste, soAlerta } from '@trading/core';
 
 interface Definicoes {
   activa: boolean;
@@ -235,6 +235,16 @@ export function PainelAutomacao() {
         {ESTRATEGIAS_ACTIVAS.map((e) => {
           const teste = estrategiaEmTeste(e.id) !== undefined;
           const ligada = d.estrategias.includes(e.id);
+          if (soAlerta(e.id)) {
+            return (
+              <div key={e.id}>
+                <span className="k">
+                  {e.nome} <span className="selo-sem-taxa">só alerta</span>
+                </span>
+                <span className="v dim">a decisão é sua</span>
+              </div>
+            );
+          }
           return (
             <div key={e.id}>
               <span className="k">

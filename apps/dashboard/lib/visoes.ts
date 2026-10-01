@@ -64,15 +64,17 @@ export type VisaoInstitucional =
  * gráfico: ambos precisam de séries de vários timeframes e de um par
  * correlacionado, que o cliente não tem em mãos.
  */
-export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm' | 'ict-algo' | 'asia-range-algo';
+export type VisaoId = 'resumo' | VisaoInstitucional | 'mmxm' | 'ict-algo' | 'asia-range-algo' | 'poi';
 
 /** As visões que vêm do servidor (não se calculam sobre as velas do gráfico). */
-export const VISOES_DO_SERVIDOR: readonly VisaoId[] = ['mmxm', 'ict-algo', 'asia-range-algo'];
+export const VISOES_DO_SERVIDOR: readonly VisaoId[] = ['mmxm', 'ict-algo', 'asia-range-algo', 'poi'];
 
 export const VISOES: ReadonlyArray<{ id: VisaoId; nome: string; curto: string; contexto?: boolean }> = [
   { id: 'resumo', nome: 'Resumo', curto: 'Resumo' },
   { id: 'ict-algo', nome: 'ICT ALGO', curto: 'ICT ALGO' },
   { id: 'asia-range-algo', nome: 'Asia Range Algo', curto: 'Asia Range' },
+  // Os POI dos alertas de Telegram/push (o setup do journal): aviso, não sinal.
+  { id: 'poi', nome: 'POI de Londres (alertas)', curto: 'POI' },
   { id: 'vwap-bands', nome: 'VWAP −2σ (índices)', curto: 'VWAP' },
   { id: 'connors-rsi2-indices', nome: 'RSI(2) de Connors (índices)', curto: 'RSI(2)' },
   { id: 'tendencia-cripto', nome: 'Tendência 55 dias', curto: 'Tendência' },
@@ -96,6 +98,7 @@ export function nomeVisao(id: string): string {
 /** Visão de cada estratégia validada (a do VWAP vive na visão das bandas). */
 const VISAO_DA_ESTRATEGIA: Record<string, VisaoId> = {
   'compra-vwap-indices': 'vwap-bands',
+  'venda-vwap-indices': 'vwap-bands',
   'connors-rsi2-indices': 'connors-rsi2-indices',
   'tendencia-cripto': 'tendencia-cripto',
   'tendencia-ouro': 'tendencia-cripto',
@@ -490,7 +493,10 @@ export function analisarVisoes(
   const indicesValidos = estrategiasPara(simbolo, timeframe).some((e) => e.id === 'compra-vwap-indices');
   // O VWAP do forex foi desligado em 23/09/2026 (−0,079R, t=−5,5): os sinais
   // antigos continuam a desenhar-se, novos não há.
-  const vw = sinalDe('compra-vwap-indices') ?? sinalDe('vwap-forex-teste');
+  // Compra (−2σ) ou venda (+2σ), a mais recente das duas.
+  const vwCompra = sinalDe('compra-vwap-indices') ?? sinalDe('vwap-forex-teste');
+  const vwVenda = sinalDe('venda-vwap-indices');
+  const vw = vwCompra && vwVenda ? (vwVenda.velasAtras < vwCompra.velasAtras ? vwVenda : vwCompra) : (vwCompra ?? vwVenda);
   const vwapVisao: Visao = {
     id: 'vwap-bands',
     nome: nomeVisao('vwap-bands'),

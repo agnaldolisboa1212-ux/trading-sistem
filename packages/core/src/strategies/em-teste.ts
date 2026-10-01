@@ -41,7 +41,12 @@ import { atrSerie, emaSerie, rsiSerie } from './contexto.js';
 import { computeAnchoredVwap, vwapZScore } from './vwap.js';
 import { sessaoDax } from '../time/europa.js';
 
-export type EstrategiaEmTesteId = 'tendencia-baixa-cripto' | 'abertura-dax-teste' | 'ict-algo' | 'asia-range-algo';
+export type EstrategiaEmTesteId =
+  | 'tendencia-baixa-cripto'
+  | 'abertura-dax-teste'
+  | 'ict-algo'
+  | 'asia-range-algo'
+  | 'venda-vwap-indices';
 
 export interface EstrategiaEmTeste {
   id: EstrategiaEmTesteId;
@@ -81,9 +86,29 @@ export const ICT_ALGO_EM_TESTE: readonly string[] = [
  * Os pares do journal: os JPY, com SMT entre eles, e o USDCAD (5 operações no
  * journal, SMT contra o USDCHF — o DXY que o universo lhe dá não existe na Deriv).
  */
-export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD'];
+/** GBPUSD e EURUSD juntaram-se a 27/09/2026, a pedido do Agnaldo (alerta, como os outros). */
+export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD', 'GBPUSD', 'EURUSD'];
 
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
+  {
+    id: 'venda-vwap-indices',
+    nome: 'Venda na banda +2σ do VWAP',
+    descricao:
+      'O espelho, em venda, da compra no VWAP −2σ: com o instrumento abaixo da média de 200 dias, vende quando uma vela fecha em baixa a +2σ do VWAP do mês.',
+    instrumentos: ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'],
+    timeframes: ['1h', '4h'],
+    entrada:
+      'Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês; RSI(14) acima de 70 ou σ do mês maior do que 2× o ATR. Vende ao fecho.',
+    saida: 'Stop no VWAP + (z + 1)·σ. Metade a −1R (e o stop passa para a entrada), o resto a −2R.',
+    emTeste: {
+      desde: '2026-09-28',
+      revisao: '2026-12-28',
+      antes:
+        'Backtest (HistData 1h/4h, 2022–2026, a simulação da compra invertida): GER30, SP500, US100 e GBPUSD, ' +
+        '232 operações (~22 por ano), 49% de acerto, −0,064R por operação (t=−0,9); sem custos −0,039R; ' +
+        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta.',
+    },
+  },
   {
     id: 'tendencia-baixa-cripto',
     nome: 'Tendência de baixa — cripto',
@@ -126,12 +151,14 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'ict-algo',
     nome: 'ICT ALGO',
     descricao:
-      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). Só envia com confirmação em 5M (CHoCH/MSS e estrutura de 5M a favor).',
+      'O algoritmo ICT de cima para baixo: viés diário, regime, e o modelo que corresponde (Venom, ICT 2022 Mentorship, CRT, Reaper, Silver Bullet, Unicorn, Turtle Soup ou continuação por OTE). O setup lê-se em 1H e fica FIXO; o tiro sai em 5M, quando o preço entra na zona do 1H e o 5M confirma a reversão (29/09/2026).',
     instrumentos: ICT_ALGO_EM_TESTE,
-    // Os três timeframes de execução do algoritmo (os medidos no backtest).
-    timeframes: ['15m', '1h', '4h'],
-    entrada: 'A do modelo escolhido: ordem pendente no PD array (FVG/OB) ou a mercado na vela de rejeição, dentro das killzones de Londres ou Nova Iorque.',
-    saida: 'Stop estrutural do modelo (extremo varrido ou swing); alvo na liquidez mais próxima que pague pelo menos 2R.',
+    // O setup é de 1H (dentro do motor); o tiro sai no fecho de uma vela de 15M.
+    timeframes: ['15m'],
+    entrada:
+      'O tiro em 5M (desde 29/09/2026; era 15M): o preço entra no PD array (FVG/OB) do setup de 1H e o 5M faz CHoCH/MSS a favor; entrada no fecho dessa vela de 5M.',
+    saida:
+      'Stop no extremo feito desde o toque na zona (pelo menos ¼ ATR de 15M); alvo o do 1H — ou o novo extremo, se o preço o tomou antes de recuar à zona —, com pelo menos 2R.',
     emTeste: {
       desde: '2026-09-25',
       revisao: '2026-12-25',
@@ -143,23 +170,38 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'asia-range-algo',
     nome: 'Asia Range Algo',
     descricao:
-      'O modelo do journal: na abertura de Londres o par varre o extremo da Ásia contra o viés, o par correlacionado não acompanha (SMT), e o MSS confirma. Alvo no outro extremo da Ásia ou no POI de Londres. Pares JPY e USDCAD.',
+      'O setup do journal (reescrito a 29/09/2026): viés pela estrutura de 15M, POI nos topos/fundos de 15M dos 3 dias anteriores por tocar, e — na janela de Londres (08:00–11:00) — o preço chega ao POI e faz MSS em 1M. SMT só como confluência.',
     instrumentos: ASIA_RANGE_EM_TESTE,
     timeframes: ['15m'],
     entrada:
-      'MSS em 15M (fecho além do último swing antes do extremo da manipulação) confirmado em 1M (CHoCH/MSS e estrutura de 1M a favor), entre as 08:00 e as 10:00 de Londres. A mercado, no fecho da vela confirmada.',
-    saida: 'Stop no extremo da manipulação; alvo no extremo oposto da Ásia ou no POI de Londres, o mais próximo que pague 2R.',
+      'Reversão em 1M no POI: o primeiro fecho de 1M além do último swing de 1M antes do extremo feito no POI, entre as 08:00 e as 11:00 de Londres. Entrada no fecho dessa vela de 1M.',
+    saida: 'Stop além do POI (pelo menos ¼ ATR de 15M); alvo na liquidez oposta por tomar — o extremo oposto da Ásia ou um topo/fundo para lá dele —, a mais próxima que pague 2R.',
     emTeste: {
       desde: '2026-09-25',
       revisao: '2026-12-25',
       antes:
-        'Backtest 15M 2022+ (entrada na confirmação, alvo 3,5R): +0,12R por operação, t=1,1, 71 operações. A versão com alvo na Ásia/POI e confirmação 1M: 8 sinais em 4,7 anos, todos no stop — sem amostra. Com o MSS no próprio 1M (700 operações) perdeu −0,22R por operação, e o controlo também.',
+        'Estas regras (scripts/backtest/asia-range-poi.mjs, versão A): 730 operações em 2022+ em 8 pares, −0,16R por operação com custos (t=−2,1), ~0 sem custos. A versão anterior (varrimento da Ásia + SMT obrigatório) dava 8 sinais em 4,7 anos.',
     },
   },
 ];
 
 export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
   return ESTRATEGIAS_EM_TESTE.find((e) => e.id === id);
+}
+
+/**
+ * Estratégias que chegam como ALERTA e não como sinal (26/09/2026, a pedido do
+ * Agnaldo: "não desliga mas muda para POI, eu serei a decisão").
+ *
+ * Nenhuma teve vantagem medida (docs/ICT-ALGO.md). Continuam a correr e a
+ * avisar, com os níveis como referência — zona de entrada, invalidação,
+ * liquidez alvo —, mas a decisão é de quem opera: o aviso diz-o, e a automação
+ * de ordens não as executa.
+ */
+export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo', 'venda-vwap-indices'];
+
+export function soAlerta(id: string): boolean {
+  return SO_ALERTA.includes(id);
 }
 
 export function temEstrategiaEmTeste(simbolo: string): boolean {
@@ -355,6 +397,100 @@ export function planAberturaDaxTeste(
         `sai no fecho do DAX às ${hora(fecha)} UTC. ${aviso('abertura-dax-teste')}`,
       assumptions: [e.descricao, e.saida],
       warnings: ['Em teste: só em conta demo. Sensível ao spread — confirme que o do GER30 à abertura é ≤ 2,5 pontos.'],
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// VWAP +2σ em VENDA — o espelho da compra validada (28/09/2026, a pedido do
+// Agnaldo: "ativar venda em VWAP"). Em teste: a compra foi medida e passou; a
+// venda não entrou nessa medição.
+// ---------------------------------------------------------------------------
+
+/** Os mesmos instrumentos da compra no VWAP. */
+export const VWAP_VENDA_EM_TESTE: readonly string[] = ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'];
+
+/** O último fecho diário JÁ FECHADO antes de `agora` está abaixo da média de 200 dias? */
+function abaixoDaMedia200(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {
+  if (!velas1d || velas1d.length < 201) return null;
+  let fim = -1;
+  for (let k = velas1d.length - 1; k >= 0; k--) {
+    if (velas1d[k]!.time < agora) {
+      fim = k;
+      break;
+    }
+  }
+  if (fim < 200) return null;
+  let soma = 0;
+  for (let k = fim - 199; k <= fim; k++) soma += velas1d[k]!.close;
+  return velas1d[fim]!.close < soma / 200;
+}
+
+/**
+ * Venda na banda +2σ do VWAP do mês — a regra da compra ao contrário:
+ *
+ *   regime      o instrumento ABAIXO da média de 200 dias (mercado a cair)
+ *   vela        a vela do sinal fecha em BAIXA
+ *   banda       fecho a +2σ ou mais do VWAP do mês
+ *   extensão    RSI(14) acima de 70, OU σ do mês maior do que 2× o ATR
+ *   stop        VWAP + (z + 1)·σ
+ *   alvos       −1R (fecha metade, stop para a entrada) e −2R
+ */
+export function planVendaVwapIndices(
+  velas: readonly Candle[],
+  ctx: { symbol: string; timeframe: Timeframe },
+  extra: { velas1d?: readonly Candle[] } = {},
+): StrategySignal[] {
+  const lista = velas as Candle[];
+  const i = lista.length - 1;
+  const u = lista[i];
+  if (!u || lista.length < 60) return [];
+  if (abaixoDaMedia200(extra.velas1d, u.time) !== true) return [];
+  if (!(u.close < u.open)) return [];
+  const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
+  const p = vwap.points[vwap.points.length - 1];
+  if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
+  const z = vwapZScore(p, u.close);
+  if (z < 2) return [];
+  const atr = atrSerie(lista, 14)[i] ?? Number.NaN;
+  const rsi = rsiSerie(lista, 14)[i] ?? Number.NaN;
+  if (!(atr > 0) || !Number.isFinite(rsi)) return [];
+  const sobrecomprado = rsi > 70;
+  const deslocado = p.sigma > 2 * atr;
+  if (!sobrecomprado && !deslocado) return [];
+  const entrada = u.close;
+  const stop = p.vwap + (Math.abs(z) + 1) * p.sigma;
+  const risco = stop - entrada;
+  if (!(risco > 0)) return [];
+  return [
+    {
+      strategy: 'venda-vwap-indices',
+      symbol: ctx.symbol,
+      timeframe: ctx.timeframe,
+      direction: 'bearish',
+      regime: 'mean-reversion',
+      index: i,
+      generatedAt: u.time,
+      referencePrice: u.close,
+      entryZoneLow: entrada,
+      entryZoneHigh: entrada,
+      entryPrice: entrada,
+      stopLoss: stop,
+      targets: [
+        { price: entrada - risco, rMultiple: 1, closeFraction: 0.5, rationale: '−1R: fecha metade e passa o stop para a entrada.' },
+        { price: entrada - 2 * risco, rMultiple: 2, closeFraction: 0.5, rationale: '−2R: fecha o resto.' },
+      ],
+      maxRMultiple: 2,
+      conviction: 0,
+      rationale:
+        `Fecho a +${z.toFixed(1)}σ do VWAP do mês${sobrecomprado ? `, RSI(14) ${rsi.toFixed(0)}` : ''}` +
+        `${deslocado ? `, σ do mês ${(p.sigma / atr).toFixed(1)}× o ATR` : ''}, abaixo da média de 200 dias. ` +
+        'Venda no VWAP, EM TESTE: o espelho da compra validada, sem medição própria que passe a barra.',
+      assumptions: ['Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês.'],
+      warnings: [
+        'Em teste: sem taxa de acerto medida.',
+        ...(vwap.usedVolume ? [] : ['Sem volume da Deriv: VWAP ponderado pelo tempo.']),
+      ],
     },
   ];
 }

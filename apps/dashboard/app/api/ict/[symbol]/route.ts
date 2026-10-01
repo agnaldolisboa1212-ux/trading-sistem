@@ -34,7 +34,8 @@ export const maxDuration = 60;
 const GRANULARIDADE_S: Record<string, number> = { '15m': 900, '1h': 3600, '4h': 14400 };
 /**
  * Velas do timeframe de execução. O placar de cada modelo precisa de história
- * (as últimas ~3000 velas); a Deriv serve no máximo 5000 por pedido.
+ * (as últimas ~3000 velas); a Deriv serve uma janela por pedido (695 de 1H,
+ * 620 de 15M) e `velasFechadasDeriv` pagina até às 3500.
  */
 // 1500 como o radar e o motor: pedidos iguais partilham a cache de velas (com
 // quantidades diferentes cada um ia à Deriv e disparava o RateLimit).
@@ -125,6 +126,7 @@ export async function GET(pedido: Request, ctx: { params: Promise<{ symbol: stri
       timeframeReferencia: '1d',
       par: parSimbolo && parVelas.length > 0 ? { simbolo: parSimbolo.codigo, velas: parVelas } : null,
       portfolio,
+      agora: Date.now(),
     });
     if (analise.sinal) {
       const ult = execucao[execucao.length - 1];
