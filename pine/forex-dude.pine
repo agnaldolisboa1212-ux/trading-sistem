@@ -1,0 +1,453 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Agnaldo Lisboa — trading-sistem
+//
+// FOREX DUDE — o ICT ALGO e o Asia Range Algo do trading-sistem num só indicador.
+//
+// Usar num gráfico de 1M a 5M (o gatilho lê o timeframe do gráfico; os setups
+// vêm de 15M e de 1H por request.security, sem repintar: só velas fechadas).
+//
+// ── ASIA RANGE (o setup do journal, packages/core/src/ict/poi-sessao.ts) ──────
+//   Estrutura  o viés é o lado da última quebra de estrutura de 15M até às 08:00
+//              de Londres
+//   POI        topos e fundos de 15M (8 velas de cada lado) dos últimos 3 dias,
+//              ainda por tocar às 08:00, do lado do viés (venda: acima do preço;
+//              compra: abaixo). Zona: topo → [max(abertura, fecho), máximo];
+//              fundo → [mínimo, min(abertura, fecho)]
+//   Ásia       00:00–08:00 de Londres (a caixa)
+//   Janela     08:00–11:00 de Londres
+//   Toque      o preço entra num POI; passar o POI em mais de ½ ATR(15M) anula-o
+//   MSS        o primeiro fecho no gráfico além do último swing do lado oposto
+//              (2 velas de cada lado) — é o sinal, no fecho dessa vela
+//   Stop       além do POI (o mais afastado entre a borda da zona e o extremo
+//              feito), pelo menos ¼ ATR(15M)
+//   Alvo       a liquidez oposta por tomar (extremo oposto da Ásia, mínimo/máximo
+//              de ontem, POI do lado oposto) — a mais próxima que pague 2R
+//   SMT        confluência (opcional): o par correlacionado andou ao contrário
+//              desde as 08:00
+//   Um tiro por dia.
+//
+// ── ICT ALGO (setup fixo de 1H + tiro, packages/core/src/ict/gatilho.ts) ──────
+//   Viés       estrutura diária (a última quebra de swing diário)
+//   Setup 1H   varrimento de liquidez contra o viés (pavio além de um swing de 1H
+//              e fecho de volta), MSS com deslocamento (corpo ≥ 1 ATR) e FVG
+//              deixado pelo deslocamento → zona = o FVG inteiro
+//   Stop       para lá do POI: além do extremo varrido e da zona, + 0,1 ATR(1H)
+//              ("os stops devem ser abaixo da POI; a sniper entry só confirma")
+//   Alvo       a liquidez do outro lado (máximo/mínimo das últimas N velas de 1H);
+//              se o preço o tomar antes de vir à zona, o alvo passa ao novo extremo
+//   Tiro       nas killzones (Londres 02–05h, NY 07–10h, hora de Nova Iorque): o
+//              preço entra na zona e o gráfico faz CHoCH a favor → entrada no
+//              fecho; stop o do setup; RR ≥ 2
+//   Fica fixo até disparar, ser invalidado (stop tocado antes) ou 24 h.
+//
+// Sem vantagem estatística provada (ver os backtests do repositório): alertas,
+// não ordens. A decisão é de quem opera.
+
+//@version=5
+indicator("Forex dude", overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500)
+
+// ═══ Entradas ══════════════════════════════════════════════════════════════
+grpA = "Asia Range"
+usarAsia   = input.bool(true, "Ligar Asia Range", group = grpA)
+poiLen     = input.int(8, "Swing dos POI (velas de 15M de cada lado)", minval = 2, group = grpA)
+estLen     = input.int(3, "Swing da estrutura de 15M", minval = 1, group = grpA)
+diasPoi    = input.int(3, "Dias de POI", minval = 1, maxval = 10, group = grpA)
+smtSym     = input.symbol("", "Par para SMT (opcional, ex.: GBPUSD para o EURUSD)", group = grpA)
+mostrarPoi = input.bool(true, "Desenhar os POI activos", group = grpA)
+
+grpI = "ICT ALGO"
+usarIct    = input.bool(true, "Ligar ICT ALGO", group = grpI)
+ictLen     = input.int(3, "Swing de 1H", minval = 1, group = grpI)
+dispMin    = input.float(1.0, "Deslocamento mínimo do MSS (× ATR 1H)", minval = 0.1, step = 0.1, group = grpI)
+janelaMss  = input.int(10, "Velas de 1H entre varrimento e MSS", minval = 1, group = grpI)
+liqLook    = input.int(60, "Velas de 1H para a liquidez (alvo)", minval = 10, group = grpI)
+filtroVies = input.bool(true, "Só a favor do viés diário", group = grpI)
+soKz       = input.bool(true, "Tiro só nas killzones", group = grpI)
+
+grpG = "Gatilho e geral"
+gatLen   = input.int(2, "Swing do gatilho (velas do gráfico)", minval = 1, group = grpG)
+rrMin    = input.float(2.0, "RR mínimo", minval = 1.0, step = 0.5, group = grpG)
+corCompra = input.color(color.new(#22c55e, 0), "Compra", group = grpG)
+corVenda  = input.color(color.new(#ef4444, 0), "Venda", group = grpG)
+
+TZL = "Europe/London"
+TZN = "America/New_York"
+
+// ═══ Utilitários ═══════════════════════════════════════════════════════════
+emSessao(sess, tz) => not na(time(timeframe.period, sess, tz))
+
+desenharPlano(int dir, float entrada, float stop, float alvo, string nome) =>
+    c = dir == 1 ? corCompra : corVenda
+    t2 = time + 12 * 3600000
+    line.new(time, entrada, t2, entrada, xloc = xloc.bar_time, color = color.new(color.white, 0), width = 1)
+    line.new(time, stop, t2, stop, xloc = xloc.bar_time, color = corVenda, style = line.style_dashed)
+    line.new(time, alvo, t2, alvo, xloc = xloc.bar_time, color = corCompra, style = line.style_dashed)
+    rr = math.abs(alvo - entrada) / math.abs(entrada - stop)
+    txt = nome + (dir == 1 ? " COMPRA" : " VENDA") + "\nENT " + str.tostring(entrada, format.mintick) + "\nSL " + str.tostring(stop, format.mintick) + "\nTP " + str.tostring(alvo, format.mintick) + " (" + str.tostring(rr, "#.0") + "R)"
+    label.new(bar_index, dir == 1 ? low : high, txt, color = c, textcolor = color.white, style = dir == 1 ? label.style_label_up : label.style_label_down, size = size.small)
+
+// Swing do gráfico (gatilho / MSS)
+var float swH = na
+var float swL = na
+var int swHt = na
+var int swLt = na
+gph = ta.pivothigh(high, gatLen, gatLen)
+gpl = ta.pivotlow(low, gatLen, gatLen)
+if not na(gph)
+    swH := gph
+    swHt := time[gatLen]
+if not na(gpl)
+    swL := gpl
+    swLt := time[gatLen]
+
+// ═══ 15M: POI, estrutura, ATR ══════════════════════════════════════════════
+f15() =>
+    ph = ta.pivothigh(high, poiLen, poiLen)
+    pl = ta.pivotlow(low, poiLen, poiLen)
+    sh = ta.pivothigh(high, estLen, estLen)
+    sl = ta.pivotlow(low, estLen, estLen)
+    var float lastH = na
+    var float lastL = na
+    var int vies = 0
+    if not na(sh)
+        lastH := sh
+    if not na(sl)
+        lastL := sl
+    if not na(lastH) and close > lastH
+        vies := 1
+        lastH := na
+    if not na(lastL) and close < lastL
+        vies := -1
+        lastL := na
+    [ph[1], high[poiLen + 1], math.max(open[poiLen + 1], close[poiLen + 1]), time[poiLen + 1], pl[1], math.min(open[poiLen + 1], close[poiLen + 1]), low[poiLen + 1], time[poiLen + 1], vies[1], ta.atr(14)[1]]
+
+[ph15, phTop, phBot, phT, pl15, plTop, plBot, plT, vies15, atr15] = request.security(syminfo.tickerid, "15", f15(), lookahead = barmerge.lookahead_on)
+
+// Ontem (liquidez)
+[ontemH, ontemL] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_on)
+
+// POI guardados
+var float[] pTop = array.new_float()
+var float[] pBot = array.new_float()
+var int[] pT = array.new_int()
+var int[] pLado = array.new_int()     // 1 = topo (POI de venda), -1 = fundo (POI de compra)
+var bool[] pTocado = array.new_bool()
+
+novoPh = not na(ph15) and (phT != phT[1] or na(ph15[1]))
+novoPl = not na(pl15) and (plT != plT[1] or na(pl15[1]))
+if usarAsia and novoPh
+    array.push(pTop, phTop)
+    array.push(pBot, phBot)
+    array.push(pT, phT)
+    array.push(pLado, 1)
+    array.push(pTocado, false)
+if usarAsia and novoPl
+    array.push(pTop, plTop)
+    array.push(pBot, plBot)
+    array.push(pT, plT)
+    array.push(pLado, -1)
+    array.push(pTocado, false)
+
+// Apagar os mais antigos do que os dias de POI (+1 de folga)
+while array.size(pT) > 0
+    if time - array.get(pT, 0) > (diasPoi + 1) * 86400000
+        array.shift(pTop)
+        array.shift(pBot)
+        array.shift(pT)
+        array.shift(pLado)
+        array.shift(pTocado)
+    else
+        break
+
+// ═══ Sessões de Londres ═════════════════════════════════════════════════════
+naAsia   = emSessao("0000-0800", TZL)
+naJanela = emSessao("0800-1100", TZL)
+novoDia  = dayofmonth(time, TZL) != dayofmonth(time[1], TZL)
+
+var float asiaH = na
+var float asiaL = na
+var int asiaT0 = na
+var box caixaAsia = na
+if novoDia
+    asiaH := na
+    asiaL := na
+    asiaT0 := time
+if naAsia
+    asiaH := na(asiaH) ? high : math.max(asiaH, high)
+    asiaL := na(asiaL) ? low : math.min(asiaL, low)
+    if usarAsia
+        if na(caixaAsia) or novoDia
+            caixaAsia := box.new(asiaT0, asiaH, time, asiaL, xloc = xloc.bar_time, bgcolor = color.new(color.blue, 90), border_color = color.new(color.blue, 60), text = "Ásia", text_color = color.new(color.blue, 30), text_size = size.small)
+        else
+            box.set_top(caixaAsia, asiaH)
+            box.set_bottom(caixaAsia, asiaL)
+            box.set_right(caixaAsia, time)
+
+// SMT: o par desde as 08:00
+[parC, parO] = request.security(smtSym == "" ? syminfo.tickerid : smtSym, timeframe.period, [close, open], lookahead = barmerge.lookahead_off)
+
+// ═══ Asia Range: estado do dia ══════════════════════════════════════════════
+var int diaVies = 0
+var bool diaFeito = false
+var int poiIdx = -1         // 1 = há um POI tocado em seguimento
+var float selTop = na
+var float selBot = na
+var float poiExt = na       // extremo feito no POI
+var int poiExtT = na
+var float ab08 = na
+var float parAb08 = na
+var box[] caixasPoi = array.new_box()
+var float maxDesde = na
+var float minDesde = na
+
+inicioJanela = naJanela and not naJanela[1]
+if novoDia
+    diaFeito := false
+    poiIdx := -1
+    poiExt := na
+
+if usarAsia and inicioJanela
+    diaVies := vies15
+    ab08 := open
+    parAb08 := parO
+    maxDesde := high
+    minDesde := low
+    // Os POI do dia: por tocar, do lado do viés, dentro dos dias de POI
+    while array.size(caixasPoi) > 0
+        box.delete(array.pop(caixasPoi))
+    if mostrarPoi and array.size(pT) > 0
+        for i = 0 to array.size(pT) - 1
+            ladoOk = (diaVies == -1 and array.get(pLado, i) == 1 and array.get(pBot, i) > close) or (diaVies == 1 and array.get(pLado, i) == -1 and array.get(pTop, i) < close)
+            if ladoOk and not array.get(pTocado, i) and time - array.get(pT, i) <= diasPoi * 86400000
+                array.push(caixasPoi, box.new(array.get(pT, i), array.get(pTop, i), time + 3 * 3600000, array.get(pBot, i), xloc = xloc.bar_time, bgcolor = color.new(color.purple, 85), border_color = color.new(color.purple, 50), text = "POI", text_color = color.new(color.purple, 20), text_size = size.tiny))
+
+if naJanela
+    maxDesde := na(maxDesde) ? high : math.max(maxDesde, high)
+    minDesde := na(minDesde) ? low : math.min(minDesde, low)
+
+sinalAsia = 0
+float aEnt = na
+float aStop = na
+float aAlvo = na
+
+if usarAsia and naJanela and not diaFeito and diaVies != 0 and array.size(pT) > 0
+    venda = diaVies == -1
+    // 1 — o toque: o primeiro POI do dia em que o preço entra
+    if poiIdx < 0
+        for i = 0 to array.size(pT) - 1
+            ladoOk = venda ? array.get(pLado, i) == 1 : array.get(pLado, i) == -1
+            if ladoOk and not array.get(pTocado, i) and time - array.get(pT, i) <= diasPoi * 86400000
+                tocou = venda ? high >= array.get(pBot, i) : low <= array.get(pTop, i)
+                if tocou and poiIdx < 0
+                    poiIdx := 1
+                    selTop := array.get(pTop, i)
+                    selBot := array.get(pBot, i)
+                    poiExt := venda ? high : low
+                    poiExtT := time
+    // 2 — o extremo, a anulação e o MSS
+    if poiIdx >= 0
+        borda = venda ? selTop : selBot
+        if venda ? high > poiExt : low < poiExt
+            poiExt := venda ? high : low
+            poiExtT := time
+        if venda ? poiExt > borda + 0.5 * atr15 : poiExt < borda - 0.5 * atr15
+            poiIdx := -1           // passou o POI: deixa de valer
+        else
+            nivel = venda ? swL : swH
+            nivelT = venda ? swLt : swHt
+            mss = not na(nivel) and nivelT < poiExtT and time > poiExtT and (venda ? close < nivel : close > nivel)
+            if mss
+                ent = close
+                stp = venda ? math.max(borda, poiExt) : math.min(borda, poiExt)
+                stp := venda ? math.max(stp, ent + 0.25 * atr15) : math.min(stp, ent - 0.25 * atr15)
+                risco = math.abs(ent - stp)
+                // Alvo: a liquidez oposta por tomar, a mais próxima que pague o RR mínimo
+                float melhor = na
+                cands = array.from(venda ? asiaL : asiaH, venda ? ontemL : ontemH)
+                for j = 0 to array.size(pT) - 1
+                    if array.get(pLado, j) == (venda ? -1 : 1) and not array.get(pTocado, j)
+                        array.push(cands, venda ? array.get(pBot, j) : array.get(pTop, j))
+                for c in cands
+                    porTomar = not na(c) and (venda ? c < minDesde and c < ent : c > maxDesde and c > ent)
+                    if porTomar and math.abs(ent - c) >= rrMin * risco
+                        if na(melhor) or (venda ? c > melhor : c < melhor)
+                            melhor := c
+                if not na(melhor)
+                    sinalAsia := venda ? -1 : 1
+                    aEnt := ent
+                    aStop := stp
+                    aAlvo := melhor
+                    diaFeito := true
+
+// Marcar POI tocados (depois da avaliação desta vela)
+if array.size(pT) > 0
+    for i = 0 to array.size(pT) - 1
+        if not array.get(pTocado, i) and time > array.get(pT, i) + 900000 * (poiLen + 1)
+            if array.get(pLado, i) == 1 ? high >= array.get(pBot, i) : low <= array.get(pTop, i)
+                array.set(pTocado, i, true)
+
+smtAsia = smtSym != "" and not na(parAb08) and math.sign(close - ab08) != 0 and math.sign(parC - parAb08) == -math.sign(close - ab08)
+if sinalAsia != 0
+    desenharPlano(sinalAsia, aEnt, aStop, aAlvo, "ASIA" + (smtAsia ? " +SMT" : ""))
+    alert("Forex dude · Asia Range " + (sinalAsia == 1 ? "COMPRA " : "VENDA ") + syminfo.ticker + " ENT " + str.tostring(aEnt, format.mintick) + " SL " + str.tostring(aStop, format.mintick) + " TP " + str.tostring(aAlvo, format.mintick), alert.freq_once_per_bar_close)
+
+// ═══ ICT ALGO: viés diário e setup de 1H ════════════════════════════════════
+fD() =>
+    sh = ta.pivothigh(high, 2, 2)
+    sl = ta.pivotlow(low, 2, 2)
+    var float lh = na
+    var float ll = na
+    var int v = 0
+    if not na(sh)
+        lh := sh
+    if not na(sl)
+        ll := sl
+    if not na(lh) and close > lh
+        v := 1
+        lh := na
+    if not na(ll) and close < ll
+        v := -1
+        ll := na
+    v[1]
+
+viesD = request.security(syminfo.tickerid, "D", fD(), lookahead = barmerge.lookahead_on)
+
+f1h() =>
+    a = ta.atr(14)
+    hiLiq = ta.highest(high, liqLook)
+    loLiq = ta.lowest(low, liqLook)
+    sh = ta.pivothigh(high, ictLen, ictLen)
+    sl = ta.pivotlow(low, ictLen, ictLen)
+    var float lastH = na
+    var float lastL = na
+    if not na(sh)
+        lastH := sh
+    if not na(sl)
+        lastL := sl
+    // Varrimentos: pavio além do swing e fecho de volta
+    var float varAlta = na     // extremo varrido para uma compra (sell-side)
+    var int varAltaBar = na
+    var float varBaixa = na
+    var int varBaixaBar = na
+    if not na(lastL) and low < lastL and close > lastL
+        varAlta := na(varAlta) or bar_index - varAltaBar > janelaMss ? low : math.min(varAlta, low)
+        varAltaBar := bar_index
+    if not na(lastH) and high > lastH and close < lastH
+        varBaixa := na(varBaixa) or bar_index - varBaixaBar > janelaMss ? high : math.max(varBaixa, high)
+        varBaixaBar := bar_index
+    // MSS com deslocamento e o FVG que deixa (velas [2] e [0] sem sobreposição)
+    var int sDir = 0
+    var float sTop = na
+    var float sBot = na
+    var float sStop = na
+    var float sAlvo = na
+    var int sT = na
+    mssAlta = not na(varAlta) and bar_index - varAltaBar <= janelaMss and not na(lastH) and close > lastH and close - open >= dispMin * a
+    mssBaixa = not na(varBaixa) and bar_index - varBaixaBar <= janelaMss and not na(lastL) and close < lastL and open - close >= dispMin * a
+    fvgAlta = low > high[2]
+    fvgBaixa = high < low[2]
+    if mssAlta and fvgAlta
+        topo = low
+        fundo = high[2]
+        stp = math.min(varAlta, fundo) - 0.1 * a
+        alvo = hiLiq
+        if alvo - topo >= rrMin * (topo - stp)
+            sDir := 1
+            sTop := topo
+            sBot := fundo
+            sStop := stp
+            sAlvo := alvo
+            sT := time
+        varAlta := na
+        lastH := na
+    if mssBaixa and fvgBaixa
+        fundo = high
+        topo = low[2]
+        stp = math.max(varBaixa, topo) + 0.1 * a
+        alvo = loLiq
+        if fundo - alvo >= rrMin * (stp - fundo)
+            sDir := -1
+            sTop := topo
+            sBot := fundo
+            sStop := stp
+            sAlvo := alvo
+            sT := time
+        varBaixa := na
+        lastL := na
+    [sDir[1], sTop[1], sBot[1], sStop[1], sAlvo[1], sT[1]]
+
+[hDir, hTop, hBot, hStop, hAlvo, hT] = request.security(syminfo.tickerid, "60", f1h(), lookahead = barmerge.lookahead_on)
+
+// Estado do setup fixo
+var int iDir = 0
+var float iTop = na
+var float iBot = na
+var float iStop = na
+var float iAlvo = na
+var int iDesde = na
+var int iTocado = na
+var box iCaixa = na
+
+if usarIct and not na(hT) and hT != nz(hT[1]) and hDir != 0 and (not filtroVies or hDir == viesD)
+    iDir := hDir
+    iTop := hTop
+    iBot := hBot
+    iStop := hStop
+    iAlvo := hAlvo
+    iDesde := time
+    iTocado := na
+    iCaixa := box.new(hT, iTop, hT + 24 * 3600000, iBot, xloc = xloc.bar_time, bgcolor = color.new(iDir == 1 ? corCompra : corVenda, 85), border_color = color.new(iDir == 1 ? corCompra : corVenda, 40), text = "ICT 1H", text_color = color.new(color.white, 30), text_size = size.tiny)
+
+kz = emSessao("0200-0500", TZN) or emSessao("0700-1000", TZN)
+sinalIct = 0
+float iEnt = na
+
+if usarIct and iDir != 0
+    compra = iDir == 1
+    if time - iDesde > 24 * 3600000
+        iDir := 0                                           // expirou
+    else if compra ? low <= iStop : high >= iStop
+        iDir := 0                                           // stop tocado antes do tiro: invalidado
+    else
+        // Alvo móvel: tomado antes da zona → o novo extremo
+        if na(iTocado) and (compra ? high > iAlvo : low < iAlvo)
+            iAlvo := compra ? high : low
+        if na(iTocado) and (compra ? low <= iTop : high >= iBot)
+            iTocado := time
+        if not na(iTocado) and (not soKz or kz)
+            nivel = compra ? swH : swL
+            nivelT = compra ? swHt : swLt
+            choch = not na(nivel) and (compra ? close > nivel : close < nivel) and (compra ? close[1] <= nivel : close[1] >= nivel)
+            if choch
+                ent = close
+                if math.abs(iAlvo - ent) >= rrMin * math.abs(ent - iStop) and (compra ? iAlvo > ent and iStop < ent : iAlvo < ent and iStop > ent)
+                    sinalIct := iDir
+                    iEnt := ent
+                    desenharPlano(iDir, ent, iStop, iAlvo, "ICT")
+                    alert("Forex dude · ICT ALGO " + (compra ? "COMPRA " : "VENDA ") + syminfo.ticker + " ENT " + str.tostring(ent, format.mintick) + " SL " + str.tostring(iStop, format.mintick) + " TP " + str.tostring(iAlvo, format.mintick), alert.freq_once_per_bar_close)
+                    iDir := 0
+
+// ═══ Desenho e alertas ══════════════════════════════════════════════════════
+bgcolor(usarAsia and naJanela ? color.new(color.yellow, 94) : na, title = "Janela de Londres (08–11)")
+bgcolor(usarIct and kz and not naJanela ? color.new(color.gray, 94) : na, title = "Killzones ICT")
+plotshape(sinalAsia == 1, "Asia compra", shape.triangleup, location.belowbar, corCompra, size = size.small)
+plotshape(sinalAsia == -1, "Asia venda", shape.triangledown, location.abovebar, corVenda, size = size.small)
+plotshape(sinalIct == 1, "ICT compra", shape.diamond, location.belowbar, corCompra, size = size.small)
+plotshape(sinalIct == -1, "ICT venda", shape.diamond, location.abovebar, corVenda, size = size.small)
+
+alertcondition(sinalAsia == 1, "Asia Range · compra", "Forex dude: Asia Range COMPRA {{ticker}} @ {{close}}")
+alertcondition(sinalAsia == -1, "Asia Range · venda", "Forex dude: Asia Range VENDA {{ticker}} @ {{close}}")
+alertcondition(sinalIct == 1, "ICT ALGO · compra", "Forex dude: ICT ALGO COMPRA {{ticker}} @ {{close}}")
+alertcondition(sinalIct == -1, "ICT ALGO · venda", "Forex dude: ICT ALGO VENDA {{ticker}} @ {{close}}")
+
+// Painel
+var table painel = table.new(position.top_right, 2, 4, bgcolor = color.new(color.black, 30), border_width = 1)
+if barstate.islast
+    table.cell(painel, 0, 0, "Forex dude", text_color = color.white)
+    table.cell(painel, 1, 0, syminfo.ticker, text_color = color.white)
+    table.cell(painel, 0, 1, "Viés 15M (Ásia)", text_color = color.silver)
+    table.cell(painel, 1, 1, vies15 == 1 ? "alta" : vies15 == -1 ? "baixa" : "—", text_color = vies15 == 1 ? corCompra : vies15 == -1 ? corVenda : color.silver)
+    table.cell(painel, 0, 2, "Viés diário (ICT)", text_color = color.silver)
+    table.cell(painel, 1, 2, viesD == 1 ? "alta" : viesD == -1 ? "baixa" : "—", text_color = viesD == 1 ? corCompra : viesD == -1 ? corVenda : color.silver)
+    table.cell(painel, 0, 3, "Setup ICT 1H", text_color = color.silver)
+    table.cell(painel, 1, 3, iDir == 1 ? "compra à espera" : iDir == -1 ? "venda à espera" : "nenhum", text_color = color.white)
