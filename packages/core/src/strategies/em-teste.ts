@@ -98,7 +98,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     instrumentos: ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'],
     timeframes: ['1h', '4h'],
     entrada:
-      'Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês; RSI(14) acima de 70 ou σ do mês maior do que 2× o ATR. Vende ao fecho.',
+      'Instrumento abaixo da média de 200 dias; fecho a +2σ do VWAP do mês; RSI(14) acima de 70 ou σ do mês maior do que 2× o ATR. Vende ao fecho.',
     saida: 'Stop no VWAP + (z + 1)·σ. Metade a −1R (e o stop passa para a entrada), o resto a −2R.',
     emTeste: {
       desde: '2026-09-28',
@@ -430,7 +430,7 @@ function abaixoDaMedia200(velas1d: readonly Candle[] | undefined, agora: number)
  * Venda na banda +2σ do VWAP do mês — a regra da compra ao contrário:
  *
  *   regime      o instrumento ABAIXO da média de 200 dias (mercado a cair)
- *   vela        a vela do sinal fecha em BAIXA
+ *   vela        (sem filtro desde 02/10/2026, como na compra)
  *   banda       fecho a +2σ ou mais do VWAP do mês
  *   extensão    RSI(14) acima de 70, OU σ do mês maior do que 2× o ATR
  *   stop        VWAP + (z + 1)·σ
@@ -446,7 +446,6 @@ export function planVendaVwapIndices(
   const u = lista[i];
   if (!u || lista.length < 60) return [];
   if (abaixoDaMedia200(extra.velas1d, u.time) !== true) return [];
-  if (!(u.close < u.open)) return [];
   const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
   const p = vwap.points[vwap.points.length - 1];
   if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
@@ -486,7 +485,7 @@ export function planVendaVwapIndices(
         `Fecho a +${z.toFixed(1)}σ do VWAP do mês${sobrecomprado ? `, RSI(14) ${rsi.toFixed(0)}` : ''}` +
         `${deslocado ? `, σ do mês ${(p.sigma / atr).toFixed(1)}× o ATR` : ''}, abaixo da média de 200 dias. ` +
         'Venda no VWAP, EM TESTE: o espelho da compra validada, sem medição própria que passe a barra.',
-      assumptions: ['Instrumento abaixo da média de 200 dias; vela do sinal em baixa; fecho a +2σ do VWAP do mês.'],
+      assumptions: ['Instrumento abaixo da média de 200 dias; fecho a +2σ do VWAP do mês.'],
       warnings: [
         'Em teste: sem taxa de acerto medida.',
         ...(vwap.usedVolume ? [] : ['Sem volume da Deriv: VWAP ponderado pelo tempo.']),

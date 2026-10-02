@@ -153,10 +153,13 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
     instrumentos: VWAP_VALIDADO,
     timeframes: ['1h', '4h'],
     entrada:
-      'Fecho abaixo de VWAP − 2σ, com RSI(14) < 30 ou σ do mês > 2 ATR — e com o índice acima da média de 200 dias e a própria vela do sinal já a fechar em alta. Compra ao fecho.',
+      'Fecho abaixo de VWAP − 2σ, com RSI(14) < 30 ou σ do mês > 2 ATR — e com o índice acima da média de 200 dias. Compra ao fecho.',
     saida: 'Stop 1σ abaixo. Metade em +1R, o resto em +2R com o stop na entrada depois do primeiro alvo.',
     estatistica: {
-      resumo: '59% das operações fecharam a ganhar, com a confirmação de regime',
+      resumo:
+        'Só com a média de 200 dias (sem o filtro da vela, desde 02/10/2026): +0,086R por operação, t=2,0, ' +
+        '~136 sinais/ano no backtest — a taxa de acerto desta variante não foi medida; os números que se ' +
+        'seguem são da variante com o filtro da vela',
       operacoes: 328,
       acerto: 0.59,
       expectativaR: 0.22,
@@ -164,8 +167,9 @@ export const ESTRATEGIAS_VALIDADAS: readonly EstrategiaValidada[] = [
       dados:
         'HistData, 1h e 4h, 4,7 anos (2022–2026), US100, SP500, DAX e Nikkei, com spread. SEM a confirmação de ' +
         'regime a regra dava +0,026R (t=0,8) com a primeira metade NEGATIVA — não passava. Com o índice acima ' +
-        'da média de 200 dias: +0,086R (t=2,0). Exigindo também a vela do sinal a fechar em alta: +0,216R ' +
-        '(t=3,6), positiva nas duas metades, mas com 70 sinais por ano em vez de 218. Em dois índices que não ' +
+        'da média de 200 dias: +0,086R (t=2,0), 136 sinais por ano — é a regra em produção desde 02/10/2026, a ' +
+        'pedido do Agnaldo, por dar mais sinais. Exigindo também a vela do sinal a fechar em alta dava +0,216R ' +
+        '(t=3,6) com 70 sinais por ano (+15,2R/ano contra +11,7R/ano). Em dois índices que não ' +
         'participaram na medição (UK100, CAC) os mesmos filtros só chegam a ≈0R, por isso a expectativa ' +
         'honesta está entre +0,09R e +0,22R. Os 68% e +0,41R publicados antes vinham de UM ano de dados da ' +
         'Deriv e não se repetiram em 4,7 anos. O GBPUSD corre a mesma regra desde 23/09/2026 para se OBSERVAR: ' +
@@ -395,17 +399,17 @@ export function planCompraVwapIndices(
    * está a cair é apanhar faca.
    *
    * Com o índice acima da média de 200 dias (o mesmo filtro que o Connors usa)
-   * passa a +0,086R (t=2,0), positiva nas duas metades. Exigindo também que a
-   * própria vela do sinal já não esteja a cair, vai a +0,216R (t=3,6) — mas
-   * corta de 218 para 70 sinais por ano, e essa segunda parte do ganho pode ter
-   * boleia da escolha: em dois índices que não participaram na medição os
-   * filtros só chegam a ≈0R. A expectativa honesta está entre os dois.
+   * passa a +0,086R (t=2,0), positiva nas duas metades, com 136 sinais por ano.
+   *
+   * A VELA DO SINAL EM ALTA saiu em 02/10/2026, a pedido do Agnaldo: com ela a
+   * regra media +0,216R (t=3,6) mas só dava 70 sinais por ano — semanas inteiras
+   * sem nenhum. Sem ela: o dobro dos sinais, menos por operação (+11,7R/ano
+   * contra +15,2R/ano no backtest).
    *
    * Sem diárias suficientes não há sinal: é a leitura conservadora.
    */
   const regime = acimaDaMedia200(extra.velas1d, u.time);
   if (regime !== true) return [];
-  if (!(u.close > u.open)) return [];
   const vwap = computeAnchoredVwap(lista, { anchor: 'month' });
   const p = vwap.points[vwap.points.length - 1];
   if (!p || p.index !== i || p.sigma <= 0 || p.samples < 15) return [];
@@ -427,15 +431,12 @@ export function planCompraVwapIndices(
 
   const e = estrategiaValidada('compra-vwap-indices')!;
   /*
-   * A taxa só se mostra onde foi medida.
-   *
-   * Os 67–71% vêm dos quatro índices. O GBPUSD corre a mesma regra mas deu
-   * t=0,9 — está na lista para se observar, não porque passou. Mostrar-lhe uma
-   * percentagem seria inventar-lhe uma confiança que a medição não dá; com
-   * convicção 0 o painel mostra o R máximo em vez de uma taxa.
+   * A taxa só se mostra onde foi medida — e a desta variante (sem o filtro da
+   * vela, desde 02/10/2026) ainda não foi: os 67–71% eram da regra antiga num
+   * ano de dados da Deriv. Mostrar uma percentagem seria inventar uma confiança
+   * que a medição não dá; com convicção 0 o painel mostra o R máximo.
    */
-  const medido = INDICES_VALIDADOS.includes(ctx.symbol);
-  const conviccao = medido ? (sobrevendido && deslocado ? 0.71 : deslocado ? 0.68 : 0.67) : 0;
+  const conviccao = 0;
   return [
     {
       strategy: 'compra-vwap-indices',
