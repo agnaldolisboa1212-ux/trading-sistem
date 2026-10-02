@@ -33,6 +33,8 @@ const ALGOS = new Set(['ict-algo', 'asia-range-algo']);
 const GRAN = { '1m': 60, '5m': 300, '15m': 900, '30m': 1800, '1h': 3600, '4h': 14400, '1d': 86400 };
 /** O que o motor pede por omissão (`INTRADAY_CANDLES`). */
 const VELAS = 300;
+/** O motor pede mais velas para o VWAP do mês chegar ao dia 1 (`VELAS_VWAP`). */
+const VELAS_VWAP = 800;
 /** Os instrumentos do motor quando nenhum perfil escolheu (VIGILANCIA_OMISSAO). */
 const OMISSAO = ['EURUSD', 'GBPUSD', 'US100', 'SP500', 'US30', 'GER30'];
 
@@ -182,10 +184,11 @@ for (const [codigo, tfs] of pares) {
     const regras = estrategiasPara(codigo, tf).filter((e) => !ALGOS.has(e.id));
     if (!g || regras.length === 0) continue;
     const nomes = regras.map((e) => e.id);
+    const janelaMotor = nomes.some((n) => /vwap/.test(n)) ? VELAS_VWAP : VELAS;
     let velas;
     let diarias;
     try {
-      velas = fechadas(await velasDeriv(s.deriv, g, VELAS + 200), g);
+      velas = fechadas(await velasDeriv(s.deriv, g, janelaMotor + 200), g);
       diarias = nomes.some((n) => /vwap|dax/.test(n)) ? fechadas(await velasDeriv(s.deriv, 86400, 400), 86400) : undefined;
     } catch (err) {
       semVelas++;
@@ -195,7 +198,7 @@ for (const [codigo, tfs] of pares) {
     const linha = [];
     for (let i = 0; i < velas.length; i++) {
       if (velas[i].time < desde) continue;
-      const janela = velas.slice(Math.max(0, i + 1 - VELAS), i + 1);
+      const janela = velas.slice(Math.max(0, i + 1 - janelaMotor), i + 1);
       const ultima = janela.at(-1);
       const extra = diarias ? { velas1d: diarias.filter((d) => d.time + 86_400_000 <= ultima.time + g * 1000) } : {};
       const sinais = executarEstrategiasValidadas(janela, { symbol: codigo, timeframe: tf }, extra, nomes).filter(

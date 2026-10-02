@@ -107,6 +107,14 @@ const ALGOS: readonly string[] = ['ict-algo', 'asia-range-algo'];
 const TIMEFRAMES_ALGOS: readonly string[] = ['15m'];
 /** Velas de execução para os algos (o ICT ALGO percorre a história para o placar). */
 const VELAS_ALGO = 1500;
+/**
+ * Velas para o VWAP do mês. A âncora é o dia 1: um mês de 1H a 24 h/dia são ~744
+ * velas, e com as 300 de omissão, na segunda metade do mês, a série já não chegava
+ * ao dia 1 — o "VWAP do mês" passava a ser o da vela mais antiga da janela, que não
+ * é a regra medida no backtest.
+ */
+const VELAS_VWAP = 800;
+const VWAP: readonly string[] = ['compra-vwap-indices', 'venda-vwap-indices'];
 
 /**
  * Última vela fechada já analisada, por `símbolo|timeframe`.
@@ -745,7 +753,12 @@ export async function correrTempoReal(config: EngineConfig): Promise<RelatorioTe
         // --- 2 e 3. velas fechadas ----------------------------------------
         const agora = Date.now();
         // O ICT ALGO precisa de história para o placar dos modelos.
-        const brutas = await velasDeriv(s.deriv, gran, (temAlgo ? Math.max(cfg.velas, VELAS_ALGO) : cfg.velas) + 1);
+        const quantas = Math.max(
+          cfg.velas,
+          temAlgo ? VELAS_ALGO : 0,
+          aplicaveis.some((e) => VWAP.includes(e.id)) ? VELAS_VWAP : 0,
+        );
+        const brutas = await velasDeriv(s.deriv, gran, quantas + 1);
         const fechadas = cortarVelaAberta(brutas, gran, agora);
         // Já se pediram estas velas: servem de referência a outro par sem novo pedido.
         referenciasCache.set(`${s.codigo}|${gran}`, { esperada, velas: fechadas });
