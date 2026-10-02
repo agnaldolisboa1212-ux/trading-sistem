@@ -545,10 +545,10 @@ fVwap() =>
     a = ta.atr(14)
     r = ta.rsi(close, 14)
     ok = n >= 15 and sg > 0 and a > 0
-    // Compra: vela em alta, fecho a −2σ ou menos, RSI(14) < 30 ou σ > 2 ATR
-    cp = ok and close > open and z <= -2 and (r < 30 or sg > 2 * a)
-    // Venda: vela em baixa, fecho a +2σ ou mais, RSI(14) > 70 ou σ > 2 ATR
-    vd = ok and close < open and z >= 2 and (r > 70 or sg > 2 * a)
+    // Compra: fecho a −2σ ou menos, RSI(14) < 30 ou σ > 2 ATR (sem o filtro da vela desde 02/10/2026)
+    cp = ok and z <= -2 and (r < 30 or sg > 2 * a)
+    // Venda: fecho a +2σ ou mais, RSI(14) > 70 ou σ > 2 ATR
+    vd = ok and z >= 2 and (r > 70 or sg > 2 * a)
     cStop = vw - (math.abs(z) + 1) * sg
     vStop = vw + (math.abs(z) + 1) * sg
     [cp[1], vd[1], close[1], cStop[1], vStop[1], time[1]]

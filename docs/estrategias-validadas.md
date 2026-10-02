@@ -767,6 +767,15 @@ A regra em produção passou a exigir as duas confirmações, e **sem velas diá
 dispara** (a leitura conservadora). Reproduzir: o script está em
 `scripts/backtest/vwap-com-confirmacao.mjs`.
 
+### Sem o filtro da vela, por mais sinais (02/10/2026)
+
+Com as duas confirmações o VWAP ficou semanas inteiras sem um sinal (70 por ano no backtest, cerca de
+metade disso nas velas da Deriv). O Agnaldo pediu 2–3 sinais por semana e mandou tirar o filtro da
+vela; fica o regime (média de 200 dias). Pela tabela acima: **136 sinais/ano, +0,086R (t=2,0),
+positiva nas duas metades — +11,7R/ano contra +15,2R/ano com a vela**. A taxa de acerto desta
+variante não foi medida, por isso os sinais saem sem percentagem (convicção 0). A venda no VWAP (em
+teste) perdeu o mesmo filtro, por simetria.
+
 ## GER30 (DAX) em 30m na abertura de Londres — o que se testou
 
 A abertura de Londres (08:00 em Londres) e a do DAX à vista (09:00 em Frankfurt) caem sempre à

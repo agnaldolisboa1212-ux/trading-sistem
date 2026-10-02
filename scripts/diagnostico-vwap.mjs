@@ -5,8 +5,9 @@
  * o filtro que travou cada vela e conta quantos sinais haveria se a regra fosse
  * menos exigente:
  *
- *   regra actual     regime (média de 200 dias) + vela a favor + ±2σ + (RSI ou σ > 2 ATR)
- *   sem vela         sem exigir que a vela do sinal feche a favor
+ *   regra actual     regime (média de 200 dias) + ±2σ + (RSI ou σ > 2 ATR) — sem o
+ *                    filtro da vela desde 02/10/2026
+ *   com vela         também a vela do sinal a fechar a favor (a regra de 22/09 a 02/10)
  *   só ±2σ           sem regime nem vela (a regra antiga, de antes de 22/09)
  *
  * O VWAP do mês é calculado com o histórico todo desde o dia 1 (como no
@@ -88,7 +89,7 @@ for (const codigo of simbolos) {
     }
     const rsi = rsiSerie(velas, 14);
     const atr = atrSerie(velas, 14);
-    const conta = { actual: 0, semVela: 0, so2s: 0, actual300: 0 };
+    const conta = { actual: 0, comVela: 0, so2s: 0, actual300: 0 };
     const travas = {};
     let zMin = Infinity;
     let zMax = -Infinity;
@@ -121,7 +122,6 @@ for (const codigo of simbolos) {
         if (compra2s || venda2s) {
           if (!extremo) motivo = 'sem RSI extremo nem σ > 2 ATR';
           else if (!regFavor) motivo = compra2s ? 'compra abaixo da média de 200 dias' : 'venda acima da média de 200 dias';
-          else if (!velaFavor) motivo = 'vela do sinal contra';
           else motivo = 'SINAL';
         }
         return { z, extremo, velaFavor, regFavor, banda: compra2s || venda2s, motivo };
@@ -134,7 +134,7 @@ for (const codigo of simbolos) {
       }
       travas[e.motivo] = (travas[e.motivo] ?? 0) + 1;
       if (e.motivo === 'SINAL') conta.actual++;
-      if (e.banda && e.extremo && e.regFavor) conta.semVela++;
+      if (e.motivo === 'SINAL' && e.velaFavor) conta.comVela++;
       if (e.banda && e.extremo) conta.so2s++;
       if (e300.motivo === 'SINAL') conta.actual300++;
       if (verbose || e.banda || e300.motivo === 'SINAL') {
@@ -151,7 +151,7 @@ for (const codigo of simbolos) {
       `${codigo} ${tf}: ${n} velas · z entre ${fz(zMin)} e ${fz(zMax)} · regime hoje ${regime(diarias, agora) === 1 ? 'ACIMA' : 'ABAIXO'} da média de 200 dias`,
     );
     console.log(
-      `  sinais: regra actual ${conta.actual} · sem a vela ${conta.semVela} · só ±2σ (sem regime nem vela) ${conta.so2s}` +
+      `  sinais: regra actual ${conta.actual} · com o filtro da vela ${conta.comVela} · só ±2σ (sem regime nem vela) ${conta.so2s}` +
         ` · motor com 300 velas ${conta.actual300}` +
         (ancoraCurta ? ` · em ${ancoraCurta} velas as 300 não chegavam ao dia 1 do mês` : ''),
     );

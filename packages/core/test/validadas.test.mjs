@@ -90,8 +90,8 @@ function mesComQueda(profundidade) {
     v.push(vela(inicio + (200 + k) * H, p, p + 0.05, c - 0.05, c));
     p = c;
   }
-  // A vela do SINAL fecha em alta, ainda bem abaixo do VWAP: é a confirmação
-  // que a regra passou a exigir em 22/09/2026 (não comprar enquanto cai).
+  // A vela do SINAL fecha em alta, ainda bem abaixo do VWAP (a confirmação que
+  // a regra exigiu de 22/09 a 02/10/2026; hoje basta o regime).
   const fundo = 100 - profundidade;
   v.push(vela(inicio + 206 * H, fundo - 0.1, fundo + 0.15, fundo - 0.2, fundo + 0.1));
   return v;
@@ -119,10 +119,20 @@ test('VWAP: compra quando fecha 2σ abaixo, sobrevendido; nada numa oscilação 
   const risco = s[0].entryPrice - s[0].stopLoss;
   assert.ok(Math.abs(s[0].targets[0].price - (s[0].entryPrice + risco)) < 1e-9, 'TP1 a +1R');
   assert.ok(Math.abs(s[0].targets[1].price - (s[0].entryPrice + 2 * risco)) < 1e-9, 'TP2 a +2R');
-  assert.ok(s[0].conviction >= 0.67 && s[0].conviction <= 0.71);
+  // A taxa da variante sem o filtro da vela não foi medida: sem percentagem.
+  assert.equal(s[0].conviction, 0);
 
   const calmo = mesComQueda(0);
   assert.equal(planCompraVwapIndices(calmo, ctx, { velas1d: diariasASubir() }).length, 0);
+});
+
+test('VWAP: sem o filtro da vela, uma vela de sinal ainda a cair também compra (02/10/2026)', () => {
+  const queda = mesComQueda(6);
+  const u = queda[queda.length - 1];
+  // A mesma vela, mas a fechar em baixa (abertura acima do fecho).
+  queda[queda.length - 1] = { ...u, open: u.close + 0.1, high: Math.max(u.high, u.close + 0.15) };
+  const s = planCompraVwapIndices(queda, { symbol: 'US30', timeframe: '1h' }, { velas1d: diariasASubir() });
+  assert.equal(s.length, 1);
 });
 
 test('VWAP: sem regime de alta não há sinal, por mais esticado que esteja', () => {
