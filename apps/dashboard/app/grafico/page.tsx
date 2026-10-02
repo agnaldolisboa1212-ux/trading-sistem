@@ -37,7 +37,7 @@ import { GraficoSmt } from '@/components/vivo/GraficoSmt';
 import { rotuloHorario, usarHorario } from '@/lib/deriv/horarios';
 import { AnaliseAoVivo } from '@/components/vivo/AnaliseAoVivo';
 import { DESENHO_VAZIO, visaoValida, type Desenho, type VisaoId } from '@/lib/visoes';
-import { usarPreco, usarVelas, variacao } from '@/components/vivo/usarPreco';
+import { usarPreco, usarVelas, VELAS_GRAFICO, variacao } from '@/components/vivo/usarPreco';
 import { SaldoCompacto } from '@/components/vivo/CartaoSaldo';
 import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
 import { usarPortfolio } from '@/components/vivo/usarPortfolio';
@@ -80,7 +80,7 @@ function Terminal() {
   const portfolio = usarPortfolio();
   const ecra = usarEcraLargo();
   const { posicoes } = usarCtrader();
-  const velas = usarVelas(codigo, tf, 300);
+  const velas = usarVelas(codigo, tf, VELAS_GRAFICO);
   const preco = usarPreco(codigo);
   const horario = usarHorario(codigo);
 
@@ -401,7 +401,7 @@ function Informacao({
   casas: number;
   tf: Timeframe;
 }) {
-  const v = usarVelas(codigo, tf, 300);
+  const v = usarVelas(codigo, tf, VELAS_GRAFICO);
   const fechadas = v.velas.slice(0, -1);
   const max = fechadas.length ? Math.max(...fechadas.map((c) => c.h)) : null;
   const min = fechadas.length ? Math.min(...fechadas.map((c) => c.l)) : null;

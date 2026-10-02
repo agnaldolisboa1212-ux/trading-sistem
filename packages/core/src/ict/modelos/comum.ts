@@ -38,6 +38,7 @@ import type {
 } from '../types.js';
 import type { VelaReferencia } from '../crt.js';
 import { janelaDe, janelaPermiteEntrada } from '../tempo.js';
+import { stopAlemDoPoi } from '../poi.js';
 
 /** RR mínimo para um sinal sair. O site fala em "3:1 or better"; 2 é a fasquia mínima. */
 export const RR_MINIMO = 2;
@@ -182,6 +183,21 @@ export function fecharSinal(ctx: ContextoModelo, passos: PassoTopDown[], p: Peca
   let n = passos.length + 1;
   const alta = p.direccao === 'bullish';
   const atr = ctx.atr[i] ?? 0;
+
+  // ── Stop para lá do POI de entrada (ver `stopAlemDoPoi`) ──────────────────
+  const alemDoPoi = stopAlemDoPoi({
+    direccao: p.direccao,
+    entrada: p.entrada,
+    stop: p.stop,
+    zonas: [p.pdArray, ...ctx.obs, ...ctx.fvgs, ...ctx.breakers],
+    i,
+    atr,
+  });
+  p = {
+    ...p,
+    stop: alemDoPoi.stop,
+    rotuloStop: alemDoPoi.poi ? `para lá do POI (${alemDoPoi.poi.rotulo})` : `${p.rotuloStop}, com margem`,
+  };
 
   // ── Risco ─────────────────────────────────────────────────────────────────
   const risco = alta ? p.entrada - p.stop : p.stop - p.entrada;

@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react';
 import { AnaliseAoVivo, type MmxmPronto } from '@/components/vivo/AnaliseAoVivo';
 import { GraficoVivo } from '@/components/vivo/GraficoVivo';
 import { usarEcraLargo } from '@/components/vivo/usarEcraLargo';
-import { usarVelas } from '@/components/vivo/usarPreco';
+import { usarVelas, VELAS_GRAFICO } from '@/components/vivo/usarPreco';
 import type { Timeframe } from '@/lib/deriv/simbolos';
 import { guardarTimeframeGrafico } from '@/lib/timeframe-grafico';
 import { DESENHO_VAZIO, type Desenho, type VisaoId } from '@/lib/visoes';
@@ -43,7 +43,7 @@ export function GraficoInstrumento({
   mmxm: MmxmPronto | null;
 }) {
   const router = useRouter();
-  const velas = usarVelas(codigo, tf, 300);
+  const velas = usarVelas(codigo, tf, VELAS_GRAFICO);
   const [desenho, setDesenho] = useState<Desenho>(DESENHO_VAZIO);
   const [cheio, setCheio] = useState(false);
   const ecra = usarEcraLargo();

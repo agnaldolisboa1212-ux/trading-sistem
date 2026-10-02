@@ -99,6 +99,13 @@ export interface VelasVivas {
  * granularidade semanal nativa (`InputValidationFailed`). Agregar aqui em vez
  * de pedir ao servidor mantém o caminho de dados com um só salto.
  */
+/**
+ * Velas que os gráficos carregam: o bastante para arrastar para trás uns dias
+ * em 15M (e meses em 4H). O mesmo número nos dois gráficos para partilharem
+ * a subscrição.
+ */
+export const VELAS_GRAFICO = 1000;
+
 export function usarVelas(
   codigo: string,
   tf: Timeframe,
