@@ -94,7 +94,7 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
     id: 'venda-vwap-indices',
     nome: 'Venda na banda +2σ do VWAP',
     descricao:
-      'O espelho, em venda, da compra no VWAP −2σ: com o instrumento abaixo da média de 200 dias, vende quando uma vela fecha em baixa a +2σ do VWAP do mês.',
+      'O espelho, em venda, da compra no VWAP −2σ: com o instrumento abaixo da média de 200 dias, vende quando uma vela fecha a +2σ do VWAP do mês.',
     instrumentos: ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'],
     timeframes: ['1h', '4h'],
     entrada:
@@ -106,7 +106,8 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       antes:
         'Backtest (HistData 1h/4h, 2022–2026, a simulação da compra invertida): GER30, SP500, US100 e GBPUSD, ' +
         '232 operações (~22 por ano), 49% de acerto, −0,064R por operação (t=−0,9); sem custos −0,039R; ' +
-        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta.',
+        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta; ' +
+        'passou a SINAL que a automação pode executar em 08/10/2026, também a pedido do Agnaldo.',
     },
   },
   {
@@ -198,7 +199,12 @@ export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
  * liquidez alvo —, mas a decisão é de quem opera: o aviso diz-o, e a automação
  * de ordens não as executa.
  */
-export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo', 'venda-vwap-indices'];
+/*
+ * A venda no VWAP saiu desta lista em 08/10/2026, a pedido do Agnaldo: passa a
+ * sinal normal, que a automação executa se estiver ligada no painel dela. O
+ * backtest continua negativo (−0,064R, t=−0,9) — a decisão foi dele.
+ */
+export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo'];
 
 export function soAlerta(id: string): boolean {
   return SO_ALERTA.includes(id);
