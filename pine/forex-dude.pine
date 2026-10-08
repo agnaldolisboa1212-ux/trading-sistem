@@ -95,7 +95,7 @@ vc1h     = input.bool(true, "Em 1H", inline = "vc", group = grpVc)
 vc4h     = input.bool(true, "Em 4H", inline = "vc", group = grpVc)
 grpVv = "Venda no VWAP (+2σ) · 1H/4H"
 usarVv   = input.bool(true, "Ligar", group = grpVv)
-paresVv  = input.string(IDX + ",GBPUSD", "Pares", group = grpVv)
+paresVv  = input.string(IDX + ",GBPUSD,EURUSD,USDCAD,USDJPY,XAUUSD,GOLD", "Pares", group = grpVv)
 vv1h     = input.bool(true, "Em 1H", inline = "vv", group = grpVv)
 vv4h     = input.bool(true, "Em 4H", inline = "vv", group = grpVv)
 grpCo = "RSI(2) de Connors · 1D"
