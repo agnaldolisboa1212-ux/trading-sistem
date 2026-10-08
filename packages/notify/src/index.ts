@@ -383,6 +383,28 @@ export async function sendPush(aviso: AvisoPush): Promise<NotifyResult> {
         error: `HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`,
       };
     }
+    /*
+     * 200 nao quer dizer que chegou a algum telemovel: o painel filtra por
+     * portfolio, timeframe e sessao de cada conta. Um aviso que nao chegou a
+     * ninguem conta como falha, com o motivo — senao fica so o Telegram e o
+     * registo do motor diz que esta tudo bem.
+     */
+    const r = (await res.json().catch(() => null)) as {
+      enviadas?: number;
+      falhas?: number;
+      subscricoes?: number;
+      motivos?: Record<string, number>;
+    } | null;
+    if (r && typeof r.enviadas === 'number' && r.enviadas === 0) {
+      const motivos = Object.entries(r.motivos ?? {})
+        .map(([m, q]) => `${q}× ${m}`)
+        .join('; ');
+      const porque =
+        r.subscricoes === 0
+          ? 'nenhum dispositivo subscrito (active as notificações na app)'
+          : motivos || (r.falhas ? `${r.falhas} envio(s) recusado(s) pelo serviço de push` : 'sem motivo conhecido');
+      return { channel: 'push', ok: false, skipped: false, error: `não chegou a nenhum dispositivo: ${porque}` };
+    }
     return { channel: 'push', ok: true, skipped: false };
   } catch (err) {
     // O painel em baixo nao pode derrubar o varrimento — o Telegram ja saiu.
@@ -656,7 +678,9 @@ export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: s
         ? `Tiro certeiro: setup de 1H fixo, e o 5M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
         : s.estrategia === 'asia-range-algo'
           ? `Tiro no POI: o preço chegou ao POI de 15M na janela de Londres e fez MSS em 1M. A decisão é sua.`
-          : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
+          : s.estrategia === 'venda-vwap-indices'
+            ? `Fecho a +2σ do VWAP do mês, abaixo da média de 200 dias. Metade em −1R, o resto em −2R. A decisão é sua.`
+            : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
     ],
   };
 }
@@ -683,8 +707,8 @@ async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
     sendPush({
       titulo,
       corpo: corpo.join(String.fromCharCode(10)),
-      // A análise parte do 15M, na aba da estratégia que deu o alerta.
-      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=15m&v=${s.estrategia}`,
+      // Os algos analisam-se no 15M; o VWAP no timeframe do sinal (1H/4H).
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.estrategia === 'venda-vwap-indices' ? s.timeframe : '15m'}&v=${s.estrategia}`,
       tag: s.id,
       validadeS: s.validadeAvisoS,
       urgencia: 'high',

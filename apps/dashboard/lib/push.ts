@@ -216,6 +216,14 @@ export interface ResultadoEnvio {
   readonly falhas: number;
   /** Subscricoes de quem desligou os avisos ou nao segue este instrumento. */
   readonly filtradas: number;
+  /**
+   * Porque e que cada subscricao filtrada ficou de fora (motivo → quantas). Sem
+   * isto, um aviso que nao chega a ninguem parece um envio bem-sucedido: o
+   * Telegram sai, o painel responde 200 e o telemovel fica calado.
+   */
+  readonly motivos: Readonly<Record<string, number>>;
+  /** Subscricoes registadas no total (antes dos filtros). */
+  readonly subscricoes: number;
 }
 
 interface PreferenciaAvisos {
@@ -283,16 +291,30 @@ export function querAviso(
   timeframe?: string,
   agora: number = Date.now(),
 ): boolean {
-  if (!simbolo) return true;
-  if (!s.utilizador || !prefs) return false;
+  return motivoSemAviso(s, prefs, simbolo, timeframe, agora) === null;
+}
+
+/** Porque é que esta subscrição NÃO recebe o aviso — `null` se recebe. */
+export function motivoSemAviso(
+  s: Pick<Subscritor, 'utilizador'>,
+  prefs: ReadonlyMap<string, PreferenciaAvisos> | null,
+  simbolo: string | undefined,
+  timeframe?: string,
+  agora: number = Date.now(),
+): string | null {
+  if (!simbolo) return null;
+  if (!s.utilizador) return 'subscrição sem conta';
+  if (!prefs) return 'preferências ilegíveis (Supabase)';
   const p = prefs.get(s.utilizador);
-  if (!p || !p.activos) return false;
-  if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return false;
+  if (!p) return 'conta sem perfil';
+  if (!p.activos) return 'avisos desligados nas Definições';
+  if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return `${simbolo} fora do portfólio`;
   // Quem escolheu horas e dias não recebe sinais de 15 minutos.
-  if (timeframe && !p.timeframes.includes(timeframe)) return false;
+  if (timeframe && !p.timeframes.includes(timeframe)) return `timeframe ${timeframe} fora do perfil`;
   // Quem escolheu uma sessão (Londres, por exemplo) não é acordado fora dela;
   // o sinal continua guardado e visível na lista, só não chega ao telemóvel.
-  return dentroDaSessao(agora, p.sessoes, timeframe);
+  if (!dentroDaSessao(agora, p.sessoes, timeframe)) return `fora da sessão (${p.sessoes.join(', ')})`;
+  return null;
 }
 
 /** O servico de push so aceita ate 32 caracteres de base64 URL-safe. */
@@ -313,15 +335,20 @@ export async function enviarAviso(
   destino: { utilizador?: string } = {},
 ): Promise<ResultadoEnvio> {
   const cfg = configPush();
-  if (!cfg) return { enviadas: 0, removidas: 0, falhas: 0, filtradas: 0 };
+  if (!cfg) return { enviadas: 0, removidas: 0, falhas: 0, filtradas: 0, motivos: {}, subscricoes: 0 };
 
   webpush.setVapidDetails(cfg.assunto, cfg.publica, cfg.privada);
 
   const todas = await subscritores();
   const prefs = destino.utilizador ? null : await preferenciasAvisos();
+  const motivos: Record<string, number> = {};
   const lista = destino.utilizador
     ? todas.filter((s) => s.utilizador === destino.utilizador)
-    : todas.filter((s) => querAviso(s, prefs, aviso.simbolo, aviso.timeframe));
+    : todas.filter((s) => {
+        const m = motivoSemAviso(s, prefs, aviso.simbolo, aviso.timeframe);
+        if (m) motivos[m] = (motivos[m] ?? 0) + 1;
+        return m === null;
+      });
 
   const carga = JSON.stringify({
     titulo: aviso.titulo,
@@ -357,7 +384,7 @@ export async function enviarAviso(
     }),
   );
 
-  return { enviadas, removidas, falhas, filtradas: todas.length - lista.length };
+  return { enviadas, removidas, falhas, filtradas: todas.length - lista.length, motivos, subscricoes: todas.length };
 }
 
 export interface EstadoPush {
