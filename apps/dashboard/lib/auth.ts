@@ -331,6 +331,8 @@ export interface Perfil {
   /** Sessões em que os avisos push chegam (migração 0011). Vazio = qualquer hora. */
   sessoes_sinais?: string[];
   avisos_ativos?: boolean;
+  /** Que notificações chegam e como se mostram (migração 0013). Ver `avisos-config.ts`. */
+  avisos_config?: Record<string, unknown>;
   montante_por_operacao?: number;
   deriv_ligada: boolean;
   deriv_account_id: string | null;

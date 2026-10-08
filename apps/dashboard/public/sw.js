@@ -120,7 +120,10 @@ self.addEventListener('push', (evento) => {
     // A hora em que o servidor enviou, e nao a da entrega: um aviso que
     // chegou tarde mostra-se com a hora certa.
     timestamp: typeof dados.enviadoEm === 'number' ? dados.enviadoEm : Date.now(),
-    vibrate: [60, 40, 60],
+    // Popup fixo: fica no ecrã até lhe tocar (Definições → Notificações).
+    requireInteraction: Boolean(dados.fixo),
+    silent: Boolean(dados.silencioso),
+    vibrate: dados.silencioso ? [] : dados.fixo ? [200, 100, 200, 100, 200] : [60, 40, 60],
     actions: dados.url ? [{ action: 'abrir', title: 'Ver' }] : [],
   };
 

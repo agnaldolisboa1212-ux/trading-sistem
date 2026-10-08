@@ -332,6 +332,8 @@ export interface AvisoPush {
    * (intradiario 1h, swing 4h e 1d...). Sem ele, conta so o instrumento.
    */
   timeframe?: string;
+  /** Entrada, alerta ou operacao: cada pessoa escolhe quais quer receber. */
+  tipo?: 'entrada' | 'alerta' | 'operacao';
 }
 
 function pushConfig(): { url: string; segredo: string } | null {
@@ -383,6 +385,28 @@ export async function sendPush(aviso: AvisoPush): Promise<NotifyResult> {
         error: `HTTP ${res.status}: ${(await res.text()).slice(0, 160)}`,
       };
     }
+    /*
+     * 200 nao quer dizer que chegou a algum telemovel: o painel filtra por
+     * portfolio, timeframe e sessao de cada conta. Um aviso que nao chegou a
+     * ninguem conta como falha, com o motivo — senao fica so o Telegram e o
+     * registo do motor diz que esta tudo bem.
+     */
+    const r = (await res.json().catch(() => null)) as {
+      enviadas?: number;
+      falhas?: number;
+      subscricoes?: number;
+      motivos?: Record<string, number>;
+    } | null;
+    if (r && typeof r.enviadas === 'number' && r.enviadas === 0) {
+      const motivos = Object.entries(r.motivos ?? {})
+        .map(([m, q]) => `${q}× ${m}`)
+        .join('; ');
+      const porque =
+        r.subscricoes === 0
+          ? 'nenhum dispositivo subscrito (active as notificações na app)'
+          : motivos || (r.falhas ? `${r.falhas} envio(s) recusado(s) pelo serviço de push` : 'sem motivo conhecido');
+      return { channel: 'push', ok: false, skipped: false, error: `não chegou a nenhum dispositivo: ${porque}` };
+    }
     return { channel: 'push', ok: true, skipped: false };
   } catch (err) {
     // O painel em baixo nao pode derrubar o varrimento — o Telegram ja saiu.
@@ -402,6 +426,7 @@ export async function broadcastEntry(signal: TradeSignal): Promise<NotifyResult[
     sendTelegram(formatEntryMessage(signal)),
     sendToN8n('signal.entry', signalPayload(signal)),
     sendPush({
+      tipo: 'entrada',
       titulo: `${compra ? 'COMPRA' : 'VENDA'} ${signal.symbol} · ${signal.maxRMultiple.toFixed(1)}R`,
       corpo: `Entrada ${signal.entryPrice.toFixed(5)} · stop ${signal.stopLoss.toFixed(5)} · MMXM ${signal.timeframe}`,
       url: `/instrumento/${signal.symbol}?tf=${signal.timeframe}`,
@@ -419,6 +444,7 @@ export async function broadcastExit(exit: ExitSignal): Promise<NotifyResult[]> {
   return Promise.all([
     sendTelegram(formatExitMessage(exit)),
     sendPush({
+      tipo: 'operacao',
       titulo: `SAIDA ${exit.symbol} · ${exit.rMultipleRealized >= 0 ? '+' : ''}${exit.rMultipleRealized.toFixed(2)}R`,
       corpo: `${exit.reason} a ${exit.price.toFixed(5)} · fechar ${(exit.closeFraction * 100).toFixed(0)}%`,
       url: `/instrumento/${exit.symbol}`,
@@ -617,6 +643,7 @@ export async function difundirSinalIct(s: SinalIct, casas: number): Promise<Noti
   return Promise.all([
     sendTelegram(formatarSinalIct(s, casas)),
     sendPush({
+      tipo: 'alerta',
       titulo: `ICT ALGO · ${s.tipoEntrada === 'pendente' ? '⏳ ' : ''}${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}`,
       corpo: [
         `${NOME_MODELO[s.modelo]} · regime ${NOME_REGIME_ICT[s.regime] ?? s.regime}`,
@@ -656,7 +683,9 @@ export function linhasAlertaSetup(s: SinalTempoReal): { titulo: string; corpo: s
         ? `Tiro certeiro: setup de 1H fixo, e o 5M confirmou a reversão na zona (CHoCH/MSS depois do toque). A decisão é sua.`
         : s.estrategia === 'asia-range-algo'
           ? `Tiro no POI: o preço chegou ao POI de 15M na janela de Londres e fez MSS em 1M. A decisão é sua.`
-          : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
+          : s.estrategia === 'venda-vwap-indices'
+            ? `Fecho a +2σ do VWAP do mês, abaixo da média de 200 dias. Metade em −1R, o resto em −2R. A decisão é sua.`
+            : `A decisão é sua: confirme no gráfico (15M) e procure a reversão em 1M (MSS + OB) antes de entrar.`,
     ],
   };
 }
@@ -681,10 +710,11 @@ async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
     sendTelegram(formatarAlertaSetup(s)),
     sendToN8n('signal.realtime', { ...s, geradoEm: new Date(s.geradoEm).toISOString(), soAlerta: true }),
     sendPush({
+      tipo: 'alerta',
       titulo,
       corpo: corpo.join(String.fromCharCode(10)),
-      // A análise parte do 15M, na aba da estratégia que deu o alerta.
-      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=15m&v=${s.estrategia}`,
+      // Os algos analisam-se no 15M; o VWAP no timeframe do sinal (1H/4H).
+      url: `/grafico?s=${encodeURIComponent(s.simbolo)}&tf=${s.estrategia === 'venda-vwap-indices' ? s.timeframe : '15m'}&v=${s.estrategia}`,
       tag: s.id,
       validadeS: s.validadeAvisoS,
       urgencia: 'high',
@@ -712,6 +742,7 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       geradoEm: new Date(s.geradoEm).toISOString(),
     }),
     sendPush({
+      tipo: 'entrada',
       titulo:
         (s.estadoPreco === 'a-aguardar' ? '⏳ PENDENTE · ' : '') +
         `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}` +
@@ -842,6 +873,7 @@ export async function difundirAvisoOperacao(a: AvisoOperacao): Promise<NotifyRes
     ),
     sendToN8n('signal.progress', { ...a, estrategiaNome: nome }),
     sendPush({
+      tipo: 'operacao',
       titulo: `${a.simbolo} ${a.timeframe} · ${a.titulo}`,
       corpo: `${a.corpo}${nl}${nome}`,
       url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=${a.timeframe}&v=${a.estrategia}&sinal=${encodeURIComponent(a.sinalId)}`,

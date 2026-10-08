@@ -32,6 +32,7 @@ import {
 } from '@trading/core';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { guardarPerfil, lerPerfil } from '@/lib/auth';
+import { lerConfigAvisos, type ConfigAvisos } from '@/lib/avisos-config';
 import { usarAvisos, usarInstalacao } from './Pwa';
 import {
   desligarCtrader,
@@ -49,6 +50,7 @@ export function PainelDefinicoes({ pushDisponivel }: { pushDisponivel: boolean }
       <TimeframesSinais />
       <SessoesSinais />
       <Avisos disponivel={pushDisponivel} />
+      <ConfigNotificacoes />
       <Aparencia />
     </>
   );
@@ -518,9 +520,120 @@ function Avisos({ disponivel }: { disponivel: boolean }) {
       {msg && <p className="section-cap">{msg}</p>}
 
       <p className="section-cap">
-        Recebe um aviso quando um sinal completa os 9 passos do checklist, e outro quando uma
-        posição fecha. Nunca são avisos de propaganda.
+        Os avisos chegam a ESTE dispositivo — ligue-os em cada telemóvel ou computador onde os quer.
+        Escolha abaixo quais recebe e se ficam fixos no ecrã. Nunca são avisos de propaganda.
       </p>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Que notificações chegam e como se mostram (migração 0013).
+ *
+ * Existe porque a pessoa recebia no Telegram sinais que o telemóvel não mostrava:
+ * o push filtrava pelo portfólio e pelos timeframes do perfil, e nada no ecrã o
+ * dizia. Aqui escolhe-se o âmbito ("tudo o que vai para o Telegram") e o popup.
+ */
+function ConfigNotificacoes() {
+  const [config, setConfig] = useState<ConfigAvisos | null>(null);
+  const [estado, setEstado] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  useEffect(() => {
+    void lerPerfil().then((p) => setConfig(lerConfigAvisos(p?.avisos_config)));
+  }, []);
+
+  const mudar = <K extends keyof ConfigAvisos>(k: K, v: ConfigAvisos[K]) =>
+    setConfig((c) => (c ? { ...c, [k]: v } : c));
+
+  const guardar = async () => {
+    if (!config) return;
+    setOcupado(true);
+    setEstado(null);
+    const r = await guardarPerfil({ avisos_config: { ...config } });
+    setOcupado(false);
+    if (r.ok) setEstado({ ok: true, texto: 'Guardado. Os próximos avisos seguem esta escolha — use "Enviar um de teste" acima para ver.' });
+    else
+      setEstado({
+        ok: false,
+        texto: /avisos_config|column/i.test(r.erro)
+          ? 'Falta aplicar a migração 0013 no Supabase para guardar esta escolha.'
+          : r.erro,
+      });
+  };
+
+  const linha = (on: boolean, selo: string, titulo: string, texto: string, alternar: () => void) => (
+    <button type="button" className="conta-linha" aria-pressed={on} onClick={alternar}>
+      <span className={`conta-linha__selo ${on ? 'demo' : ''}`}>{selo}</span>
+      <span className="conta-linha__id">
+        <strong>{titulo}</strong>
+        <em>{texto}</em>
+      </span>
+      <span className="conta-linha__marca" aria-hidden="true">
+        {on ? '✓' : ''}
+      </span>
+    </button>
+  );
+
+  return (
+    <section>
+      <h2>Que notificações recebe</h2>
+      <p className="section-cap">
+        O Telegram recebe tudo o que o motor anuncia. O telemóvel recebe o que escolher aqui.
+      </p>
+      {config === null ? (
+        <div className="brilho" style={{ height: 160, borderRadius: 16 }} />
+      ) : (
+        <>
+          <div className="grupo__caixa">
+            {linha(config.entradas, 'ENT', 'Sinais de entrada', 'Connors, VWAP, tendência, rompimento, DAX…', () =>
+              mudar('entradas', !config.entradas),
+            )}
+            {linha(config.alertas, 'ALE', 'Alertas de setup', 'ICT ALGO, Asia Range e venda no VWAP — a decisão é sua', () =>
+              mudar('alertas', !config.alertas),
+            )}
+            {linha(config.operacoes, 'OPE', 'Operações em curso', 'Alvo atingido, stop, saída por tempo', () =>
+              mudar('operacoes', !config.operacoes),
+            )}
+          </div>
+
+          <h3 style={{ marginTop: 14 }}>De que instrumentos</h3>
+          <div className="grupo__caixa">
+            {linha(config.ambito === 'tudo', 'TUD', 'Tudo o que vai para o Telegram', 'Todos os instrumentos e timeframes que o motor segue', () =>
+              mudar('ambito', 'tudo'),
+            )}
+            {linha(config.ambito === 'portfolio', 'POR', 'Só o meu portfólio', 'Os instrumentos do perfil e os timeframes escolhidos acima', () =>
+              mudar('ambito', 'portfolio'),
+            )}
+          </div>
+
+          <h3 style={{ marginTop: 14 }}>Como aparecem</h3>
+          <div className="grupo__caixa">
+            {linha(config.fixo, 'POP', 'Popup fixo no ecrã', 'Fica visível até lhe tocar, com vibração mais longa', () =>
+              mudar('fixo', !config.fixo),
+            )}
+            {linha(config.silencioso, 'SIL', 'Silencioso', 'Sem som nem vibração', () => mudar('silencioso', !config.silencioso))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <button type="button" className="btn primary" onClick={() => void guardar()} disabled={ocupado}>
+              {ocupado ? 'a guardar…' : 'Guardar notificações'}
+            </button>
+          </div>
+          {estado && (
+            <div className={estado.ok ? 'notice' : 'ob__erro'} style={{ marginTop: 10 }}>
+              {estado.texto}
+            </div>
+          )}
+          <p className="section-cap" style={{ marginTop: 10 }}>
+            No Android, para o aviso aparecer por cima do ecrã (e não só na barra), abra Definições do
+            telemóvel → Apps → Chrome (ou a app instalada) → Notificações → este site, e ligue
+            &quot;Mostrar no ecrã&quot; / &quot;Pop-up&quot; e o som. Isso é do sistema: nenhuma página o pode ligar.
+          </p>
+        </>
+      )}
     </section>
   );
 }
