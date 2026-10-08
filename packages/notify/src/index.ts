@@ -332,6 +332,8 @@ export interface AvisoPush {
    * (intradiario 1h, swing 4h e 1d...). Sem ele, conta so o instrumento.
    */
   timeframe?: string;
+  /** Entrada, alerta ou operacao: cada pessoa escolhe quais quer receber. */
+  tipo?: 'entrada' | 'alerta' | 'operacao';
 }
 
 function pushConfig(): { url: string; segredo: string } | null {
@@ -424,6 +426,7 @@ export async function broadcastEntry(signal: TradeSignal): Promise<NotifyResult[
     sendTelegram(formatEntryMessage(signal)),
     sendToN8n('signal.entry', signalPayload(signal)),
     sendPush({
+      tipo: 'entrada',
       titulo: `${compra ? 'COMPRA' : 'VENDA'} ${signal.symbol} · ${signal.maxRMultiple.toFixed(1)}R`,
       corpo: `Entrada ${signal.entryPrice.toFixed(5)} · stop ${signal.stopLoss.toFixed(5)} · MMXM ${signal.timeframe}`,
       url: `/instrumento/${signal.symbol}?tf=${signal.timeframe}`,
@@ -441,6 +444,7 @@ export async function broadcastExit(exit: ExitSignal): Promise<NotifyResult[]> {
   return Promise.all([
     sendTelegram(formatExitMessage(exit)),
     sendPush({
+      tipo: 'operacao',
       titulo: `SAIDA ${exit.symbol} · ${exit.rMultipleRealized >= 0 ? '+' : ''}${exit.rMultipleRealized.toFixed(2)}R`,
       corpo: `${exit.reason} a ${exit.price.toFixed(5)} · fechar ${(exit.closeFraction * 100).toFixed(0)}%`,
       url: `/instrumento/${exit.symbol}`,
@@ -639,6 +643,7 @@ export async function difundirSinalIct(s: SinalIct, casas: number): Promise<Noti
   return Promise.all([
     sendTelegram(formatarSinalIct(s, casas)),
     sendPush({
+      tipo: 'alerta',
       titulo: `ICT ALGO · ${s.tipoEntrada === 'pendente' ? '⏳ ' : ''}${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}`,
       corpo: [
         `${NOME_MODELO[s.modelo]} · regime ${NOME_REGIME_ICT[s.regime] ?? s.regime}`,
@@ -705,6 +710,7 @@ async function difundirAlertaSetup(s: SinalTempoReal): Promise<NotifyResult[]> {
     sendTelegram(formatarAlertaSetup(s)),
     sendToN8n('signal.realtime', { ...s, geradoEm: new Date(s.geradoEm).toISOString(), soAlerta: true }),
     sendPush({
+      tipo: 'alerta',
       titulo,
       corpo: corpo.join(String.fromCharCode(10)),
       // Os algos analisam-se no 15M; o VWAP no timeframe do sinal (1H/4H).
@@ -736,6 +742,7 @@ export async function difundirSinalTempoReal(s: SinalTempoReal): Promise<NotifyR
       geradoEm: new Date(s.geradoEm).toISOString(),
     }),
     sendPush({
+      tipo: 'entrada',
       titulo:
         (s.estadoPreco === 'a-aguardar' ? '⏳ PENDENTE · ' : '') +
         `${compra ? 'COMPRA' : 'VENDA'} ${s.simbolo} ${s.timeframe}` +
@@ -866,6 +873,7 @@ export async function difundirAvisoOperacao(a: AvisoOperacao): Promise<NotifyRes
     ),
     sendToN8n('signal.progress', { ...a, estrategiaNome: nome }),
     sendPush({
+      tipo: 'operacao',
       titulo: `${a.simbolo} ${a.timeframe} · ${a.titulo}`,
       corpo: `${a.corpo}${nl}${nome}`,
       url: `/grafico?s=${encodeURIComponent(a.simbolo)}&tf=${a.timeframe}&v=${a.estrategia}&sinal=${encodeURIComponent(a.sinalId)}`,

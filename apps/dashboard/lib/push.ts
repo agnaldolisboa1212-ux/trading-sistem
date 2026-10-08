@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import webpush from 'web-push';
 import { dentroDaSessao, timeframesDoPerfil } from '@trading/core';
+import { CONFIG_AVISOS_OMISSAO, lerConfigAvisos, tipoLigado, type ConfigAvisos, type TipoAviso } from './avisos-config';
 
 /**
  * Notificacoes push — registo de subscritores e envio.
@@ -208,6 +209,8 @@ export interface Aviso {
   readonly simbolo?: string;
   /** Timeframe do sinal: so chega a quem o tem nos objetivos. */
   readonly timeframe?: string;
+  /** Entrada, alerta ou operação: cada pessoa escolhe quais quer (Definições). */
+  readonly tipo?: TipoAviso;
 }
 
 export interface ResultadoEnvio {
@@ -233,6 +236,8 @@ interface PreferenciaAvisos {
   readonly timeframes: readonly string[];
   /** Sessões escolhidas nas Definições; vazio = qualquer hora. */
   readonly sessoes: readonly string[];
+  /** Que avisos quer e como se mostram (migração 0013). */
+  readonly config: ConfigAvisos;
 }
 
 /** Preferencias de avisos de todas as contas — lidas com a chave do servidor. */
@@ -246,7 +251,9 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
         cache: 'no-store',
         signal: AbortSignal.timeout(10_000),
       });
-    let r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,sessoes_sinais,avisos_ativos');
+    let r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,sessoes_sinais,avisos_ativos,avisos_config');
+    // Migração 0013 por aplicar: sem a coluna, vale a configuração por omissão.
+    if (!r.ok) r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,sessoes_sinais,avisos_ativos');
     // Migração 0011 por aplicar: sem a coluna, vale "qualquer hora".
     if (!r.ok) r = await pedir('utilizador_id,instrumentos,objetivos,timeframes_sinais,avisos_ativos');
     // Migração 0008 por aplicar: sem a coluna, valem os timeframes do objetivo.
@@ -259,6 +266,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
       timeframes_sinais?: string[] | null;
       sessoes_sinais?: string[] | null;
       avisos_ativos: boolean | null;
+      avisos_config?: unknown;
     }>;
     return new Map(
       linhas.map((l) => [
@@ -268,6 +276,7 @@ async function preferenciasAvisos(): Promise<Map<string, PreferenciaAvisos> | nu
           instrumentos: l.instrumentos ?? [],
           timeframes: timeframesDoPerfil(l.objetivos, l.timeframes_sinais),
           sessoes: l.sessoes_sinais ?? [],
+          config: lerConfigAvisos(l.avisos_config),
         },
       ]),
     );
@@ -290,8 +299,9 @@ export function querAviso(
   simbolo: string | undefined,
   timeframe?: string,
   agora: number = Date.now(),
+  tipo?: TipoAviso,
 ): boolean {
-  return motivoSemAviso(s, prefs, simbolo, timeframe, agora) === null;
+  return motivoSemAviso(s, prefs, simbolo, timeframe, agora, tipo) === null;
 }
 
 /** Porque é que esta subscrição NÃO recebe o aviso — `null` se recebe. */
@@ -301,6 +311,7 @@ export function motivoSemAviso(
   simbolo: string | undefined,
   timeframe?: string,
   agora: number = Date.now(),
+  tipo?: TipoAviso,
 ): string | null {
   if (!simbolo) return null;
   if (!s.utilizador) return 'subscrição sem conta';
@@ -308,9 +319,13 @@ export function motivoSemAviso(
   const p = prefs.get(s.utilizador);
   if (!p) return 'conta sem perfil';
   if (!p.activos) return 'avisos desligados nas Definições';
-  if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return `${simbolo} fora do portfólio`;
-  // Quem escolheu horas e dias não recebe sinais de 15 minutos.
-  if (timeframe && !p.timeframes.includes(timeframe)) return `timeframe ${timeframe} fora do perfil`;
+  if (!tipoLigado(p.config, tipo)) return `avisos de ${tipo} desligados nas Definições`;
+  // Âmbito "tudo": o mesmo que o Telegram, sem o filtro do portfólio.
+  if (p.config.ambito === 'portfolio') {
+    if (!p.instrumentos.some((i) => i.toUpperCase() === simbolo.toUpperCase())) return `${simbolo} fora do portfólio`;
+    // Quem escolheu horas e dias não recebe sinais de 15 minutos.
+    if (timeframe && !p.timeframes.includes(timeframe)) return `timeframe ${timeframe} fora do perfil`;
+  }
   // Quem escolheu uma sessão (Londres, por exemplo) não é acordado fora dela;
   // o sinal continua guardado e visível na lista, só não chega ao telemóvel.
   if (!dentroDaSessao(agora, p.sessoes, timeframe)) return `fora da sessão (${p.sessoes.join(', ')})`;
@@ -340,23 +355,31 @@ export async function enviarAviso(
   webpush.setVapidDetails(cfg.assunto, cfg.publica, cfg.privada);
 
   const todas = await subscritores();
-  const prefs = destino.utilizador ? null : await preferenciasAvisos();
+  // Também no teste: o aviso de teste mostra-se como os verdadeiros (popup, som).
+  const prefs = await preferenciasAvisos();
   const motivos: Record<string, number> = {};
   const lista = destino.utilizador
     ? todas.filter((s) => s.utilizador === destino.utilizador)
     : todas.filter((s) => {
-        const m = motivoSemAviso(s, prefs, aviso.simbolo, aviso.timeframe);
+        const m = motivoSemAviso(s, prefs, aviso.simbolo, aviso.timeframe, Date.now(), aviso.tipo);
         if (m) motivos[m] = (motivos[m] ?? 0) + 1;
         return m === null;
       });
 
-  const carga = JSON.stringify({
-    titulo: aviso.titulo,
-    corpo: aviso.corpo,
-    url: aviso.url,
-    tag: aviso.tag,
-    enviadoEm: Date.now(),
-  });
+  // A carga leva o "como" de cada pessoa: popup fixo e sem som (sw.js).
+  const enviadoEm = Date.now();
+  const cargaPara = (s: Subscritor) => {
+    const c = (s.utilizador && prefs?.get(s.utilizador)?.config) || CONFIG_AVISOS_OMISSAO;
+    return JSON.stringify({
+      titulo: aviso.titulo,
+      corpo: aviso.corpo,
+      url: aviso.url,
+      tag: aviso.tag,
+      enviadoEm,
+      fixo: c.fixo,
+      silencioso: c.silencioso,
+    });
+  };
   const opcoes = {
     TTL: Math.max(60, Math.round(aviso.validadeS ?? 3600)),
     urgency: aviso.urgencia ?? 'high',
@@ -370,7 +393,7 @@ export async function enviarAviso(
   await Promise.all(
     lista.map(async (s) => {
       try {
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, carga, opcoes);
+        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, cargaPara(s), opcoes);
         enviadas++;
       } catch (err) {
         const codigo = (err as { statusCode?: number }).statusCode;
