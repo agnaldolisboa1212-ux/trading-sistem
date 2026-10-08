@@ -30,9 +30,12 @@ test('só índices e cripto validados, nos timeframes medidos', () => {
   // Em 1H o US100 tem o VWAP validado e, em teste, a venda no VWAP (28/09/2026)
   // e o ICT ALGO (25/09/2026).
   assert.deepEqual(estrategiasPara('US100', '1h').map((e) => e.id), ['compra-vwap-indices', 'venda-vwap-indices']);
-  // A venda no VWAP é sinal (pode ir para a automação) desde 08/10/2026; os algos continuam alerta.
-  assert.equal(soAlerta('venda-vwap-indices'), false);
-  assert.equal(soAlerta('ict-algo'), true);
+  // A venda no VWAP continua alerta (a automação não a executa), agora também no forex e no ouro.
+  assert.equal(soAlerta('venda-vwap-indices'), true);
+  for (const sim of ['EURUSD', 'USDCAD', 'USDJPY', 'XAUUSD']) {
+    assert.ok(estrategiasPara(sim, '1h').some((e) => e.id === 'venda-vwap-indices'), sim);
+    assert.ok(!estrategiasPara(sim, '1h').some((e) => e.id === 'compra-vwap-indices'), sim);
+  }
   assert.deepEqual(
     estrategiasPara('US100', '1h').filter((e) => !('emTeste' in e)).map((e) => e.id),
     ['compra-vwap-indices'],

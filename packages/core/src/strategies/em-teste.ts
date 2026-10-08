@@ -89,13 +89,30 @@ export const ICT_ALGO_EM_TESTE: readonly string[] = [
 /** GBPUSD e EURUSD juntaram-se a 27/09/2026, a pedido do Agnaldo (alerta, como os outros). */
 export const ASIA_RANGE_EM_TESTE: readonly string[] = ['GBPJPY', 'USDJPY', 'EURJPY', 'USDCAD', 'GBPUSD', 'EURUSD'];
 
+/**
+ * EURUSD, USDCAD, USDJPY e XAUUSD juntaram-se em 08/10/2026, a pedido do Agnaldo
+ * (alerta, como os outros). Não foram medidos nesta regra; o VWAP do forex sem
+ * regime deu −0,079R em 14,5 anos (docs/estrategias-validadas.md).
+ */
+export const VWAP_VENDA_EM_TESTE: readonly string[] = [
+  'US100',
+  'SP500',
+  'US30',
+  'GER30',
+  'GBPUSD',
+  'EURUSD',
+  'USDCAD',
+  'USDJPY',
+  'XAUUSD',
+];
+
 export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
   {
     id: 'venda-vwap-indices',
     nome: 'Venda na banda +2σ do VWAP',
     descricao:
       'O espelho, em venda, da compra no VWAP −2σ: com o instrumento abaixo da média de 200 dias, vende quando uma vela fecha a +2σ do VWAP do mês.',
-    instrumentos: ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'],
+    instrumentos: VWAP_VENDA_EM_TESTE,
     timeframes: ['1h', '4h'],
     entrada:
       'Instrumento abaixo da média de 200 dias; fecho a +2σ do VWAP do mês; RSI(14) acima de 70 ou σ do mês maior do que 2× o ATR. Vende ao fecho.',
@@ -106,8 +123,8 @@ export const ESTRATEGIAS_EM_TESTE: readonly EstrategiaEmTeste[] = [
       antes:
         'Backtest (HistData 1h/4h, 2022–2026, a simulação da compra invertida): GER30, SP500, US100 e GBPUSD, ' +
         '232 operações (~22 por ano), 49% de acerto, −0,064R por operação (t=−0,9); sem custos −0,039R; ' +
-        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta; ' +
-        'passou a SINAL que a automação pode executar em 08/10/2026, também a pedido do Agnaldo.',
+        'controlo (UK100, FRA40, JP225) −0,168R. Sem vantagem medida — activada a pedido, como alerta ' +
+        '(a automação não a executa). EURUSD, USDCAD, USDJPY e XAUUSD juntaram-se em 08/10/2026, sem medição.',
     },
   },
   {
@@ -199,12 +216,7 @@ export function estrategiaEmTeste(id: string): EstrategiaEmTeste | undefined {
  * liquidez alvo —, mas a decisão é de quem opera: o aviso diz-o, e a automação
  * de ordens não as executa.
  */
-/*
- * A venda no VWAP saiu desta lista em 08/10/2026, a pedido do Agnaldo: passa a
- * sinal normal, que a automação executa se estiver ligada no painel dela. O
- * backtest continua negativo (−0,064R, t=−0,9) — a decisão foi dele.
- */
-export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo'];
+export const SO_ALERTA: readonly string[] = ['ict-algo', 'asia-range-algo', 'venda-vwap-indices'];
 
 export function soAlerta(id: string): boolean {
   return SO_ALERTA.includes(id);
@@ -413,8 +425,6 @@ export function planAberturaDaxTeste(
 // venda não entrou nessa medição.
 // ---------------------------------------------------------------------------
 
-/** Os mesmos instrumentos da compra no VWAP. */
-export const VWAP_VENDA_EM_TESTE: readonly string[] = ['US100', 'SP500', 'US30', 'GER30', 'GBPUSD'];
 
 /** O último fecho diário JÁ FECHADO antes de `agora` está abaixo da média de 200 dias? */
 function abaixoDaMedia200(velas1d: readonly Candle[] | undefined, agora: number): boolean | null {

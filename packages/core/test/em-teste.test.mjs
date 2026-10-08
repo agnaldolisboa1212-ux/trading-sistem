@@ -25,10 +25,11 @@ const vela = (time, open, high, low, close) => ({ time, open, high, low, close, 
 
 test('em teste: forex e ouro intradiário, nunca como validadas', () => {
   // O VWAP do forex foi DESLIGADO em 23/09/2026 (−0,079R, t=−5,5 em 5487
-  // operações). O EURUSD ficou sem estratégia nenhuma, e é a leitura honesta.
+  // operações). Em 08/10/2026 o EURUSD voltou a ter só a VENDA no VWAP, como
+  // alerta e com o filtro de regime, a pedido do Agnaldo.
   // O ICT ALGO lê o setup em 1H mas dispara em 15M (29/09/2026): em 1H e 4H o
-  // EURUSD e o GBPJPY já não têm estratégia.
-  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), []);
+  // GBPJPY não tem estratégia.
+  assert.deepEqual(estrategiasPara('EURUSD', '1h').map((e) => e.id), ['venda-vwap-indices']);
   assert.equal(estrategiaActiva('vwap-forex-teste'), undefined);
   assert.deepEqual(estrategiasPara('GBPJPY', '4h').map((e) => e.id), []);
   // Em 15M só os dois algos, em teste desde 25/09/2026.
